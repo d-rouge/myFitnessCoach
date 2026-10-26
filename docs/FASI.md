@@ -177,13 +177,13 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.3 Piano
 
-- [ ] Feasibility check con proposta di obiettivo realistico.
-- [ ] Generazione macro (fasi, settimane, target).
-- [ ] Generazione micro (sessioni, blocchi, alternative).
-- [ ] Validator + safety critic + fallback template.
-- [ ] Diff e "perché" nella UI.
-- [ ] Board settimanale multisport (palestra, corsa, bici, nuoto).
-- [ ] Card "oggi" + alternative (15/30/45 min, casa/palestra, basso impatto).
+- [x] Feasibility check con proposta di obiettivo realistico (`project5k` e card feasibility nel web).
+- [x] Generazione macro (fasi, settimane, target) deterministica da Baseline (`generateMacroPlan`).
+- [x] Generazione micro (sessioni, blocchi strutturati, alternative 15/30/basso impatto) da Baseline (`generateMicroPlan`).
+- [x] Validator + safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio).
+- [x] Diff e "perché" nella UI (focus fase, intensità RPE e criteri di successo).
+- [x] Board settimanale multisport (palestra, corsa, bici, nuoto, mobilità).
+- [x] Card "oggi" + alternative (15/30 min, cyclette/basso impatto) e salvataggio stato completamento (`PATCH /api/plan/sessions/:id`).
 
 #### 1.4 Esecuzione e feedback
 

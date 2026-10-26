@@ -34,6 +34,16 @@ export {
   upsertNutrition,
 } from "./nutrition";
 export {
+  getCurrentMacroPlan,
+  getCurrentMicroPlan,
+  getMicroPlan,
+  type StoredMacroPlan,
+  type StoredMicroPlan,
+  saveMacroPlan,
+  saveMicroPlan,
+  updatePlannedSession,
+} from "./plans";
+export {
   finishSyncRun,
   getSyncState,
   type SyncRun,

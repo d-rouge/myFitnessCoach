@@ -8,6 +8,7 @@ import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { OnboardingWizard } from "./components/OnboardingWizard";
+import { TrainingPlanBoard } from "./components/TrainingPlanBoard";
 
 type CheckStatus = "ok" | "error" | "configured" | "missing" | "unchecked";
 type SyncStatus = "never" | "running" | "ok" | "partial" | "error";
@@ -585,6 +586,9 @@ export default function App() {
           </Card>
         )}
       </section>
+
+      {/* Board Settimanale e Sessione Oggi (Task 1.3) */}
+      <TrainingPlanBoard hasBaseline={Boolean(baseline.data)} />
 
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
         <Card title="API" eyebrow="Runtime">

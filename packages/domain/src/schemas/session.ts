@@ -43,4 +43,6 @@ export const PlannedSessionSchema = z.object({
 });
 
 export type SessionStep = z.infer<typeof SessionStepSchema>;
+export type SessionBlock = z.infer<typeof SessionBlockSchema>;
+export type SessionAlternative = z.infer<typeof SessionAlternativeSchema>;
 export type PlannedSession = z.infer<typeof PlannedSessionSchema>;

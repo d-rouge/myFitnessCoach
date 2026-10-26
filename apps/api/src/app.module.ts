@@ -6,6 +6,7 @@ import { DatabaseModule } from "./database/database.module.js";
 import { ExportModule } from "./export/export.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { IntegrationsModule } from "./integrations/integrations.module.js";
+import { PlanModule } from "./plan/plan.module.js";
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { IntegrationsModule } from "./integrations/integrations.module.js";
     ExportModule,
     AuthModule,
     BaselineModule,
+    PlanModule,
   ],
 })
 export class AppModule {}
