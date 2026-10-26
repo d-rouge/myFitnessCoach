@@ -1,0 +1,740 @@
+import {
+  type Baseline,
+  beginnerPersona,
+  type EquipmentItem,
+  type Experience,
+  type GoalType,
+  intermediatePersona,
+  kneePainPersona,
+  type PreferredTrainingTime,
+  type Sex,
+  type Sport,
+  type Tone,
+  type Weekday,
+} from "@health-trainer/domain";
+import { cn } from "@health-trainer/ui";
+import { useState } from "react";
+
+interface OnboardingWizardProps {
+  initialBaseline?: Baseline | null;
+  onSaved: (saved: Baseline) => void;
+  onCancel?: () => void;
+}
+
+const ALL_SPORTS: { id: Sport; label: string }[] = [
+  { id: "running", label: "Corsa" },
+  { id: "cycling", label: "Ciclismo" },
+  { id: "swimming", label: "Nuoto" },
+  { id: "strength", label: "Forza / Palestra" },
+  { id: "mobility", label: "Mobilità" },
+];
+
+const WEEKDAYS: { id: Weekday; label: string }[] = [
+  { id: "mon", label: "Lun" },
+  { id: "tue", label: "Mar" },
+  { id: "wed", label: "Mer" },
+  { id: "thu", label: "Gio" },
+  { id: "fri", label: "Ven" },
+  { id: "sat", label: "Sab" },
+  { id: "sun", label: "Dom" },
+];
+
+const EQUIPMENT_OPTIONS: { id: EquipmentItem; label: string }[] = [
+  { id: "bodyweight", label: "A corpo libero" },
+  { id: "dumbbells", label: "Manubri" },
+  { id: "barbell", label: "Bilanciere e dischi" },
+  { id: "kettlebell", label: "Kettlebell" },
+  { id: "resistance_band", label: "Elastici / Loop band" },
+  { id: "foam_roller", label: "Foam roller" },
+  { id: "treadmill", label: "Tapis roulant" },
+  { id: "indoor_bike", label: "Cyclette / Rulli" },
+];
+
+export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: OnboardingWizardProps) {
+  const [step, setStep] = useState<number>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form state
+  const [baseline, setBaseline] = useState<Baseline>(() => {
+    if (initialBaseline) return initialBaseline;
+    return {
+      ...beginnerPersona,
+      id: `baseline_${Date.now()}`,
+      userId: "personal",
+    };
+  });
+
+  const loadPersona = (persona: Baseline) => {
+    setBaseline({
+      ...persona,
+      id: `baseline_${Date.now()}`,
+      userId: "personal",
+    });
+    setError(null);
+  };
+
+  const handleSportToggle = (sport: Sport) => {
+    const current = baseline.profile.sports;
+    const next = current.includes(sport) ? current.filter((s) => s !== sport) : [...current, sport];
+    if (next.length === 0) return; // at least 1 sport
+    setBaseline({
+      ...baseline,
+      profile: { ...baseline.profile, sports: next },
+    });
+  };
+
+  const handleDayToggle = (day: Weekday) => {
+    const currentDays = baseline.availability.days;
+    const exists = currentDays.some((d) => d.day === day);
+    const next = exists
+      ? currentDays.filter((d) => d.day !== day)
+      : [
+          ...currentDays,
+          {
+            day,
+            windows: [{ start: "07:00", end: "08:00" }],
+            maxDurationMin: 60,
+          },
+        ];
+    if (next.length === 0) return; // at least 1 day
+    setBaseline({
+      ...baseline,
+      availability: { ...baseline.availability, days: next },
+    });
+  };
+
+  const handleEquipmentToggle = (item: EquipmentItem) => {
+    const items = baseline.equipment.items;
+    const next = items.includes(item) ? items.filter((i) => i !== item) : [...items, item];
+    setBaseline({
+      ...baseline,
+      equipment: { ...baseline.equipment, items: next },
+    });
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/baseline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(baseline),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json()) as { message?: string };
+        throw new Error(body.message ?? `Errore salvataggio (${res.status})`);
+      }
+
+      const saved = (await res.json()) as Baseline;
+      onSaved(saved);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+      {/* Header & Persona Shortcuts */}
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-400">
+            Onboarding · Livello 0 (Baseline)
+          </span>
+          <h2 className="mt-1 text-2xl font-bold text-white">
+            {step === 1 && "1. Profilo Atleta"}
+            {step === 2 && "2. Anamnesi & Sicurezza"}
+            {step === 3 && "3. Obiettivi"}
+            {step === 4 && "4. Disponibilità Settimanale"}
+            {step === 5 && "5. Attrezzatura & Spazi"}
+            {step === 6 && "6. Riepilogo & Preferenze"}
+          </h2>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-400">Carica demo:</span>
+          <button
+            type="button"
+            onClick={() => loadPersona(beginnerPersona)}
+            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+          >
+            Marco (5k)
+          </button>
+          <button
+            type="button"
+            onClick={() => loadPersona(intermediatePersona)}
+            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+          >
+            Giulia (Mezza)
+          </button>
+          <button
+            type="button"
+            onClick={() => loadPersona(kneePainPersona)}
+            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+          >
+            Luca (Ginocchio)
+          </button>
+        </div>
+      </div>
+
+      {/* Steps Progress */}
+      <div className="mt-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4 text-xs font-medium text-slate-400">
+        {[1, 2, 3, 4, 5, 6].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStep(s)}
+            className={cn(
+              "flex flex-1 items-center justify-center rounded-lg py-1.5 transition",
+              step === s
+                ? "bg-lime-400 font-bold text-slate-950"
+                : s < step
+                  ? "bg-white/10 text-slate-200"
+                  : "bg-white/5 text-slate-500",
+            )}
+          >
+            Step {s}
+          </button>
+        ))}
+      </div>
+
+      {error ? (
+        <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+          {error}
+        </div>
+      ) : null}
+
+      {/* Step Content */}
+      <div className="mt-6">
+        {step === 1 && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-semibold text-slate-300">
+              Data di nascita
+              <input
+                type="date"
+                value={baseline.profile.birthDate}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    profile: { ...baseline.profile, birthDate: e.target.value },
+                  })
+                }
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+            </label>
+
+            <label className="block text-xs font-semibold text-slate-300">
+              Sesso biologico
+              <select
+                value={baseline.profile.sex}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    profile: {
+                      ...baseline.profile,
+                      sex: e.target.value as Sex,
+                    },
+                  })
+                }
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              >
+                <option value="male">Maschio</option>
+                <option value="female">Femmina</option>
+                <option value="other">Altro</option>
+                <option value="prefer_not_to_say">Preferisco non dichiarare</option>
+              </select>
+            </label>
+
+            <label className="block text-xs font-semibold text-slate-300">
+              Altezza (cm)
+              <input
+                type="number"
+                value={baseline.profile.heightCm}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    profile: {
+                      ...baseline.profile,
+                      heightCm: Number.parseInt(e.target.value, 10) || 170,
+                    },
+                  })
+                }
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+            </label>
+
+            <label className="block text-xs font-semibold text-slate-300">
+              Peso attuale (kg)
+              <input
+                type="number"
+                value={baseline.profile.weightKg}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    profile: {
+                      ...baseline.profile,
+                      weightKg: Number.parseFloat(e.target.value) || 70,
+                    },
+                  })
+                }
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+            </label>
+
+            <label className="block text-xs font-semibold text-slate-300">
+              Livello di esperienza
+              <select
+                value={baseline.profile.experience}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    profile: {
+                      ...baseline.profile,
+                      experience: e.target.value as Experience,
+                    },
+                  })
+                }
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              >
+                <option value="beginner">Principiante (&lt; 1 anno)</option>
+                <option value="intermediate">Intermedio (1–4 anni)</option>
+                <option value="advanced">Avanzato (&gt; 4 anni)</option>
+              </select>
+            </label>
+
+            <div className="sm:col-span-2">
+              <span className="block text-xs font-semibold text-slate-300">Sport praticati</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ALL_SPORTS.map((s) => {
+                  const active = baseline.profile.sports.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => handleSportToggle(s.id)}
+                      className={cn(
+                        "rounded-xl px-3 py-2 text-xs font-medium transition",
+                        active
+                          ? "bg-lime-400 font-bold text-slate-950"
+                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <label className="flex items-center gap-3 text-sm text-white">
+                <input
+                  type="checkbox"
+                  checked={baseline.anamnesis.parqCleared}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      anamnesis: {
+                        ...baseline.anamnesis,
+                        parqCleared: e.target.checked,
+                      },
+                    })
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
+                />
+                <span>
+                  <strong>Idoneità all&apos;attività (PAR-Q):</strong> Non ho patologie
+                  cardiovascolari note, vertigini o controindicazioni mediche all&apos;esercizio
+                  fisico.
+                </span>
+              </label>
+            </div>
+
+            <div>
+              <span className="block text-xs font-semibold text-slate-300">
+                Infortuni, dolori o risentimenti attivi
+              </span>
+              {baseline.anamnesis.injuries.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-500">Nessun infortunio dichiarato.</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {baseline.anamnesis.injuries.map((inj, idx) => (
+                    <div
+                      key={inj.area}
+                      className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-3 text-xs"
+                    >
+                      <div>
+                        <strong className="capitalize text-white">
+                          {inj.area.replace("_", " ")}
+                        </strong>
+                        <span className="ml-2 text-slate-400">
+                          (Stato: {inj.status}, Dolore: {inj.painLevel}/10)
+                        </span>
+                        {inj.notes ? <p className="mt-1 text-slate-400">{inj.notes}</p> : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextInj = baseline.anamnesis.injuries.filter((_, i) => i !== idx);
+                          setBaseline({
+                            ...baseline,
+                            anamnesis: { ...baseline.anamnesis, injuries: nextInj },
+                          });
+                        }}
+                        className="text-rose-400 hover:text-rose-300"
+                      >
+                        Rimuovi
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <label className="block text-xs font-semibold text-slate-300">
+              Note libere e contesto clinico
+              <textarea
+                rows={3}
+                value={baseline.anamnesis.freeText ?? ""}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    anamnesis: { ...baseline.anamnesis, freeText: e.target.value },
+                  })
+                }
+                placeholder="Es. Leggero fastidio tendineo dopo uscite lunghe; nessun farmaco assunto."
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white"
+              />
+            </label>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-4">
+            <label className="block text-xs font-semibold text-slate-300">
+              Obiettivo Principale
+              <input
+                type="text"
+                value={baseline.goals.primary.description}
+                onChange={(e) =>
+                  setBaseline({
+                    ...baseline,
+                    goals: {
+                      ...baseline.goals,
+                      primary: { ...baseline.goals.primary, description: e.target.value },
+                    },
+                  })
+                }
+                placeholder="Es. Completare 5k in meno di 28 minuti"
+                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-xs font-semibold text-slate-300">
+                Tipo di obiettivo
+                <select
+                  value={baseline.goals.primary.type}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      goals: {
+                        ...baseline.goals,
+                        primary: {
+                          ...baseline.goals.primary,
+                          type: e.target.value as GoalType,
+                        },
+                      },
+                    })
+                  }
+                  className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                >
+                  <option value="performance">Performance / Tempo</option>
+                  <option value="race">Gara / Evento</option>
+                  <option value="health">Salute &amp; Benessere</option>
+                  <option value="habit">Costanza / Abitudine</option>
+                  <option value="strength">Forza / Carico</option>
+                </select>
+              </label>
+
+              <label className="block text-xs font-semibold text-slate-300">
+                Data target (opzionale)
+                <input
+                  type="date"
+                  value={baseline.goals.primary.targetDate ?? ""}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      goals: {
+                        ...baseline.goals,
+                        primary: {
+                          ...baseline.goals.primary,
+                          targetDate: e.target.value || undefined,
+                        },
+                      },
+                    })
+                  }
+                  className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-4">
+            <div>
+              <span className="block text-xs font-semibold text-slate-300">
+                Seleziona i giorni della settimana in cui puoi allenarti
+              </span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {WEEKDAYS.map((d) => {
+                  const active = baseline.availability.days.some((day) => day.day === d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => handleDayToggle(d.id)}
+                      className={cn(
+                        "rounded-xl px-4 py-2 text-xs font-medium transition",
+                        active
+                          ? "bg-lime-400 font-bold text-slate-950"
+                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <span className="block text-xs font-semibold text-slate-300">
+                Durata massima per sessione nei giorni selezionati
+              </span>
+              {baseline.availability.days.map((d) => (
+                <div
+                  key={d.day}
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs"
+                >
+                  <span className="font-semibold uppercase text-white">{d.day}</span>
+                  <label className="flex items-center gap-2">
+                    <span className="sr-only">Minuti per {d.day}</span>
+                    <input
+                      type="number"
+                      value={d.maxDurationMin}
+                      onChange={(e) => {
+                        const val = Number.parseInt(e.target.value, 10) || 45;
+                        const nextDays = baseline.availability.days.map((cur) =>
+                          cur.day === d.day ? { ...cur, maxDurationMin: val } : cur,
+                        );
+                        setBaseline({
+                          ...baseline,
+                          availability: { ...baseline.availability, days: nextDays },
+                        });
+                      }}
+                      className="w-16 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-center text-white"
+                    />
+                    <span className="text-slate-400">min</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white">
+                <input
+                  type="checkbox"
+                  checked={baseline.equipment.gymAccess}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      equipment: { ...baseline.equipment, gymAccess: e.target.checked },
+                    })
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
+                />
+                <span>Accesso a palestra attrezzata</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white">
+                <input
+                  type="checkbox"
+                  checked={baseline.equipment.poolAccess}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      equipment: { ...baseline.equipment, poolAccess: e.target.checked },
+                    })
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
+                />
+                <span>Accesso a piscina</span>
+              </label>
+            </div>
+
+            <div>
+              <span className="block text-xs font-semibold text-slate-300">
+                Attrezzatura disponibile a casa o personale
+              </span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {EQUIPMENT_OPTIONS.map((item) => {
+                  const active = baseline.equipment.items.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleEquipmentToggle(item.id)}
+                      className={cn(
+                        "rounded-xl px-3 py-1.5 text-xs font-medium transition",
+                        active
+                          ? "bg-lime-400 font-bold text-slate-950"
+                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-lime-400/20 bg-lime-400/5 p-4 text-xs text-lime-200">
+              <h3 className="font-bold text-white">Ecco cosa ho capito (Riepilogo Baseline L0):</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                <li>
+                  <strong>Atleta:</strong> {baseline.profile.sex}, {baseline.profile.heightCm} cm,{" "}
+                  {baseline.profile.weightKg} kg, esperienza {baseline.profile.experience}.
+                </li>
+                <li>
+                  <strong>Sport:</strong> {baseline.profile.sports.join(", ")}.
+                </li>
+                <li>
+                  <strong>Obiettivo:</strong> {baseline.goals.primary.description}.
+                </li>
+                <li>
+                  <strong>Disponibilità:</strong> {baseline.availability.days.length}{" "}
+                  giorni/settimana ({baseline.availability.days.map((d) => d.day).join(", ")}).
+                </li>
+                <li>
+                  <strong>Salute:</strong>{" "}
+                  {baseline.anamnesis.injuries.length === 0
+                    ? "Nessun infortunio"
+                    : baseline.anamnesis.injuries
+                        .map((i) => `${i.area} (dolore ${i.painLevel}/10)`)
+                        .join(", ")}
+                  .
+                </li>
+              </ul>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-xs font-semibold text-slate-300">
+                Orario preferito
+                <select
+                  value={baseline.preferences.preferredTrainingTime}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      preferences: {
+                        ...baseline.preferences,
+                        preferredTrainingTime: e.target.value as PreferredTrainingTime,
+                      },
+                    })
+                  }
+                  className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                >
+                  <option value="morning">Mattina</option>
+                  <option value="lunch">Pausa pranzo</option>
+                  <option value="afternoon">Pomeriggio</option>
+                  <option value="evening">Sera</option>
+                </select>
+              </label>
+
+              <label className="block text-xs font-semibold text-slate-300">
+                Tono del coach
+                <select
+                  value={baseline.preferences.tone}
+                  onChange={(e) =>
+                    setBaseline({
+                      ...baseline,
+                      preferences: {
+                        ...baseline.preferences,
+                        tone: e.target.value as Tone,
+                      },
+                    })
+                  }
+                  className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                >
+                  <option value="direct">Diretto ed essenziale</option>
+                  <option value="supportive">Incoraggiante ed empatico</option>
+                  <option value="analytical">Analitico e scientifico</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation Buttons */}
+      <div className="mt-8 flex items-center justify-between border-t border-white/10 pt-4">
+        {step > 1 ? (
+          <button
+            type="button"
+            onClick={() => setStep((s) => Math.max(1, s - 1))}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white hover:bg-white/10"
+          >
+            Indietro
+          </button>
+        ) : onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-400 hover:bg-white/10"
+          >
+            Annulla
+          </button>
+        ) : (
+          <div />
+        )}
+
+        {step < 6 ? (
+          <button
+            type="button"
+            onClick={() => setStep((s) => Math.min(6, s + 1))}
+            className="rounded-xl bg-lime-400 px-5 py-2 text-xs font-bold text-slate-950 transition hover:bg-lime-300"
+          >
+            Avanti
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="rounded-xl bg-lime-400 px-6 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 disabled:opacity-50"
+          >
+            {isSubmitting ? "Salvataggio…" : "Salva Baseline L0"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

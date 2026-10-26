@@ -3,6 +3,7 @@ import type { Db } from "mongodb";
 export const COLLECTIONS = {
   activities: "activities",
   activityAnalyses: "activity_analyses",
+  baselines: "athlete_baselines",
   dailyMetrics: "metrics_daily",
   nutritionDaily: "nutrition_daily",
   syncRuns: "sync_runs",
@@ -14,6 +15,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
     db.collection(COLLECTIONS.users).createIndex({ id: 1 }, { unique: true }),
     db.collection(COLLECTIONS.users).createIndex({ email: 1 }, { unique: true }),
+    db.collection(COLLECTIONS.baselines).createIndex({ userId: 1, version: -1 }),
+    db.collection(COLLECTIONS.baselines).createIndex({ userId: 1, supersededAt: 1 }),
     db
       .collection(COLLECTIONS.activities)
       .createIndex({ userId: 1, source: 1, externalId: 1 }, { unique: true }),

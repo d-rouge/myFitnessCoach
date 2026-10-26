@@ -159,21 +159,21 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.1 Dominio e regole
 
-- [ ] Schemi Zod L0: profilo, anamnesi, obiettivi, disponibilità, attrezzatura, preferenze.
-- [ ] Schemi L1–L4: piano, settimana, sessione, stato giornaliero, review.
-- [ ] `readiness`, `load`, `progression`, `feasibility`, `safety`, `validator`.
-- [ ] Unit test per ogni regola, con casi limite.
-- [ ] Fixture di 3 personas (principiante, intermedio, ginocchio dolorante).
+- [x] Schemi Zod L0: profilo, anamnesi, obiettivi, disponibilità, attrezzatura, preferenze (`baseline.ts`, `preferences.ts`, etc.).
+- [x] Schemi L1–L4: piano, settimana, sessione, stato giornaliero, review (`plan.ts`, `daily-state.ts`, `review.ts`, `session.ts`).
+- [x] `readiness`, `load`, `progression`, `feasibility`, `safety`, `validator`.
+- [x] Unit test per ogni regola, con casi limite (23 test verdi in `packages/domain`).
+- [x] Fixture di 3 personas (Marco principiante 5k, Giulia intermedia mezza+palestra, Luca tendinopatia rotulea).
 
 #### 1.2 Onboarding
 
-- [ ] Wizard 6 step, salvabile, mobile-friendly.
-- [ ] Anamnesi strutturata + testo libero + red flag.
-- [ ] Obiettivo primario/secondario + data.
-- [ ] Disponibilità settimanale e durata massima.
-- [ ] Attrezzatura, palestra, piscina, casa.
+- [x] Wizard 6 step, salvabile, mobile-friendly (`OnboardingWizard.tsx`).
+- [x] Anamnesi strutturata + testo libero + red flag.
+- [x] Obiettivo primario/secondario + data target.
+- [x] Disponibilità settimanale e durata massima per sessione.
+- [x] Attrezzatura, palestra, piscina, casa con selezione visuale.
 - [ ] Foto opzionali (upload, EXIF strip, storage privato).
-- [ ] Riepilogo baseline modificabile.
+- [x] Riepilogo baseline modificabile con persistenza Mongo (`athlete_baselines`) e modulo API `/api/baseline`.
 
 #### 1.3 Piano
 

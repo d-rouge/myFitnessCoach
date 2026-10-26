@@ -26,5 +26,6 @@ export const GoalSetSchema = z.object({
   secondary: z.array(GoalSchema).max(3).default([]),
 });
 
+export type GoalType = z.infer<typeof GoalTypeSchema>;
 export type Goal = z.infer<typeof GoalSchema>;
 export type GoalSet = z.infer<typeof GoalSetSchema>;

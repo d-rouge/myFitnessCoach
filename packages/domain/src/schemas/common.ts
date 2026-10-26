@@ -26,3 +26,5 @@ export const ToneSchema = z.enum(["direct", "supportive", "analytical"]);
 export type Sport = z.infer<typeof SportSchema>;
 export type Weekday = z.infer<typeof WeekdaySchema>;
 export type Experience = z.infer<typeof ExperienceSchema>;
+export type Sex = z.infer<typeof SexSchema>;
+export type Tone = z.infer<typeof ToneSchema>;

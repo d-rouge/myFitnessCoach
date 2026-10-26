@@ -1,7 +1,13 @@
-import { computeReadiness } from "@health-trainer/domain";
+import {
+  type Baseline,
+  computeReadiness,
+  type FiveKProjection,
+  type FiveKProjectionInput,
+} from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
+import { OnboardingWizard } from "./components/OnboardingWizard";
 
 type CheckStatus = "ok" | "error" | "configured" | "missing" | "unchecked";
 type SyncStatus = "never" | "running" | "ok" | "partial" | "error";
@@ -203,6 +209,23 @@ async function analyzeGarminActivity(activityId: string): Promise<ActivityAnalys
   return body;
 }
 
+async function fetchCurrentBaseline(): Promise<Baseline | null> {
+  const response = await fetch("/api/baseline");
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Baseline check failed (${response.status})`);
+  return response.json() as Promise<Baseline>;
+}
+
+async function checkFeasibility(input: FiveKProjectionInput): Promise<FiveKProjection> {
+  const response = await fetch("/api/baseline/feasibility", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error("Feasibility check failed");
+  return response.json() as Promise<FiveKProjection>;
+}
+
 const readiness = computeReadiness({
   hrvToday: 68,
   hrvBaseline: { mean: 62, sd: 6 },
@@ -348,6 +371,15 @@ export default function App() {
     },
   });
 
+  const [isEditingBaseline, setIsEditingBaseline] = useState(false);
+  const baseline = useQuery({
+    queryKey: ["baseline"],
+    queryFn: fetchCurrentBaseline,
+  });
+  const feasibilityMutation = useMutation({
+    mutationFn: checkFeasibility,
+  });
+
   const apiStatus = health.isError ? "error" : health.data ? "ok" : "unchecked";
   const data = overview.data;
   const yazioData = yazioOverview.data;
@@ -380,13 +412,179 @@ export default function App() {
             </span>
           ) : null}
           <span className="rounded-full bg-lime-300/10 px-3 py-1.5 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-300/30">
-            Fase 0 · Fondamenta
+            Fase 1 · Web MVP
           </span>
           <span className="rounded-full bg-white/5 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-inset ring-white/10">
-            v0.1.0
+            v0.2.0
           </span>
         </div>
       </header>
+
+      {/* Onboarding & Baseline L0 */}
+      <section className="mt-8">
+        {baseline.isLoading ? (
+          <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
+            Caricamento profilo atleta…
+          </div>
+        ) : !baseline.data || isEditingBaseline ? (
+          <OnboardingWizard
+            initialBaseline={baseline.data}
+            onSaved={(saved) => {
+              queryClient.setQueryData(["baseline"], saved);
+              setIsEditingBaseline(false);
+            }}
+            onCancel={baseline.data ? () => setIsEditingBaseline(false) : undefined}
+          />
+        ) : (
+          <Card
+            title={`Profilo Atleta & Baseline (v${baseline.data.version})`}
+            eyebrow="Livello 0 · Baseline Attiva"
+            className="border-lime-400/20 bg-lime-950/10"
+          >
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-lime-400/10 px-3 py-1 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-400/30">
+                    {baseline.data.profile.experience}
+                  </span>
+                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-300 ring-1 ring-inset ring-white/10">
+                    {baseline.data.profile.sex} · {baseline.data.profile.heightCm} cm ·{" "}
+                    {baseline.data.profile.weightKg} kg
+                  </span>
+                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-300 ring-1 ring-inset ring-white/10">
+                    Valida dal {formatDate(baseline.data.validFrom.slice(0, 10))}
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    {baseline.data.goals.primary.description}
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Tipo:{" "}
+                    <span className="capitalize text-white">
+                      {baseline.data.goals.primary.type}
+                    </span>
+                    {baseline.data.goals.primary.targetDate
+                      ? ` · Data target: ${baseline.data.goals.primary.targetDate}`
+                      : ""}
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">Sport attivi:</span>
+                    <p className="mt-1 font-semibold capitalize text-white">
+                      {baseline.data.profile.sports.join(", ")}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">Disponibilità:</span>
+                    <p className="mt-1 font-semibold text-white">
+                      {baseline.data.availability.days.length} gg/settimana (
+                      {baseline.data.availability.days.map((d) => d.day.toUpperCase()).join(", ")})
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">Anamnesi &amp; Dolori:</span>
+                    <p className="mt-1 font-semibold text-white">
+                      {baseline.data.anamnesis.injuries.length === 0
+                        ? "Nessun infortunio attivo"
+                        : baseline.data.anamnesis.injuries
+                            .map((i) => `${i.area} (${i.painLevel}/10)`)
+                            .join(", ")}
+                    </p>
+                  </div>
+                </div>
+
+                {baseline.data.summary ? (
+                  <p className="text-xs italic text-slate-400">
+                    &ldquo;{baseline.data.summary}&rdquo;
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex shrink-0 flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingBaseline(true)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                >
+                  Modifica Baseline
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    feasibilityMutation.mutate({
+                      current5kSec: 1800,
+                      weeks: 8,
+                      experience: baseline.data?.profile.experience ?? "beginner",
+                      weeklyVolumeKm: 15,
+                    })
+                  }
+                  disabled={feasibilityMutation.isPending}
+                  className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-60"
+                >
+                  {feasibilityMutation.isPending
+                    ? "Calcolo Feasibility…"
+                    : "Verifica Feasibility 5K"}
+                </button>
+              </div>
+            </div>
+
+            {feasibilityMutation.data ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white">Proiezione 5K (Feasibility):</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 font-bold uppercase",
+                      feasibilityMutation.data.confidence === "high"
+                        ? "bg-emerald-400/20 text-emerald-300"
+                        : feasibilityMutation.data.confidence === "medium"
+                          ? "bg-amber-400/20 text-amber-300"
+                          : "bg-rose-400/20 text-rose-300",
+                    )}
+                  >
+                    Confidenza: {feasibilityMutation.data.confidence}
+                  </span>
+                </div>
+                <p className="mt-2 text-slate-300">{feasibilityMutation.data.rationale}</p>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-white/5 p-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                      Ottimistico
+                    </p>
+                    <p className="mt-1 font-mono text-base font-bold text-emerald-400">
+                      {Math.floor(feasibilityMutation.data.bestSec / 60)}:
+                      {String(Math.floor(feasibilityMutation.data.bestSec % 60)).padStart(2, "0")}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-lime-400/10 p-2.5 ring-1 ring-inset ring-lime-400/20">
+                    <p className="text-[10px] uppercase tracking-wider text-lime-300">Proiettato</p>
+                    <p className="mt-1 font-mono text-base font-bold text-lime-300">
+                      {Math.floor(feasibilityMutation.data.projectedSec / 60)}:
+                      {String(Math.floor(feasibilityMutation.data.projectedSec % 60)).padStart(
+                        2,
+                        "0",
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-white/5 p-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Prudente</p>
+                    <p className="mt-1 font-mono text-base font-bold text-slate-300">
+                      {Math.floor(feasibilityMutation.data.worstSec / 60)}:
+                      {String(Math.floor(feasibilityMutation.data.worstSec % 60)).padStart(2, "0")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </Card>
+        )}
+      </section>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
         <Card title="API" eyebrow="Runtime">
@@ -497,12 +695,12 @@ export default function App() {
           </div>
         </Card>
 
-        <Card title="Prossimo passo" eyebrow="Fase 0">
+        <Card title="Prossimo passo" eyebrow="Fase 1">
           <ol className="space-y-2 text-sm leading-6 text-slate-300">
-            <li>1. Test Yazio con credenziali reali</li>
-            <li>2. Export workout `.FIT` verso Garmin</li>
-            <li>3. Auth Google + onboarding</li>
-            <li>4. Sync schedulato</li>
+            <li>1. Onboarding &amp; Baseline L0 (attivo)</li>
+            <li>2. Feasibility &amp; Generatore Micro-Plan</li>
+            <li>3. Board settimanale e card &ldquo;Oggi&rdquo;</li>
+            <li>4. Check-in giornaliero e adattamento</li>
           </ol>
         </Card>
       </div>

@@ -21,4 +21,5 @@ export const EquipmentSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+export type EquipmentItem = z.infer<typeof EquipmentItemSchema>;
 export type Equipment = z.infer<typeof EquipmentSchema>;

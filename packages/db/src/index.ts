@@ -9,6 +9,11 @@ export {
   getRecentActivityAnalyses,
   upsertActivityAnalysis,
 } from "./activity-analyses";
+export {
+  getBaselineHistory,
+  getCurrentBaseline,
+  saveBaseline,
+} from "./baselines";
 export { COLLECTIONS, ensureIndexes } from "./collections";
 export {
   countDailyMetrics,

@@ -1,15 +1,17 @@
 export type Confidence = "high" | "medium" | "low";
 
-export interface Baseline {
+export interface MetricBaseline {
   mean: number;
   sd: number;
 }
 
+export type Baseline = MetricBaseline;
+
 export interface ReadinessInput {
   hrvToday?: number;
-  hrvBaseline?: Baseline;
+  hrvBaseline?: MetricBaseline;
   rhrToday?: number;
-  rhrBaseline?: Baseline;
+  rhrBaseline?: MetricBaseline;
   sleepMinutes?: number;
   sleepNeedMinutes?: number;
   subjective?: {
