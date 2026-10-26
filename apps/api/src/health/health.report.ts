@@ -1,0 +1,70 @@
+import type { Env } from "@health-trainer/config";
+import type { MongoPingResult } from "@health-trainer/db";
+
+export type CheckStatus = "ok" | "error" | "configured" | "missing" | "unchecked";
+
+export interface HealthReport {
+  status: "ok" | "degraded";
+  version: string;
+  timestamp: string;
+  uptimeSec: number;
+  checks: {
+    mongo: {
+      status: CheckStatus;
+      latencyMs?: number;
+      error?: string;
+    };
+    garmin: {
+      status: CheckStatus;
+    };
+    googleAuth: {
+      status: CheckStatus;
+    };
+    llm: {
+      status: CheckStatus;
+      provider?: string;
+    };
+  };
+}
+
+export interface HealthReportInput {
+  env: Env;
+  mongo: MongoPingResult;
+  uptimeSec: number;
+  version: string;
+  now?: Date;
+}
+
+export function buildHealthReport(input: HealthReportInput): HealthReport {
+  const { env, mongo } = input;
+
+  const googleConfigured = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  const garminConfigured = Boolean(env.GARMIN_PERSONAL_API_KEY);
+  const llmConfigured = Boolean(env.LLM_PROVIDER && env.LLM_API_KEY);
+
+  const status = mongo.ok ? "ok" : "degraded";
+
+  return {
+    status,
+    version: input.version,
+    timestamp: (input.now ?? new Date()).toISOString(),
+    uptimeSec: input.uptimeSec,
+    checks: {
+      mongo: {
+        status: mongo.ok ? "ok" : "error",
+        latencyMs: mongo.latencyMs,
+        error: mongo.error,
+      },
+      garmin: {
+        status: garminConfigured ? "configured" : "missing",
+      },
+      googleAuth: {
+        status: googleConfigured ? "configured" : "missing",
+      },
+      llm: {
+        status: llmConfigured ? "configured" : "missing",
+        provider: env.LLM_PROVIDER,
+      },
+    },
+  };
+}

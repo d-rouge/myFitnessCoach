@@ -1,0 +1,41 @@
+{
+  "name": "health-trainer",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run build:packages && npm run build -w @health-trainer/api && npm run build -w @health-trainer/web",
+    "build:packages": "bash scripts/build-packages.sh",
+    "dev": "npm run build:packages && bash scripts/dev.sh",
+    "dev:api": "npm run start:dev -w @health-trainer/api",
+    "dev:web": "npm run dev -w @health-trainer/web",
+    "test": "npm run build:packages && npm run test --workspaces --if-present",
+    "test:watch": "npm run test:watch --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present && npm run typecheck:scripts",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "spike:garmin": "npm run build:packages && tsx scripts/spike-garmin.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.3",
+    "@health-trainer/config": "*",
+    "@health-trainer/integrations": "*",
+    "@types/node": "24.19.2",
+    "dotenv": "18.0.9",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "2.5.0"
+    }
+  }
+}

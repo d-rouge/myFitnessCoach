@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+secrets/
+.DS_Store
+*.log
+docs/spikes/*.local.json
