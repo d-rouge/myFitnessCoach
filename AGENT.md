@@ -160,7 +160,7 @@ Se un comando non esiste, verifica `package.json`, crea lo script solo se fa par
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
 - **Test attuali:** 33 test verdi (domain 20, config 3, integrations 7, api 3). Build e typecheck verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
-- **Env:** `apps/api/src/main.ts` e `scripts/spike-garmin.ts` caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod.
+- **Env:** `apps/api/src/main.ts` e `scripts/spike-garmin.ts` caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. Lo spike Garmin accetta anche `secrets/garmin-key.txt` (ignorato da git).
 
 ---
 

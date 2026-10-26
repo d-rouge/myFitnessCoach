@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { loadEnv } from "@health-trainer/config";
 import { GarminPersonalClient } from "@health-trainer/integrations";
@@ -27,18 +27,30 @@ const keysOf = (value: unknown): string[] =>
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  const apiKey = env.GARMIN_PERSONAL_API_KEY;
+  let apiKey = env.GARMIN_PERSONAL_API_KEY;
+  let keySource = ".env";
+
+  if (!apiKey) {
+    try {
+      apiKey = (await readFile("secrets/garmin-key.txt", "utf8")).trim();
+      keySource = "secrets/garmin-key.txt";
+    } catch {
+      // Fall through to the instructions below.
+    }
+  }
 
   if (!apiKey) {
     console.error(
       "GARMIN_PERSONAL_API_KEY is not set.\n" +
         "1. Create a key at https://connect.garmin.com/app/settings/personalApiToken\n" +
-        "2. Add it to .env\n" +
+        "2. Add it to .env or secrets/garmin-key.txt\n" +
         "3. Run: npm run spike:garmin",
     );
     process.exitCode = 1;
     return;
   }
+
+  console.log(`Key source: ${keySource}`);
 
   const client = new GarminPersonalClient({ apiKey, timeoutMs: 20_000 });
   const today = isoDate(new Date());

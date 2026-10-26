@@ -15,7 +15,7 @@ Verificare che il sync passivo su web funzioni con una chiave personale e che i 
 npm run spike:garmin -- --write --download
 ```
 
-La chiave è stata passata solo via variabile d'ambiente, leggendola da `secrets/` (ignorato da git). Nessun token o valore clinico è stato stampato.
+La chiave è stata letta da `secrets/garmin-key.txt` (ignorato da git). Lo script supporta anche `GARMIN_PERSONAL_API_KEY` in `.env`. Nessun token o valore clinico è stato stampato.
 
 ## Risultati
 
