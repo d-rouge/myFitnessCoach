@@ -1,7 +1,9 @@
 import { Decoder, Stream } from "@garmin/fitsdk";
+import type { PlannedSession } from "@health-trainer/domain";
 import { describe, expect, it } from "vitest";
 import {
   create5x800mWorkout,
+  encodeSessionWorkoutFit,
   encodeWorkoutToFit,
   paceToSpeedMs,
   parsePaceStringToSecKm,
@@ -110,5 +112,51 @@ describe("workout-encoder", () => {
         steps: [],
       }),
     ).toThrow("Workout must contain at least one step");
+  });
+
+  it("encodes any planned session into a valid .FIT workout binary", () => {
+    const session: PlannedSession = {
+      id: "sess_interval_1",
+      date: "2026-10-27",
+      sport: "running",
+      type: "intervals",
+      title: "5x800m Ripetute Corsa",
+      durationMin: 50,
+      intensity: { mode: "rpe", rpe: 8 },
+      blocks: [
+        {
+          repeat: 1,
+          steps: [{ kind: "warmup", durationMin: 10, target: "Riscaldamento" }],
+        },
+        {
+          repeat: 5,
+          steps: [
+            { kind: "work", distanceM: 800, target: "Ripetuta 800m" },
+            { kind: "recovery", distanceM: 200, target: "Recupero 200m" },
+          ],
+        },
+        {
+          repeat: 1,
+          steps: [{ kind: "cooldown", durationMin: 10, target: "Defaticamento" }],
+        },
+      ],
+      equipment: [],
+      location: "outdoor",
+      alternatives: [],
+      contraindications: [],
+      status: "planned",
+    };
+
+    const fitBytes = encodeSessionWorkoutFit(session);
+    expect(fitBytes).toBeInstanceOf(Uint8Array);
+    expect(fitBytes.length).toBeGreaterThan(150);
+
+    const stream = Stream.fromByteArray(fitBytes);
+    const decoder = new Decoder(stream);
+    const { messages, errors } = decoder.read();
+
+    expect(errors).toEqual([]);
+    expect(messages.workoutMesgs).toHaveLength(1);
+    expect(messages.workoutMesgs?.[0]?.wktName).toContain("5x800m");
   });
 });

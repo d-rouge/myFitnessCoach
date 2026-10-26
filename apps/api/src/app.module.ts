@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { ActivityModule } from "./activity/activity.module.js";
+import { AiModule } from "./ai/ai.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BaselineModule } from "./baseline/baseline.module.js";
 import { CheckinModule } from "./checkin/checkin.module.js";
@@ -8,6 +10,7 @@ import { ExportModule } from "./export/export.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { IntegrationsModule } from "./integrations/integrations.module.js";
 import { PlanModule } from "./plan/plan.module.js";
+import { ReviewModule } from "./review/review.module.js";
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { PlanModule } from "./plan/plan.module.js";
     BaselineModule,
     PlanModule,
     CheckinModule,
+    ReviewModule,
+    ActivityModule,
+    AiModule,
   ],
 })
 export class AppModule {}

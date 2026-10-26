@@ -374,6 +374,37 @@ export default function App() {
   });
 
   const [isEditingBaseline, setIsEditingBaseline] = useState(false);
+  const [dataFeedback, setDataFeedback] = useState<string | null>(null);
+
+  const wipeDataMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/export/me", { method: "DELETE" });
+      if (!res.ok) throw new Error("Errore durante la cancellazione dati");
+      return res.json();
+    },
+    onSuccess: async () => {
+      setDataFeedback("Tutti i dati dell'atleta sono stati eliminati con successo dal database.");
+      await queryClient.invalidateQueries();
+    },
+  });
+
+  const restoreBackupMutation = useMutation({
+    mutationFn: async (jsonString: string) => {
+      const backup = JSON.parse(jsonString);
+      const res = await fetch("/api/export/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(backup),
+      });
+      if (!res.ok) throw new Error("Errore ripristino backup");
+      return res.json();
+    },
+    onSuccess: async () => {
+      setDataFeedback("Backup ripristinato con successo!");
+      await queryClient.invalidateQueries();
+    },
+  });
+
   const baseline = useQuery({
     queryKey: ["baseline"],
     queryFn: fetchCurrentBaseline,
@@ -707,13 +738,17 @@ export default function App() {
           </div>
         </Card>
 
-        <Card title="Prossimo passo" eyebrow="Fase 1">
-          <ol className="space-y-2 text-sm leading-6 text-slate-300">
-            <li>1. Onboarding &amp; Baseline L0 (attivo)</li>
-            <li>2. Feasibility &amp; Generatore Micro-Plan</li>
-            <li>3. Board settimanale e card &ldquo;Oggi&rdquo;</li>
-            <li>4. Check-in giornaliero e adattamento</li>
-          </ol>
+        <Card title="Fase 1 Completata" eyebrow="Stato MVP">
+          <ul className="space-y-1.5 text-xs leading-5 text-slate-300">
+            <li className="text-lime-300 font-semibold">✓ Baseline L0 &amp; Wizard 6 step</li>
+            <li className="text-lime-300 font-semibold">✓ Macro &amp; Micro Plan Multisport</li>
+            <li className="text-lime-300 font-semibold">✓ Morning Check-in &amp; Adattamento</li>
+            <li className="text-lime-300 font-semibold">✓ Tracciamento &amp; Upload FIT</li>
+            <li className="text-lime-300 font-semibold">✓ AI Coach Briefing deterministico</li>
+            <li className="text-lime-300 font-semibold">✓ Export FIT &amp; Hevy Pro</li>
+            <li className="text-lime-300 font-semibold">✓ Review settimanale &amp; Avanzamento</li>
+            <li className="text-lime-300 font-semibold">✓ Backup JSON &amp; Data Sovereignty</li>
+          </ul>
         </Card>
       </div>
 
@@ -1003,6 +1038,72 @@ export default function App() {
             </li>
           </ol>
         </div>
+      </Card>
+
+      <Card
+        title="Sovranità dei Dati &amp; Backup (GDPR)"
+        eyebrow="Privacy &amp; Portabilità"
+        className="mt-6"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-white">I tuoi dati appartengono a te</h3>
+            <p className="mt-1 text-xs text-slate-400">
+              Esporta l&apos;intero storico in formato standard JSON aperto, ripristinalo su un
+              altro ambiente o elimina ogni traccia dal server.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/api/export/backup"
+              download
+              className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
+            >
+              Scarica Backup (.JSON)
+            </a>
+            <label className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
+              Ripristina Backup
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === "string") {
+                      restoreBackupMutation.mutate(reader.result);
+                    }
+                  };
+                  reader.readAsText(file);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Sei sicuro di voler eliminare TUTTI i tuoi dati di allenamento, baseline e check-in? L'operazione è irreversibile.",
+                  )
+                ) {
+                  wipeDataMutation.mutate();
+                }
+              }}
+              disabled={wipeDataMutation.isPending}
+              className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+            >
+              {wipeDataMutation.isPending ? "Eliminazione…" : "Elimina tutti i miei dati"}
+            </button>
+          </div>
+        </div>
+
+        {dataFeedback && (
+          <div className="mt-3 rounded-xl bg-white/5 p-3 text-xs text-lime-300 ring-1 ring-lime-400/20">
+            {dataFeedback}
+          </div>
+        )}
       </Card>
 
       <footer className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">

@@ -10,6 +10,12 @@ export {
   upsertActivityAnalysis,
 } from "./activity-analyses";
 export {
+  deleteUserData,
+  exportUserData,
+  restoreUserData,
+  type UserDataBackup,
+} from "./backup";
+export {
   getBaselineHistory,
   getCurrentBaseline,
   saveBaseline,
@@ -49,6 +55,12 @@ export {
   saveMicroPlan,
   updatePlannedSession,
 } from "./plans";
+export {
+  getLatestReview,
+  getReviewsHistory,
+  type StoredReview,
+  saveReview,
+} from "./reviews";
 export {
   finishSyncRun,
   getSyncState,

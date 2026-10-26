@@ -1,0 +1,172 @@
+import type { Checkin, PlannedSession } from "@health-trainer/domain";
+import { z } from "zod";
+import type { LlmProvider, LlmRequest, LlmResponse } from "./index.js";
+
+export const CoachAdviceSchema = z.object({
+  headline: z.string(),
+  readinessSummary: z.string(),
+  workoutFocus: z.string(),
+  tips: z.array(z.string()),
+  encouragement: z.string(),
+  caution: z.string().optional(),
+});
+
+export type CoachAdvice = z.infer<typeof CoachAdviceSchema>;
+
+export interface CoachAdviceInput {
+  athleteName?: string;
+  tone?: "supportive" | "direct" | "analytical" | "minimal";
+  session: PlannedSession;
+  checkin?: Checkin | null;
+  readinessScore?: number;
+  readinessBand?: "optimal" | "manageable" | "fatigued" | "impaired";
+  injuryAlerts?: string[];
+}
+
+export const COACH_PROMPT_VERSION = "coach-advice-v1";
+
+export const COACH_SYSTEM_PROMPT = `Sei un preparatore atletico scientifico e pragmatico per la piattaforma health-trainer.
+Analizzi il piano di allenamento della giornata, il check-in mattutino e i marker di readiness.
+Fornisci all'atleta un consiglio chiaro, azionabile ed empatico su come affrontare l'allenamento di oggi.
+Rispetta rigidamente i vincoli di sicurezza: se c'è dolore a un'articolazione o readiness critica, prescrivi prudenza o scarico.`;
+
+export function generateDeterministicCoachAdvice(input: CoachAdviceInput): CoachAdvice {
+  const {
+    session,
+    checkin,
+    readinessBand = "optimal",
+    tone = "supportive",
+    injuryAlerts = [],
+  } = input;
+  const athlete = input.athleteName || "Atleta";
+
+  const painAreas: string[] = [];
+  if (checkin?.pain && checkin.pain.length > 0) {
+    for (const p of checkin.pain) {
+      painAreas.push(`${p.area} (livello ${p.intensity}/10)`);
+    }
+  }
+
+  let headline = `Pronto per la sessione: ${session.title}`;
+  let readinessSummary =
+    "Recupero ottimale e parametri stabili. Semaforo verde per spingere come pianificato.";
+  let workoutFocus = `Focus: ${session.successCriteria || session.title}.`;
+  const tips: string[] = [];
+  let caution: string | undefined;
+
+  // Sport-specific tips
+  switch (session.type) {
+    case "run":
+      tips.push("Riscaldati con 5' di camminata veloce e mobilità delle anche.");
+      tips.push(
+        "Mantieni una cadenza fluida (170-180 spm) e busto leggermente inclinato in avanti.",
+      );
+      break;
+    case "strength":
+      tips.push("Esegui 1-2 serie di riscaldamento progressivo prima dei carichi di lavoro.");
+      tips.push("Controlla la fase eccentrica e respira costantemente durante ogni ripetizione.");
+      break;
+    case "cycle":
+      tips.push("Mantieni una cadenza agile (85-95 rpm) per preservare le ginocchia.");
+      tips.push("Idratati a piccoli sorsi ogni 15-20 minuti.");
+      break;
+    case "swim":
+      tips.push("Cura l'allungamento in scivolamento e il rollio del corpo ad ogni bracciata.");
+      break;
+    case "mobility":
+    case "recovery":
+      tips.push(
+        "Concentrati sulla respirazione diaframmatica profonda e non forzare gli angoli di movimento.",
+      );
+      break;
+  }
+
+  // Handle readiness bands & pain
+  if (readinessBand === "impaired" || painAreas.length > 0) {
+    headline = "Attenzione al recupero: sessione protetta";
+    readinessSummary = `Readiness ridotta (${readinessBand}). ${
+      painAreas.length > 0
+        ? `Segnalato fastidio su: ${painAreas.join(", ")}.`
+        : "Sistema nervoso affaticato."
+    }`;
+    workoutFocus =
+      "Priorità assoluta: protezione articolare e recupero attivo. Riduci l'intensità o scegli l'alternativa a basso impatto.";
+    caution =
+      painAreas.length > 0
+        ? `Ferma l'allenamento immediatamente se il dolore su ${painAreas.join(", ")} supera la soglia di allerta.`
+        : "Non cercare record oggi; completa solo la porzione a bassa intensità.";
+    tips.push(
+      "Se avverti qualsiasi fitta, passa all'alternativa di scarico o alla mobilità leggera.",
+    );
+  } else if (readinessBand === "fatigued") {
+    headline = "Carico moderato consigliato";
+    readinessSummary = "I parametri indicano stanchezza residua o sonno non ottimale.";
+    workoutFocus =
+      "Mantieni i ritmi conservativi (zona 2 / RPE moderato), ascolta le sensazioni cardiache.";
+    tips.push("Evita sprint finali o sovraccarichi non previsti.");
+  }
+
+  if (injuryAlerts.length > 0) {
+    caution = `${caution ? `${caution} ` : ""}Ricorda i vincoli storici: ${injuryAlerts.join(", ")}.`;
+  }
+
+  // Tone adjustments
+  let encouragement = `Buon lavoro ${athlete}! Rispetta le sensazioni del corpo e divertiti.`;
+  if (tone === "direct") {
+    encouragement = `${athlete}, esegui la sessione come programmato con massima disciplina e precisione.`;
+  } else if (tone === "analytical") {
+    encouragement = `Monitora frequenza cardiaca e RPE: la costanza nel target di carico massimizza la progressione settimanale.`;
+  } else if (tone === "minimal") {
+    encouragement = `Focus sulla tecnica.`;
+  }
+
+  return {
+    headline,
+    readinessSummary,
+    workoutFocus,
+    tips,
+    encouragement,
+    caution,
+  };
+}
+
+export class DeterministicCoachProvider implements LlmProvider {
+  readonly id = "managed" as const;
+
+  async generate<TSchema extends z.ZodType>(
+    request: LlmRequest<TSchema>,
+  ): Promise<LlmResponse<z.infer<TSchema>>> {
+    const startTime = Date.now();
+    let data: unknown;
+
+    if (request.task === "daily" || request.task === "chat") {
+      try {
+        const parsed = JSON.parse(request.user) as CoachAdviceInput;
+        data = generateDeterministicCoachAdvice(parsed);
+      } catch {
+        data = {
+          headline: "Sessione del giorno",
+          readinessSummary: "Pronto per l'attività programmata.",
+          workoutFocus: "Esegui il piano rispettando i ritmi stabiliti.",
+          tips: ["Riscaldamento adeguato prima di iniziare.", "Idratazione costante."],
+          encouragement: "Forza e concentrazione!",
+        };
+      }
+    } else {
+      data = {};
+    }
+
+    const validated = request.schema.parse(data);
+    return {
+      data: validated,
+      provider: this.id,
+      model: "deterministic-coach-v1",
+      usage: {
+        inputTokens: Math.round(request.user.length / 4),
+        outputTokens: 120,
+        costUsd: 0,
+      },
+      latencyMs: Date.now() - startTime,
+    };
+  }
+}

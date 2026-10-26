@@ -1,4 +1,5 @@
 export * from "./fixtures/personas";
+export * from "./rules/activity-comparison";
 export * from "./rules/daily-adjustment";
 export * from "./rules/feasibility";
 export * from "./rules/load";
@@ -13,6 +14,7 @@ export {
 } from "./rules/readiness";
 export * from "./rules/safety";
 export * from "./rules/validator";
+export * from "./rules/weekly-review";
 export * from "./schemas/activity";
 export * from "./schemas/activity-analysis";
 export * from "./schemas/anamnesis";

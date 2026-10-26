@@ -1,0 +1,51 @@
+import type { PlannedSession } from "@health-trainer/domain";
+import { describe, expect, it } from "vitest";
+import {
+  buildHevyRoutine,
+  buildSampleFullBodyHevyRoutine,
+  exportHevyRoutine,
+  HEVY_EXERCISE_CATALOG,
+} from "./routine-builder";
+
+const sampleStrengthSession: PlannedSession = {
+  id: "session_gym_1",
+  date: "2026-10-28",
+  sport: "strength",
+  type: "full_body_strength",
+  title: "Forza Funzionale A",
+  durationMin: 50,
+  intensity: { mode: "rpe", rpe: 7 },
+  blocks: [],
+  equipment: ["barbell", "dumbbells"],
+  location: "gym",
+  alternatives: [],
+  contraindications: [],
+  status: "planned",
+};
+
+describe("Hevy Routine Builder", () => {
+  it("builds a valid Hevy routine from a strength planned session", () => {
+    const payload = buildHevyRoutine(sampleStrengthSession);
+
+    expect(payload.routine.title).toBe("Forza Funzionale A");
+    expect(payload.routine.exercises.length).toBeGreaterThan(0);
+    expect(payload.routine.exercises[0].exercise_template_id).toBe(HEVY_EXERCISE_CATALOG.squat.id);
+    expect(payload.routine.exercises[0].sets.length).toBeGreaterThan(0);
+  });
+
+  it("builds sample full body routine for direct export", () => {
+    const payload = buildSampleFullBodyHevyRoutine();
+
+    expect(payload.routine.title).toMatch(/Full Body/i);
+    expect(payload.routine.exercises.length).toBe(3);
+  });
+
+  it("returns preview payload when no API key is provided", async () => {
+    const payload = buildSampleFullBodyHevyRoutine();
+    const result = await exportHevyRoutine(payload);
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/anteprima senza chiave API/i);
+    expect(result.payload.routine.title).toBe(payload.routine.title);
+  });
+});

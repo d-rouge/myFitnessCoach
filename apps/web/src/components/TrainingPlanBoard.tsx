@@ -1,7 +1,23 @@
-import type { MacroPlan, MicroPlan, PlannedSession, Sport } from "@health-trainer/domain";
+import type {
+  MacroPlan,
+  MicroPlan,
+  PlannedSession,
+  SessionComparisonResult,
+  Sport,
+} from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
+import { WeeklyReviewCard } from "./WeeklyReviewCard";
+
+interface CoachAdvice {
+  headline: string;
+  readinessSummary: string;
+  workoutFocus: string;
+  tips: string[];
+  encouragement: string;
+  caution?: string;
+}
 
 interface TrainingPlanBoardProps {
   hasBaseline: boolean;
@@ -13,6 +29,16 @@ interface TodaySessionResponse {
   alternatives: { label: string; changes: string }[];
   microPlanId?: string;
   isRestDay: boolean;
+}
+
+interface CoachAdviceResponse {
+  advice: CoachAdvice;
+  meta: {
+    provider: string;
+    model: string;
+    latencyMs: number;
+    promptVersion: string;
+  };
 }
 
 const SPORT_COLORS: Record<Sport, { bg: string; text: string; ring: string }> = {
@@ -44,6 +70,16 @@ async function fetchTodaySession(): Promise<TodaySessionResponse> {
   return res.json() as Promise<TodaySessionResponse>;
 }
 
+async function fetchCoachAdvice(sessionId?: string): Promise<CoachAdviceResponse> {
+  const res = await fetch("/api/ai/coach-advice", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) throw new Error("Errore caricamento consiglio coach");
+  return res.json() as Promise<CoachAdviceResponse>;
+}
+
 async function generatePlan(): Promise<{ macroPlan: MacroPlan; microPlan: MicroPlan }> {
   const res = await fetch("/api/plan/macro/generate", {
     method: "POST",
@@ -57,26 +93,76 @@ async function generatePlan(): Promise<{ macroPlan: MacroPlan; microPlan: MicroP
   return res.json() as Promise<{ macroPlan: MacroPlan; microPlan: MicroPlan }>;
 }
 
-async function updateSessionStatus(args: {
-  sessionId: string;
-  status: "planned" | "completed" | "skipped" | "adjusted";
+async function recordManualActivityApi(payload: {
+  sessionId?: string;
+  durationMin: number;
+  distanceKm?: number;
+  avgHr?: number;
+  rpe?: number;
   notes?: string;
-}): Promise<void> {
-  const res = await fetch(`/api/plan/sessions/${args.sessionId}`, {
-    method: "PATCH",
+}): Promise<{ comparison?: SessionComparisonResult }> {
+  const res = await fetch("/api/activities/manual", {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: args.status, notes: args.notes }),
+    body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("Errore aggiornamento sessione");
+  if (!res.ok) {
+    const body = (await res.json()) as { message?: string };
+    throw new Error(body.message ?? "Errore salvataggio attività manuale");
+  }
+  return res.json() as Promise<{ comparison?: SessionComparisonResult }>;
+}
+
+async function uploadFitApi(payload: {
+  base64: string;
+  filename: string;
+}): Promise<{ comparison?: SessionComparisonResult }> {
+  const res = await fetch("/api/activities/upload-fit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json()) as { message?: string };
+    throw new Error(body.message ?? "Errore upload file FIT");
+  }
+  return res.json() as Promise<{ comparison?: SessionComparisonResult }>;
+}
+
+async function exportHevyApi(sessionId?: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch("/api/export/workouts/hevy/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) {
+    const body = (await res.json()) as { message?: string };
+    throw new Error(body.message ?? "Errore esportazione Hevy");
+  }
+  return res.json() as Promise<{ success: boolean; message: string }>;
 }
 
 export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
   const queryClient = useQueryClient();
   const [selectedAlternative, setSelectedAlternative] = useState<string | null>(null);
+  const [showRecordForm, setShowRecordForm] = useState(false);
+  const [recordDuration, setRecordDuration] = useState("30");
+  const [recordDistance, setRecordDistance] = useState("");
+  const [recordHr, setRecordHr] = useState("");
+  const [recordRpe, setRecordRpe] = useState("5");
+  const [recordNotes, setRecordNotes] = useState("");
+  const [lastComparison, setLastComparison] = useState<SessionComparisonResult | null>(null);
+  const [hevyFeedback, setHevyFeedback] = useState<string | null>(null);
 
   const macro = useQuery({ queryKey: ["macro-plan"], queryFn: fetchMacroPlan });
   const micro = useQuery({ queryKey: ["micro-plan"], queryFn: fetchMicroPlan });
   const today = useQuery({ queryKey: ["today-session"], queryFn: fetchTodaySession });
+
+  const coachAdvice = useQuery({
+    queryKey: ["coach-advice", today.data?.session?.id],
+    queryFn: () => fetchCoachAdvice(today.data?.session?.id),
+    enabled: Boolean(today.data?.session),
+  });
 
   const generateMutation = useMutation({
     mutationFn: generatePlan,
@@ -84,16 +170,56 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
       await queryClient.invalidateQueries({ queryKey: ["macro-plan"] });
       await queryClient.invalidateQueries({ queryKey: ["micro-plan"] });
       await queryClient.invalidateQueries({ queryKey: ["today-session"] });
+      await queryClient.invalidateQueries({ queryKey: ["latest-review"] });
     },
   });
 
-  const updateSessionMutation = useMutation({
-    mutationFn: updateSessionStatus,
-    onSuccess: async () => {
+  const manualRecordMutation = useMutation({
+    mutationFn: recordManualActivityApi,
+    onSuccess: async (data) => {
+      if (data.comparison) setLastComparison(data.comparison);
+      setShowRecordForm(false);
       await queryClient.invalidateQueries({ queryKey: ["micro-plan"] });
       await queryClient.invalidateQueries({ queryKey: ["today-session"] });
     },
   });
+
+  const uploadFitMutation = useMutation({
+    mutationFn: uploadFitApi,
+    onSuccess: async (data) => {
+      if (data.comparison) setLastComparison(data.comparison);
+      await queryClient.invalidateQueries({ queryKey: ["micro-plan"] });
+      await queryClient.invalidateQueries({ queryKey: ["today-session"] });
+    },
+  });
+
+  const exportHevyMutation = useMutation({
+    mutationFn: exportHevyApi,
+    onSuccess: (data) => {
+      setHevyFeedback(data.message);
+    },
+    onError: (err) => {
+      setHevyFeedback(err.message);
+    },
+  });
+
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const buffer = reader.result as ArrayBuffer;
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      uploadFitMutation.mutate({ base64, filename: file.name });
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   if (!hasBaseline) {
     return null;
@@ -135,11 +261,11 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
         </div>
       </div>
 
-      {generateMutation.isError ? (
+      {generateMutation.isError && (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300">
           {generateMutation.error.message}
         </div>
-      ) : null}
+      )}
 
       {hasPlan && (
         <>
@@ -204,6 +330,45 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                     <strong className="capitalize text-white">{today.data.session.location}</strong>
                   </span>
                 </div>
+
+                {/* AI Coach Advice Box (Task 1.8) */}
+                {coachAdvice.data?.advice && (
+                  <div className="rounded-2xl border border-lime-400/20 bg-lime-400/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-lime-400">
+                        AI Coach Briefing
+                      </span>
+                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">
+                        {coachAdvice.data.meta.model} ({coachAdvice.data.meta.latencyMs}ms)
+                      </span>
+                    </div>
+                    <p className="mt-1 font-semibold text-white text-sm">
+                      {coachAdvice.data.advice.headline}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      {coachAdvice.data.advice.workoutFocus}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {coachAdvice.data.advice.readinessSummary}
+                    </p>
+
+                    {coachAdvice.data.advice.caution && (
+                      <div className="mt-2 rounded-xl bg-amber-400/10 p-2.5 text-xs text-amber-300 ring-1 ring-amber-400/20">
+                        <strong>Attenzione:</strong> {coachAdvice.data.advice.caution}
+                      </div>
+                    )}
+
+                    <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-slate-400">
+                      {coachAdvice.data.advice.tips.map((tip: string) => (
+                        <li key={tip}>{tip}</li>
+                      ))}
+                    </ul>
+
+                    <p className="mt-2 text-xs italic text-lime-300/90">
+                      &ldquo;{coachAdvice.data.advice.encouragement}&rdquo;
+                    </p>
+                  </div>
+                )}
 
                 {/* Structured Blocks */}
                 <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
@@ -273,38 +438,187 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                   </div>
                 </div>
 
-                {/* Session Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-                  <p className="text-xs text-slate-400">
-                    Criterio di successo:{" "}
-                    <span className="text-slate-200">{today.data.session.successCriteria}</span>
-                  </p>
+                {/* Last Comparison Feedback */}
+                {lastComparison && (
+                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-950/20 p-4 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-300">
+                        Confronto Effettivo vs Pianificato:
+                      </span>
+                      <span className="font-bold text-white">
+                        {lastComparison.adherenceScore}% aderenza
+                      </span>
+                    </div>
+                    <p className="mt-1 text-slate-300">{lastComparison.summary}</p>
+                    {lastComparison.flags.length > 0 && (
+                      <p className="mt-1 text-amber-300">Flag: {lastComparison.flags.join(", ")}</p>
+                    )}
+                  </div>
+                )}
 
-                  <div className="flex items-center gap-2">
-                    {today.data.session.status !== "completed" ? (
+                {/* Hevy Feedback */}
+                {hevyFeedback && (
+                  <div className="rounded-2xl border border-purple-400/30 bg-purple-950/20 p-3 text-xs text-purple-300">
+                    {hevyFeedback}
+                  </div>
+                )}
+
+                {/* Manual Record Form Toggle */}
+                {showRecordForm && (
+                  <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                      Registra Esecuzione Effettiva
+                    </h4>
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      <div>
+                        <span className="text-[11px] text-slate-400 block mb-1">Durata (min)</span>
+                        <input
+                          type="number"
+                          value={recordDuration}
+                          onChange={(e) => setRecordDuration(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block mb-1">Distanza (km)</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="es. 5.2"
+                          value={recordDistance}
+                          onChange={(e) => setRecordDistance(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block mb-1">
+                          FC Media (bpm)
+                        </span>
+                        <input
+                          type="number"
+                          placeholder="es. 145"
+                          value={recordHr}
+                          onChange={(e) => setRecordHr(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block mb-1">
+                          RPE Sforzo (1-10)
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={recordRpe}
+                          onChange={(e) => setRecordRpe(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-400 block mb-1">
+                        Note e Sensazioni
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="es. Gambe leggere, ritmo costante"
+                        value={recordNotes}
+                        onChange={(e) => setRecordNotes(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2">
+                        <label className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10">
+                          Carica file .FIT
+                          <input
+                            type="file"
+                            accept=".fit"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        {uploadFitMutation.isPending && (
+                          <span className="text-xs text-slate-400">Elaborazione FIT…</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowRecordForm(false)}
+                          className="rounded-xl px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                        >
+                          Annulla
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            manualRecordMutation.mutate({
+                              sessionId: today.data?.session?.id,
+                              durationMin: Number.parseInt(recordDuration, 10) || 30,
+                              distanceKm: recordDistance
+                                ? Number.parseFloat(recordDistance)
+                                : undefined,
+                              avgHr: recordHr ? Number.parseInt(recordHr, 10) : undefined,
+                              rpe: Number.parseInt(recordRpe, 10) || 5,
+                              notes: recordNotes || undefined,
+                            });
+                          }}
+                          disabled={manualRecordMutation.isPending}
+                          className="rounded-xl bg-lime-400 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-lime-300 disabled:opacity-50"
+                        >
+                          {manualRecordMutation.isPending ? "Salvataggio…" : "Salva Risultato"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Session Actions & Exports */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* FIT Export for Cardio */}
+                    {(today.data.session.sport === "running" ||
+                      today.data.session.sport === "cycling" ||
+                      today.data.session.sport === "swimming") && (
+                      <a
+                        href={`/api/export/workouts/session/${today.data.session.id}.fit`}
+                        download
+                        className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20"
+                      >
+                        Scarica Workout (.FIT)
+                      </a>
+                    )}
+
+                    {/* Hevy Export for Strength */}
+                    {today.data.session.sport === "strength" && (
                       <button
                         type="button"
-                        onClick={() => {
-                          const currentSession = today.data?.session;
-                          if (!currentSession) return;
-                          updateSessionMutation.mutate({
-                            sessionId: currentSession.id,
-                            status: "completed",
-                            notes: selectedAlternative
-                              ? `Eseguita con variante: ${selectedAlternative}`
-                              : undefined,
-                          });
-                        }}
-                        disabled={updateSessionMutation.isPending}
-                        className="rounded-xl bg-lime-400 px-4 py-2 text-xs font-bold text-slate-950 shadow-md transition hover:bg-lime-300 disabled:opacity-50"
+                        onClick={() => exportHevyMutation.mutate(today.data?.session?.id)}
+                        disabled={exportHevyMutation.isPending}
+                        className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-3 py-2 text-xs font-semibold text-purple-300 transition hover:bg-purple-400/20 disabled:opacity-50"
                       >
-                        {updateSessionMutation.isPending ? "Salvataggio…" : "Segna come completata"}
+                        {exportHevyMutation.isPending ? "Esporto…" : "Esporta su Hevy"}
                       </button>
-                    ) : (
-                      <span className="rounded-xl bg-emerald-400/20 px-4 py-2 text-xs font-bold text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-                        Sessione registrata con successo
-                      </span>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowRecordForm(!showRecordForm)}
+                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                    >
+                      {showRecordForm ? "Chiudi Form" : "Registra Dati Sessione"}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {today.data.session.status === "completed" ? (
+                      <span className="rounded-xl bg-emerald-400/20 px-4 py-2 text-xs font-bold text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
+                        Sessione completata
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -394,6 +708,9 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
               })}
             </div>
           </div>
+
+          {/* Review Settimanale Component (Task 1.7) */}
+          <WeeklyReviewCard />
 
           {/* Macrociclo Timeline */}
           <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl">

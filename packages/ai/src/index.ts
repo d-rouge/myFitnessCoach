@@ -33,3 +33,19 @@ export interface LlmProvider {
     request: LlmRequest<TSchema>,
   ): Promise<LlmResponse<z.infer<TSchema>>>;
 }
+
+export {
+  COACH_PROMPT_VERSION,
+  COACH_SYSTEM_PROMPT,
+  type CoachAdvice,
+  type CoachAdviceInput,
+  CoachAdviceSchema,
+  DeterministicCoachProvider,
+  generateDeterministicCoachAdvice,
+} from "./coach.js";
+
+export {
+  type AiRunRecord,
+  AiRunRecordSchema,
+  createAiRunRecord,
+} from "./runs.js";

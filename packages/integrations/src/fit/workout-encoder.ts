@@ -5,6 +5,7 @@ import {
   type WorkoutMesg,
   type WorkoutStepMesg,
 } from "@garmin/fitsdk";
+import type { PlannedSession } from "@health-trainer/domain";
 
 export type WorkoutSport = "running" | "cycling" | "swimming";
 
@@ -253,4 +254,86 @@ export function create5x800mWorkout(options?: {
       },
     ],
   };
+}
+
+export function sessionToWorkoutDef(session: PlannedSession): WorkoutDef {
+  const sport: WorkoutSport =
+    session.sport === "cycling" ? "cycling" : session.sport === "swimming" ? "swimming" : "running";
+  const steps: WorkoutStepDef[] = [];
+
+  if (session.blocks.length > 0) {
+    for (const block of session.blocks) {
+      const startIndex = steps.length;
+      for (const step of block.steps) {
+        const intensity: WorkoutStepIntensity =
+          step.kind === "warmup"
+            ? "warmup"
+            : step.kind === "cooldown"
+              ? "cooldown"
+              : step.kind === "recovery"
+                ? "recovery"
+                : "interval";
+
+        const duration: WorkoutDuration = step.distanceM
+          ? { type: "distance", meters: step.distanceM }
+          : { type: "time", seconds: (step.durationMin ?? 10) * 60 };
+
+        steps.push({
+          name: step.target ?? `${step.kind} step`,
+          intensity,
+          duration,
+          target: { type: "open" },
+        });
+      }
+
+      if (block.repeat > 1 && steps.length > startIndex) {
+        steps.push({
+          name: `Ripeti ${block.repeat}x`,
+          intensity: "interval",
+          duration: {
+            type: "repeat",
+            repeatCount: block.repeat,
+            repeatFromStepIndex: startIndex,
+          },
+        });
+      }
+    }
+  } else {
+    const warmupMin = Math.min(10, Math.floor(session.durationMin * 0.2));
+    const cooldownMin = Math.min(10, Math.floor(session.durationMin * 0.2));
+    const workMin = Math.max(10, session.durationMin - warmupMin - cooldownMin);
+
+    steps.push(
+      {
+        name: "Riscaldamento Z2",
+        intensity: "warmup",
+        duration: { type: "time", seconds: warmupMin * 60 },
+        target: { type: "heartRateZone", zone: 2 },
+      },
+      {
+        name: session.title,
+        intensity: "interval",
+        duration: { type: "time", seconds: workMin * 60 },
+        target: { type: "open" },
+      },
+      {
+        name: "Defaticamento Z1",
+        intensity: "cooldown",
+        duration: { type: "time", seconds: cooldownMin * 60 },
+        target: { type: "heartRateZone", zone: 1 },
+      },
+    );
+  }
+
+  return {
+    name: session.title.slice(0, 50),
+    sport,
+    description: session.successCriteria ?? session.title,
+    steps,
+  };
+}
+
+export function encodeSessionWorkoutFit(session: PlannedSession): Uint8Array {
+  const workoutDef = sessionToWorkoutDef(session);
+  return encodeWorkoutToFit(workoutDef);
 }

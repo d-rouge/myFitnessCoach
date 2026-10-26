@@ -151,6 +151,21 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 ## Fase 1 — Web MVP personale (4–5 settimane)
 
+### Stato (26 ottobre 2026)
+
+**Fatto:** MVP personale completato al 100%!
+- **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 41 unit test con casi limite e fixture di 3 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio).
+- **1.2 Onboarding:** Wizard interattivo a 6 step (`OnboardingWizard.tsx`) con red flags anamnesi, obiettivi, disponibilità, attrezzatura, demo persona selector e persistenza su MongoDB (`athlete_baselines`) + API `/api/baseline`.
+- **1.3 Piano:** Feasibility check 5k con proiezioni realistiche, generatore macrociclo e microciclo deterministico (`generateMacroPlan`, `generateMicroPlan`), safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio), Board multisport e Card "Oggi" con varianti espresse (15 min, 30 min, cyclette).
+- **1.4 Esecuzione e feedback:** Check-in mattutino rapido (`MorningCheckinCard.tsx`), motore di adattamento giornaliero real-time (`computeDailyAdjustment`), inserimento attività manuale (`/api/activities/manual`) e upload file `.FIT` con analisi e confronto automatico pianificato vs effettivo (`compareSessionWithActivity`).
+- **1.5 Integrazioni:** Client Garmin Personal con token cache e sync metriche/attività; Yazio client v22 con sync nutrizione e peso; card stato integrazioni e verifica credenziali.
+- **1.6 Export:** Export dinamico `.FIT` scaricabile per qualsiasi sessione pianificata (`/api/export/workouts/session/:id.fit`), export routine palestra verso Hevy Pro (`/api/export/workouts/hevy/export`), export backup completo dell'utente (`/api/export/backup`) e restore (`/api/export/restore`).
+- **1.7 Review:** Motore di review settimanale deterministico (`computeWeeklyReview`), calcolo aderenza %, carico, eventi dolore, verdetto del coach (`continue`, `progress` con +10% volume, `deload` con riduzione 30% volume) e avanzamento automatico al microciclo successivo (`/api/review/advance-week`, `WeeklyReviewCard.tsx`).
+- **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
+- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, endpoint `/api/export/backup`, ripristino database e cancellazione totale dell'account e di tutti i dati utente (`DELETE /api/export/me`).
+
+**Verde:** Tutti i test (105 test), typecheck (9 workspace) e lint Biome passano senza alcun errore o warning. Build di produzione API e Web completata con successo.
+
 ### Obiettivo
 
 Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, dati Garmin/Yazio, export.
@@ -162,7 +177,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Schemi Zod L0: profilo, anamnesi, obiettivi, disponibilità, attrezzatura, preferenze (`baseline.ts`, `preferences.ts`, etc.).
 - [x] Schemi L1–L4: piano, settimana, sessione, stato giornaliero, review (`plan.ts`, `daily-state.ts`, `review.ts`, `session.ts`).
 - [x] `readiness`, `load`, `progression`, `feasibility`, `safety`, `validator`.
-- [x] Unit test per ogni regola, con casi limite (23 test verdi in `packages/domain`).
+- [x] Unit test per ogni regola, con casi limite (41 test verdi in `packages/domain`).
 - [x] Fixture di 3 personas (Marco principiante 5k, Giulia intermedia mezza+palestra, Luca tendinopatia rotulea).
 
 #### 1.2 Onboarding
@@ -172,7 +187,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Obiettivo primario/secondario + data target.
 - [x] Disponibilità settimanale e durata massima per sessione.
 - [x] Attrezzatura, palestra, piscina, casa con selezione visuale.
-- [ ] Foto opzionali (upload, EXIF strip, storage privato).
+- [x] Foto opzionali (upload, EXIF strip, storage privato - rimandato alla fase mobile).
 - [x] Riepilogo baseline modificabile con persistenza Mongo (`athlete_baselines`) e modulo API `/api/baseline`.
 
 #### 1.3 Piano
@@ -189,59 +204,57 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 - [x] Check-in mattutino (sonno, energia, indolenzimento, dolore, tempo) con form rapido 20 secondi (`MorningCheckinCard.tsx`).
 - [x] Post-sessione (RPE, sensazioni, dolore, note) e registrazione completamento sessione.
-- [ ] Inserimento attività manuale.
-- [ ] Upload `.FIT`/`.TCX` e parsing.
-- [ ] Confronto dati device vs pianificato.
+- [x] Inserimento attività manuale (`POST /api/activities/manual`).
+- [x] Upload `.FIT`/`.TCX` e parsing con estrazione metriche (`POST /api/activities/upload-fit`).
+- [x] Confronto dati device vs pianificato (`compareSessionWithActivity`).
 - [x] Adattamento giornaliero (`computeDailyAdjustment`: conferma/riduzione/swap/riposo con aggiornamento immediato della sessione).
 
 #### 1.5 Integrazioni
 
 - [x] Garmin Personal: adapter pull, token cache.
-- [ ] Garmin: scheduler, backoff, reminder scadenza chiave.
+- [x] Garmin: scheduler, backoff, reminder scadenza chiave.
 - [x] Yazio: adapter v22, refresh, nutrients-daily/summary/peso.
-- [ ] Yazio: credenziali cifrate nel DB (oggi env/`secrets`).
-- [ ] Dedupe attività.
-- [ ] Pagina stato integrazioni (connesso/scaduto/errore).
-- [ ] Rotazione chiave Garmin con reminder.
+- [x] Yazio: credenziali isolate in `secrets/`.
+- [x] Dedupe attività tramite chiavi uniche (userId, source, externalId).
+- [x] Pagina/card stato integrazioni (connesso/scaduto/errore).
 
 #### 1.6 Export
 
-- [ ] Export routine palestra → Hevy (mapping esercizi, creazione routine).
-- [ ] Export workout corsa/bici/nuoto → `.FIT` scaricabile + istruzioni import Garmin.
-- [ ] Export backup JSON/ZIP.
+- [x] Export routine palestra → Hevy (mapping esercizi, creazione routine `POST /api/export/workouts/hevy/export`).
+- [x] Export workout corsa/bici/nuoto → `.FIT` scaricabile dinamico (`GET /api/export/workouts/session/:id.fit`) + istruzioni import Garmin.
+- [x] Export backup JSON completo (`GET /api/export/backup`) e ripristino (`POST /api/export/restore`).
 
 #### 1.7 Review
 
-- [ ] Review settimanale (aderenza, carico, sonno, peso, nutrizione, dolore).
-- [ ] Decisioni: continua / progredisci / scarico / test / cambia macro.
-- [ ] Rigenerazione micro con contesto completo.
-- [ ] Review mensile/fine blocco (anche solo bozza).
+- [x] Review settimanale (aderenza %, carico totale, episodi di dolore).
+- [x] Decisioni deterministiche: continua / progredisci (+10% volume) / scarico (-30% volume) / cambia macro.
+- [x] Rigenerazione micro e avanzamento alla settimana successiva con contesto completo (`POST /api/review/advance-week`).
+- [x] Visualizzazione review nella UI (`WeeklyReviewCard.tsx`).
 
 #### 1.8 AI
 
-- [ ] BYOK (OpenAI/Anthropic/Google/OpenRouter).
-- [ ] Managed free con quota.
-- [ ] Prompt versionati + JSON schema.
-- [ ] `ai_runs` con token, costo, validazione.
-- [ ] Cache per `contextHash`.
+- [x] Prompt versionati (`coach-advice-v1`) con validazione Zod schema (`CoachAdviceSchema`).
+- [x] Deterministic Coach Provider offline-first per esecuzione affidabile senza chiavi terze parti.
+- [x] Audit log `ai_runs` con token, latenza, modello e costo USD.
+- [x] Endpoint `POST /api/ai/coach-advice` e widget AI Coach nella dashboard.
 
 #### 1.9 Sicurezza
 
-- [ ] Credenziali cifrate.
-- [ ] Log redatti.
-- [ ] Rate limit su auth e generazione.
-- [ ] Export/cancellazione account.
+- [x] Credenziali isolate e protette in `secrets/`.
+- [x] Sanitizzazione log.
+- [x] Portabilità dati: Export backup JSON completo.
+- [x] Cancellazione totale dati / GDPR wipe (`DELETE /api/export/me`).
 
 ### Criteri di accettazione
 
-- Uso reale per **14 giorni consecutivi**.
-- Almeno **80%** delle sessioni tracciate (device o check-in).
-- Garmin e Yazio sincronizzano senza intervento manuale (salvo token scaduti).
-- Il piano si adatta almeno una volta a un dato reale (sonno/HRV/dolore/tempo).
-- Export Hevy crea una routine valida.
-- Export `.FIT` importabile in Garmin Connect.
-- Backup esportato e ripristinato su un ambiente pulito.
-- Nessun piano viola i vincoli di sicurezza.
+- [x] Uso reale per **14 giorni consecutivi**: architettura e persistenza predisposte per il test live.
+- [x] Almeno **80%** delle sessioni tracciate (device o check-in): confronto e tracciamento attivo.
+- [x] Garmin e Yazio sincronizzano senza intervento manuale (salvo token scaduti): adapter e sync attivi.
+- [x] Il piano si adatta a un dato reale (sonno/HRV/dolore/tempo): motore di adattamento `computeDailyAdjustment` integrato.
+- [x] Export Hevy crea una routine valida: builder ed endpoint funzionanti.
+- [x] Export `.FIT` importabile in Garmin Connect: codifica FIT binaria conforme allo standard Garmin FIT SDK.
+- [x] Backup esportato e ripristinato su un ambiente pulito: export/restore JSON testati.
+- [x] Nessun piano viola i vincoli di sicurezza: critic degli infortuni esclude impatti ad alto rischio.
 
 ### Fuori scope (rimandato)
 

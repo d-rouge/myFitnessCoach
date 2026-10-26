@@ -2,7 +2,14 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 1 in corso — completati Task 1.1 (dominio puro, schemi L0–L4, 3 personas), Task 1.2 (onboarding wizard in 6 step mobile-friendly, scorciatoie demo personas, persistenza baseline in MongoDB e integrazione web), Task 1.3 (generatore macro/micro-piano deterministico da baseline, safety critic per infortuni, board settimanale multisport e card interattiva "Oggi" con alternative 15/30 min) e Task 1.4 parziale (check-in mattutino rapido in 20 sec con feedback immediato e adattamento deterministico della sessione). 88 test verdi, typecheck e lint puliti.
+**Stato:** Fase 1 completata (Web MVP personale completo) — implementati tutti i componenti del loop:
+- **L0 Onboarding & Baseline:** Wizard 6 step interattivo (`OnboardingWizard.tsx`) con red flags, obiettivi e persistenza Mongo (`athlete_baselines`).
+- **L1–L3 Piani & Esecuzione:** Generatore deterministico macro/micro ciclo multisport (`generateMacroPlan`, `generateMicroPlan`), safety critic per infortuni, board settimanale e card "Oggi" con varianti espresse (15/30 min/cyclette).
+- **Feedback & Adattamento:** Morning check-in rapido (`MorningCheckinCard.tsx`), motore di adattamento dinamico real-time (`computeDailyAdjustment`), tracciamento attività manuale (`/api/activities/manual`) e upload FIT con confronto pianificato vs effettivo (`compareSessionWithActivity`).
+- **L4 Review Settimanale:** Motore deterministico (`computeWeeklyReview`), calcolo aderenza, carico ed eventi dolore, verdetto del coach (continua, progredisci +10%, scarico -30%) e avanzamento al microciclo successivo (`WeeklyReviewCard.tsx`).
+- **AI Coach:** Provider deterministico offline-first (`DeterministicCoachProvider`), prompt versionato (`coach-advice-v1`), tracciamento esecuzioni in `ai_runs` e widget AI Coach.
+- **Export & Portabilità:** Export FIT dinamico per qualsiasi sessione pianificata, export routine palestra Hevy Pro, backup completo JSON e cancellazione totale dati utente (GDPR wipe).
+105 test verdi, typecheck pulito (9 workspace), lint Biome pulito, build di produzione verificata.
 
 ## Documenti
 

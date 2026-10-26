@@ -14,9 +14,11 @@ export {
 } from "./fit/parser";
 export {
   create5x800mWorkout,
+  encodeSessionWorkoutFit,
   encodeWorkoutToFit,
   paceToSpeedMs,
   parsePaceStringToSecKm,
+  sessionToWorkoutDef,
   type WorkoutDef,
   type WorkoutDuration,
   type WorkoutSport,
@@ -40,6 +42,15 @@ export {
   type GarminPersonalClientOptions,
   type GarminToken,
 } from "./garmin/personal-client";
+export {
+  buildHevyRoutine,
+  buildSampleFullBodyHevyRoutine,
+  exportHevyRoutine,
+  HEVY_EXERCISE_CATALOG,
+  type HevyExercise,
+  type HevyRoutinePayload,
+  type HevySet,
+} from "./hevy/routine-builder";
 export type {
   ProviderAdapter,
   ProviderCapability,
