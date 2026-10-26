@@ -1,6 +1,6 @@
 # Integrazioni — specifiche operative
 
-**Versione:** 1.5  
+**Versione:** 1.6  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | Garmin Personal | **client + mapper + sync persistente + UI**: 3 attività e 7 giorni di metriche salvati in Mongo; test reale con 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `apps/api/src/integrations/garmin-sync.service.ts`, `packages/db/src/`, `docs/spikes/garmin.md` |
 | Garmin `.FIT` export | non iniziato | — |
-| Yazio | **client v22 + mapper + sync persistente + UI**; test reale in attesa di credenziali/token | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
+| Yazio | **client v22 + mapper + sync persistente + UI**; **test reale OK**: 7 giorni di macro e peso, 0 errori, sync idempotente | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
 | Zepp | non iniziato | — |
 | Hevy | non iniziato | — |
 | Health Connect | non iniziato (fase 3) | — |
@@ -311,8 +311,8 @@ Content-Type: application/json
 - Sync: `POST /api/integrations/yazio/sync?days=7`; overview: `GET /api/integrations/yazio/overview?days=7`; check: `POST /api/integrations/yazio/check`.
 - Persistenza: `nutrition_daily` e `metrics_daily` (source `yazio`), audit in `sync_runs` / `sync_state`.
 - UI: card “Nutrizione Yazio” con verifica, sync e tabella kcal/macro/acqua/peso.
-- Test di contratto e mapper con fixture sintetiche (24 test integrations totali).
-- **Non verificato con account reale:** login Google/token import, 2FA, rate limit, forma effettiva delle risposte.
+- Test di contratto e mapper con fixture sintetiche (25 test integrations totali).
+- **Verificato con account reale (26 ottobre 2026):** login password su v22, `nutrients-daily`, summary, goals, peso; 7 giorni sincronizzati senza errori; nessun 2FA bloccante.
 
 ### 4.5 Sync
 

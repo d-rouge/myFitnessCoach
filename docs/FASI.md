@@ -1,6 +1,6 @@
 # Fasi di realizzazione
 
-**Versione:** 1.7  
+**Versione:** 1.8  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -34,10 +34,10 @@ Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, me
 
 ### Stato (26 ottobre 2026)
 
-**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, **sync Garmin persistente** (attività + metriche in Mongo), **Yazio client/mapper/sync/UI** (test reale in attesa credenziali), API `/api/health`, overview e sync in UI, CI, MongoDB locale, `.env.example`, repo git.
-**Verde:** `npm run build`, `npm test` (50 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
-**Bloccato su:** credenziali Yazio/Google OAuth, chiave Hevy Pro per l'export.
-**Prossimo passo:** test Yazio reale (refresh token da login Google) + export workout `.FIT`; poi auth Google e onboarding.
+**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, **sync Garmin persistente** (attività + metriche in Mongo), **Yazio v22 client/mapper/sync/UI con test reale**, API `/api/health`, overview e sync in UI, CI, MongoDB locale, `.env.example`, repo git.
+**Verde:** `npm run build`, `npm test` (51 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
+**Bloccato su:** Google OAuth dell'app, chiave Hevy Pro per l'export.
+**Prossimo passo:** export workout `.FIT` + auth Google e onboarding; poi sync schedulato.
 
 > Nota: NestJS è alla versione **12 (ESM)**, con `type: module` e import `.js`. Non reintrodurre CommonJS o Nest 11.
 
@@ -96,10 +96,10 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] Sync persistente in `nutrition_daily` / `metrics_daily` + audit.
 - [x] Endpoint `check` / `sync` / `overview` e card UI “Nutrizione Yazio”.
 - [x] Test di contratto + mapper con fixture.
-- [ ] Login con account reale (credenziali in `secrets/yazio.json`).
-- [ ] Pull reale: profilo, summary giornaliero, diario, ultimo peso, obiettivi.
-- [ ] Verificare 2FA/blocchi e scadenza token reale.
-- [ ] Compilare verdetto e rischi in `docs/spikes/yazio.md`.
+- [x] Login con account reale (password Yazio; supporto refresh token per Google già implementato).
+- [x] Pull reale: profilo, nutrients-daily, summary, diario, ultimo peso, obiettivi (7 giorni).
+- [x] Verificare 2FA/blocchi: nessun blocco; token/refresh gestiti.
+- [x] Verdetto e rischi in `docs/spikes/yazio.md` (Go).
 
 #### 0.5 Zepp
 
@@ -133,7 +133,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - Almeno Garmin e Yazio restituiscono dati reali.
 - L'export `.FIT` è importabile in Garmin Connect.
 
-> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Garmin sync è operativo e persistente. Yazio è implementato ma il login reale è in attesa di credenziali. Login Google e export `.FIT` non sono ancora implementati.
+> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Garmin e Yazio sync sono operativi e persistenti. Login Google dell'app e export `.FIT` non sono ancora implementati.
 
 ### Rischi
 
@@ -194,8 +194,10 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.5 Integrazioni
 
-- [ ] Garmin Personal: adapter pull, token cache, scheduler, backoff.
-- [ ] Yazio: adapter, credenziali cifrate, refresh, summary/peso.
+- [x] Garmin Personal: adapter pull, token cache.
+- [ ] Garmin: scheduler, backoff, reminder scadenza chiave.
+- [x] Yazio: adapter v22, refresh, nutrients-daily/summary/peso.
+- [ ] Yazio: credenziali cifrate nel DB (oggi env/`secrets`).
 - [ ] Dedupe attività.
 - [ ] Pagina stato integrazioni (connesso/scaduto/errore).
 - [ ] Rotazione chiave Garmin con reminder.

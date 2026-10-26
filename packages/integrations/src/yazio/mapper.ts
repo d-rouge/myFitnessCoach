@@ -113,6 +113,24 @@ export function mapYazioDailyNutrients(
   return parsed.success ? parsed.data : undefined;
 }
 
+export function mapYazioGoals(
+  raw: unknown,
+  options: YazioMappingOptions,
+): Partial<NutritionDaily> | undefined {
+  const record = asRecord(raw);
+  if (!record) return undefined;
+
+  return {
+    date: options.date,
+    goalKcal: num(record["energy.energy"]),
+    goalProteinG: num(record["nutrient.protein"]),
+    goalCarbsG: num(record["nutrient.carb"]),
+    goalFatG: num(record["nutrient.fat"]),
+    goalWaterMl: num(record.water),
+    goalSteps: num(record["activity.step"]),
+  };
+}
+
 export function mapYazioSummaryExtras(
   raw: unknown,
   options: YazioMappingOptions,

@@ -19,6 +19,7 @@ import {
 import {
   mapYazioDailyNutrients,
   mapYazioDailySummary,
+  mapYazioGoals,
   mapYazioSummaryExtras,
   mapYazioWeight,
 } from "@health-trainer/integrations";
@@ -208,12 +209,13 @@ export class YazioSyncService {
       }
 
       const results = await mapLimit(dates, 2, async (date) => {
-        const [summary, weight] = await Promise.all([
+        const [summary, weight, goals] = await Promise.all([
           safe("daily-summary", date, () => client.getDailySummary(date)),
           safe("weight", date, () => client.getWeight(date)),
+          safe("goals", date, () => client.getGoals(date)),
         ]);
 
-        for (const result of [summary, weight]) {
+        for (const result of [summary, weight, goals]) {
           if (!result.ok) errors.push(result.error);
         }
 
@@ -221,6 +223,7 @@ export class YazioSyncService {
           date,
           summary: summary.ok ? summary.value : undefined,
           weight: weight.ok ? weight.value : undefined,
+          goals: goals.ok ? goals.value : undefined,
         };
       });
 
@@ -229,11 +232,15 @@ export class YazioSyncService {
 
       for (const result of results) {
         if (result.summary !== undefined) {
-          const extras = mapYazioSummaryExtras(result.summary, {
+          const summaryExtras = mapYazioSummaryExtras(result.summary, {
             userId,
             date: result.date,
             fetchedAt,
           });
+          const goalsExtras = result.goals
+            ? mapYazioGoals(result.goals, { userId, date: result.date, fetchedAt })
+            : undefined;
+          const extras = summaryExtras ? { ...summaryExtras, ...(goalsExtras ?? {}) } : goalsExtras;
 
           if (extras) {
             const existing = nutritionByDate.get(result.date);

@@ -46,7 +46,7 @@ Il loop:
 
 L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del piano e la spiegazione delle scelte.
 
-**Stato attuale (26 ottobre 2026):** Fase 0 in corso. Scaffold monorepo, dominio, Garmin sync persistente, Yazio client/mapper/sync/UI sono presenti e testati (Yazio reale in attesa credenziali). Mancano auth Google, Zepp, Hevy e l'export `.FIT`.
+**Stato attuale (26 ottobre 2026):** Fase 0 in corso. Scaffold monorepo, dominio, Garmin sync persistente, Yazio v22 client/mapper/sync/UI sono presenti e **testati con account reale** (7 giorni di macro e peso). Mancano auth Google dell'app, Zepp, Hevy e l'export `.FIT`.
 
 **Non assumere** che un path o una feature esista solo perché è nel piano: verifica nel repository.
 
@@ -107,7 +107,7 @@ Leggere `docs/FASI.md`. Alla data di questo file la fase attiva è la **Fase 0 �
 
 Non saltare gli spike: Garmin, Yazio, Zepp, Hevy e l'export `.FIT` hanno dettagli che non si possono indovinare. Ogni spike produce un documento in `docs/spikes/` con risposte reali e un verdetto.
 
-**Prossimo passo:** test Yazio con credenziali reali (`npm run spike:yazio`, `docs/spikes/yazio.md`) e export workout `.FIT` verso Garmin; poi auth Google + onboarding. Lo spike Garmin è completato in `docs/spikes/garmin.md`.
+**Prossimo passo:** export workout `.FIT` verso Garmin; poi auth Google + onboarding. Garmin e Yazio sono completati in `docs/spikes/garmin.md` e `docs/spikes/yazio.md`.
 
 ---
 
@@ -176,7 +176,7 @@ Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_END
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 50 test verdi (domain 20, config 3, integrations 24, api 3). Build e typecheck verdi.
+- **Test attuali:** 51 test verdi (domain 20, config 3, integrations 25, api 3). Build e typecheck verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` e gli spike caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
 - **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.

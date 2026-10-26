@@ -38,6 +38,7 @@ export {
 export {
   mapYazioDailyNutrients,
   mapYazioDailySummary,
+  mapYazioGoals,
   mapYazioSummaryExtras,
   mapYazioWeight,
   type YazioMappingOptions,

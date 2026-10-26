@@ -1,6 +1,6 @@
 # AI Personal Trainer — Piano di prodotto e architettura
 
-**Versione:** 0.2.7  
+**Versione:** 0.2.8  
 **Data:** 26 ottobre 2026  
 **Stato:** v0.2 — Fase 0 in corso (scaffold pronto, spike Garmin da eseguire)  
 **Documenti collegati:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
@@ -32,14 +32,14 @@
 | Client Garmin Personal + mapper + test di contratto | fatto, 11 test |
 | Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
 | Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
-| Yazio client v22 + mapper + sync + UI | fatto; supporto refresh token per login Google; test reale in attesa token |
+| Yazio client v22 + mapper + sync + UI | fatto; **test reale OK** (7 giorni, peso); supporto refresh token per Google |
 | API NestJS `health` + Garmin/Yazio `sync`/`overview` | fatto |
 | Web React/Vite con dati Garmin + nutrizione Yazio | fatto |
-| Test totali | 50 verdi |
+| Test totali | 51 verdi |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
 | Auth Google, Zepp, Hevy, export `.FIT` | da fare |
-| Prossimi passi | Test Yazio reale (token Google) + export `.FIT` |
+| Prossimi passi | Export `.FIT` + auth Google + scheduler |
 
 **Cosa resta valido dalla v0.1** (è il cuore del progetto):
 
@@ -794,7 +794,7 @@ Mitigazione: uso personale, feature flag, adapter isolato, nessun dato condiviso
 ## 14. Prossimi passi
 
 1. ~~**Spike Garmin reale:**~~ fatto il 26 ottobre 2026 — vedi `docs/spikes/garmin.md` (Go con workaround 406/token raw).
-2. **Yazio reale:** refresh token (login Google) in `secrets/yazio.json`, poi login/nutrients/peso; documentare 2FA e rate limit in `docs/spikes/yazio.md`.
+2. ~~**Yazio reale:**~~ fatto il 26 ottobre 2026 — login, 7 giorni di macro e peso; vedi `docs/spikes/yazio.md`.
 3. **Spike Hevy + export `.FIT`:** verificare creazione routine e import workout in Garmin Connect.
 4. **Auth Google + onboarding minimo:** `/api/me`, `users` in Mongo, schermata "oggi".
 5. **Prima vertical slice:** onboarding → piano → check-in → review.

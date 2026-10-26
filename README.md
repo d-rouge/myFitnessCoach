@@ -102,7 +102,7 @@ curl -X POST 'http://localhost:3000/api/integrations/yazio/sync?days=7'
 curl 'http://localhost:3000/api/integrations/yazio/overview?days=7'
 ```
 
-Il sync salva i macro giornalieri in `nutrition_daily` e il peso in `metrics_daily` (source `yazio`). La UI ha la card **Nutrizione Yazio**.
+Il sync salva i macro giornalieri in `nutrition_daily` e il peso in `metrics_daily` (source `yazio`). La UI ha la card **Nutrizione Yazio**. Testato con account reale: 7 giorni, 0 errori, sync idempotente.
 
 ## Stack
 

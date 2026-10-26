@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   mapYazioDailyNutrients,
   mapYazioDailySummary,
+  mapYazioGoals,
   mapYazioSummaryExtras,
   mapYazioWeight,
 } from "./mapper";
@@ -153,6 +154,29 @@ describe("Yazio mapper", () => {
       waterMl: 1500,
       steps: 9000,
       weightKg: 74.2,
+    });
+  });
+
+  it("maps the stable goals endpoint", () => {
+    const goals = mapYazioGoals(
+      {
+        "energy.energy": 2200,
+        "nutrient.protein": 150,
+        "nutrient.carb": 250,
+        "nutrient.fat": 70,
+        water: 2000,
+        "activity.step": 10000,
+      },
+      { userId: "personal", date: "2026-10-25", fetchedAt },
+    );
+
+    expect(goals).toMatchObject({
+      goalKcal: 2200,
+      goalProteinG: 150,
+      goalCarbsG: 250,
+      goalFatG: 70,
+      goalWaterMl: 2000,
+      goalSteps: 10000,
     });
   });
 
