@@ -82,13 +82,19 @@ Il sync salva attività e metriche giornaliere in MongoDB (`activities`, `metric
 
 ## Sync Yazio
 
-Metti le credenziali in `secrets/yazio.json` (ignorato da git):
+Yazio usa l'API non ufficiale **v22** e richiede uno User-Agent app valido. Se entri con **Google** (senza password), importa un refresh token catturato dall'app ufficiale:
+
+```json
+{ "refreshToken": "il-refresh-token" }
+```
+
+Se invece hai impostato una password Yazio:
 
 ```json
 { "email": "la-tua-email", "password": "la-tua-password" }
 ```
 
-Poi, con API e Mongo attivi:
+Salva in `secrets/yazio.json` (ignorato da git). Poi, con API e Mongo attivi:
 
 ```bash
 npm run spike:yazio

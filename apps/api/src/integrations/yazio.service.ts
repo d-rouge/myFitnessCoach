@@ -35,6 +35,7 @@ export class YazioService {
       baseUrl: this.env.YAZIO_BASE_URL,
       clientId: this.env.YAZIO_CLIENT_ID,
       clientSecret: this.env.YAZIO_CLIENT_SECRET,
+      userAgent: this.env.YAZIO_USER_AGENT,
       timeoutMs: 25_000,
     });
     return this.client;
@@ -63,11 +64,20 @@ export class YazioService {
 
   /**
    * Dev convenience: secrets/yazio.json is ignored by git.
-   * In production credentials must come from env/secret manager.
+   * Supports password credentials or an imported refresh/access token
+   * (needed for Google/social accounts).
    */
   private resolveCredentials(): YazioCredentials | undefined {
     if (this.env.YAZIO_EMAIL && this.env.YAZIO_PASSWORD) {
       return { email: this.env.YAZIO_EMAIL, password: this.env.YAZIO_PASSWORD };
+    }
+
+    if (this.env.YAZIO_REFRESH_TOKEN || this.env.YAZIO_ACCESS_TOKEN) {
+      return {
+        accessToken: this.env.YAZIO_ACCESS_TOKEN,
+        refreshToken: this.env.YAZIO_REFRESH_TOKEN,
+        expiresAt: this.env.YAZIO_TOKEN_EXPIRES_AT,
+      };
     }
 
     if (this.env.NODE_ENV === "production") {
@@ -76,11 +86,8 @@ export class YazioService {
 
     try {
       const raw = readFileSync(new URL("../../../../secrets/yazio.json", import.meta.url), "utf8");
-      const parsed = JSON.parse(raw) as {
-        email?: unknown;
-        username?: unknown;
-        password?: unknown;
-      };
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+
       const email =
         typeof parsed.email === "string"
           ? parsed.email
@@ -88,8 +95,30 @@ export class YazioService {
             ? parsed.username
             : undefined;
       const password = typeof parsed.password === "string" ? parsed.password : undefined;
+      const accessToken =
+        typeof parsed.accessToken === "string"
+          ? parsed.accessToken
+          : typeof parsed.access_token === "string"
+            ? parsed.access_token
+            : undefined;
+      const refreshToken =
+        typeof parsed.refreshToken === "string"
+          ? parsed.refreshToken
+          : typeof parsed.refresh_token === "string"
+            ? parsed.refresh_token
+            : undefined;
+      const rawExpiry =
+        typeof parsed.expiresAt === "number"
+          ? parsed.expiresAt
+          : typeof parsed.expires_at === "number"
+            ? parsed.expires_at
+            : undefined;
 
-      return email && password ? { email, password } : undefined;
+      if (email && password) return { email, password };
+      if (refreshToken || accessToken) {
+        return { accessToken, refreshToken, expiresAt: rawExpiry };
+      }
+      return undefined;
     } catch {
       return undefined;
     }

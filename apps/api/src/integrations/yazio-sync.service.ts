@@ -10,8 +10,18 @@ import {
   upsertDailyMetrics,
   upsertNutrition,
 } from "@health-trainer/db";
-import type { DailyMetrics, NutritionDaily } from "@health-trainer/domain";
-import { mapYazioDailySummary, mapYazioWeight } from "@health-trainer/integrations";
+import {
+  type DailyMetrics,
+  DailyMetricsSchema,
+  type NutritionDaily,
+  NutritionDailySchema,
+} from "@health-trainer/domain";
+import {
+  mapYazioDailyNutrients,
+  mapYazioDailySummary,
+  mapYazioSummaryExtras,
+  mapYazioWeight,
+} from "@health-trainer/integrations";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { PERSONAL_USER_ID } from "../config/constants.js";
 import { MongoService } from "../database/mongo.service.js";
@@ -116,6 +126,8 @@ const safe = async <T>(
   }
 };
 
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
 const mergeMetrics = (existing: DailyMetrics | undefined, next: DailyMetrics): DailyMetrics => {
   if (!existing) return next;
   const merged = { ...existing };
@@ -163,6 +175,38 @@ export class YazioSyncService {
       const client = this.yazio.getClient();
       const dates = eachDate(from, to);
 
+      const mergeNutrition = (
+        base: NutritionDaily | undefined,
+        patch: Partial<NutritionDaily> | undefined,
+      ): NutritionDaily | undefined => {
+        if (!patch) return base;
+        const date = patch.date ?? base?.date;
+        if (!date) return base;
+
+        const merged = {
+          ...(base ?? { userId, date, source: "yazio", fetchedAt }),
+          ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+        };
+        const parsed = NutritionDailySchema.safeParse(merged);
+        return parsed.success ? parsed.data : base;
+      };
+
+      const nutrientsResult = await safe("nutrients-daily", `${from}..${to}`, () =>
+        client.getDailyNutrients(from, to),
+      );
+      if (!nutrientsResult.ok) errors.push(nutrientsResult.error);
+
+      const nutritionByDate = new Map<string, NutritionDaily>();
+
+      for (const entry of nutrientsResult.ok ? asArray(nutrientsResult.value) : []) {
+        const mapped = mapYazioDailyNutrients(entry, {
+          userId,
+          date: from,
+          fetchedAt,
+        });
+        if (mapped) nutritionByDate.set(mapped.date, mapped);
+      }
+
       const results = await mapLimit(dates, 2, async (date) => {
         const [summary, weight] = await Promise.all([
           safe("daily-summary", date, () => client.getDailySummary(date)),
@@ -180,23 +224,51 @@ export class YazioSyncService {
         };
       });
 
-      const nutrition: NutritionDaily[] = [];
       const metricsByDate = new Map<string, DailyMetrics>();
       let weightEntries = 0;
 
       for (const result of results) {
         if (result.summary !== undefined) {
-          const mapped = mapYazioDailySummary(result.summary, {
+          const extras = mapYazioSummaryExtras(result.summary, {
             userId,
             date: result.date,
             fetchedAt,
           });
-          if (mapped) {
-            nutrition.push(mapped.nutrition);
-            if (mapped.metrics) {
+
+          if (extras) {
+            const existing = nutritionByDate.get(result.date);
+            if (!existing || existing.kcal === undefined) {
+              const fallback = mapYazioDailySummary(result.summary, {
+                userId,
+                date: result.date,
+                fetchedAt,
+              });
+              const merged = mergeNutrition(fallback?.nutrition, extras);
+              if (merged) nutritionByDate.set(merged.date, merged);
+            } else {
+              const merged = mergeNutrition(existing, extras);
+              if (merged) nutritionByDate.set(merged.date, merged);
+            }
+
+            const metricsCandidate = {
+              userId,
+              date: result.date,
+              source: "yazio",
+              steps: extras.steps,
+              hydrationMl: extras.waterMl,
+              weightKg: extras.weightKg,
+              fetchedAt,
+            };
+            const parsedMetrics = DailyMetricsSchema.safeParse(metricsCandidate);
+            if (
+              parsedMetrics.success &&
+              (extras.steps !== undefined ||
+                extras.waterMl !== undefined ||
+                extras.weightKg !== undefined)
+            ) {
               metricsByDate.set(
-                mapped.metrics.date,
-                mergeMetrics(metricsByDate.get(mapped.metrics.date), mapped.metrics),
+                result.date,
+                mergeMetrics(metricsByDate.get(result.date), parsedMetrics.data),
               );
             }
           }
@@ -215,6 +287,7 @@ export class YazioSyncService {
         }
       }
 
+      const nutrition = [...nutritionByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
       const metrics = [...metricsByDate.values()];
       await upsertNutrition(db, nutrition);
       await upsertDailyMetrics(db, metrics);

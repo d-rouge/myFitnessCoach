@@ -23,19 +23,31 @@ const keysOf = (value: unknown): string[] => {
 
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
-async function credentials(): Promise<YazioCredentials | undefined> {
+async function credentials(): Promise<
+  { auth: YazioCredentials; mode: "password" | "token" } | undefined
+> {
   const env = loadEnv();
   if (env.YAZIO_EMAIL && env.YAZIO_PASSWORD) {
-    return { email: env.YAZIO_EMAIL, password: env.YAZIO_PASSWORD };
+    return {
+      auth: { email: env.YAZIO_EMAIL, password: env.YAZIO_PASSWORD },
+      mode: "password",
+    };
+  }
+
+  if (env.YAZIO_REFRESH_TOKEN || env.YAZIO_ACCESS_TOKEN) {
+    return {
+      auth: {
+        accessToken: env.YAZIO_ACCESS_TOKEN,
+        refreshToken: env.YAZIO_REFRESH_TOKEN,
+        expiresAt: env.YAZIO_TOKEN_EXPIRES_AT,
+      },
+      mode: "token",
+    };
   }
 
   try {
     const raw = await readFile("secrets/yazio.json", "utf8");
-    const parsed = JSON.parse(raw) as {
-      email?: unknown;
-      username?: unknown;
-      password?: unknown;
-    };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
     const email =
       typeof parsed.email === "string"
         ? parsed.email
@@ -43,7 +55,32 @@ async function credentials(): Promise<YazioCredentials | undefined> {
           ? parsed.username
           : undefined;
     const password = typeof parsed.password === "string" ? parsed.password : undefined;
-    return email && password ? { email, password } : undefined;
+    const accessToken =
+      typeof parsed.accessToken === "string"
+        ? parsed.accessToken
+        : typeof parsed.access_token === "string"
+          ? parsed.access_token
+          : undefined;
+    const refreshToken =
+      typeof parsed.refreshToken === "string"
+        ? parsed.refreshToken
+        : typeof parsed.refresh_token === "string"
+          ? parsed.refresh_token
+          : undefined;
+    const expiresAt =
+      typeof parsed.expiresAt === "number"
+        ? parsed.expiresAt
+        : typeof parsed.expires_at === "number"
+          ? parsed.expires_at
+          : undefined;
+
+    if (email && password) {
+      return { auth: { email, password }, mode: "password" };
+    }
+    if (refreshToken || accessToken) {
+      return { auth: { accessToken, refreshToken, expiresAt }, mode: "token" };
+    }
+    return undefined;
   } catch {
     return undefined;
   }
@@ -55,19 +92,19 @@ async function main(): Promise<void> {
   if (!auth) {
     console.error(
       "Yazio credentials are not configured.\n" +
-        '1. Put { "email": "...", "password": "..." } in secrets/yazio.json (ignored by git)\n' +
-        "   or set YAZIO_EMAIL and YAZIO_PASSWORD in .env\n" +
+        '1. Put { "refreshToken": "..." } in secrets/yazio.json (recommended for Google login)\n' +
+        '   or { "email": "...", "password": "..." } if the account has a password\n' +
         "2. Run: npm run spike:yazio",
     );
     process.exitCode = 1;
     return;
   }
 
-  const client = new YazioClient({ credentials: auth, timeoutMs: 25_000 });
+  const client = new YazioClient({ credentials: auth.auth, timeoutMs: 25_000 });
   const today = isoDate(new Date());
   const yesterday = daysAgo(1);
 
-  console.log("Yazio spike — starting");
+  console.log(`Yazio spike — starting (${auth.mode} auth)`);
   const health = await client.healthCheck();
   console.log(
     `Health check: ${health.ok ? "OK" : "FAILED"} (${health.latencyMs} ms) — ${health.baseUrl}`,
@@ -79,9 +116,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  const [user, summaryToday, summaryYesterday, weight, goals, consumed, settings] =
+  const [user, nutrients, summaryToday, summaryYesterday, weight, goals, consumed, settings] =
     await Promise.all([
       client.getUser(),
+      client.getDailyNutrients(yesterday, today),
       client.getDailySummary(today),
       client.getDailySummary(yesterday),
       client.getWeight(today),
@@ -95,12 +133,19 @@ async function main(): Promise<void> {
   const breakfast = asRecord(meals?.breakfast);
   const breakfastNutrients = asRecord(breakfast?.nutrients);
   const consumedRecord = asRecord(consumed);
+  const nutrientDays = asArray(nutrients);
 
   const report = {
     generatedAt: new Date().toISOString(),
+    authMode: auth.mode,
     baseUrl: client.getBaseUrl(),
     health: { ok: health.ok, latencyMs: health.latencyMs },
     user: { keys: keysOf(user) },
+    nutrientsDaily: {
+      count: nutrientDays.length,
+      keys: keysOf(nutrientDays[0]),
+      sampleKeys: nutrientDays.slice(0, 2).map((entry) => keysOf(entry)),
+    },
     summary: {
       present: summaryToday !== null,
       keys: keysOf(summaryToday),

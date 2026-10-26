@@ -90,6 +90,53 @@ const fromTopLevel = (raw: RawRecord): MacroTotals | undefined => {
   };
 };
 
+export function mapYazioDailyNutrients(
+  raw: unknown,
+  options: YazioMappingOptions,
+): NutritionDaily | undefined {
+  const record = asRecord(raw);
+  if (!record) return undefined;
+
+  const date = toDate(record.date) ?? options.date;
+  const parsed = NutritionDailySchema.safeParse({
+    userId: options.userId,
+    date,
+    source: "yazio",
+    kcal: num(record.energy),
+    proteinG: num(record.protein),
+    carbsG: num(record.carb),
+    fatG: num(record.fat),
+    goalKcal: num(record.energy_goal),
+    fetchedAt: options.fetchedAt,
+  });
+
+  return parsed.success ? parsed.data : undefined;
+}
+
+export function mapYazioSummaryExtras(
+  raw: unknown,
+  options: YazioMappingOptions,
+): Partial<NutritionDaily> | undefined {
+  const record = asRecord(raw);
+  if (!record) return undefined;
+
+  const goals = asRecord(record.goals);
+  const user = asRecord(record.user);
+
+  return {
+    date: options.date,
+    goalKcal: num(goals?.["energy.energy"]),
+    goalProteinG: num(goals?.["nutrient.protein"]),
+    goalCarbsG: num(goals?.["nutrient.carb"]),
+    goalFatG: num(goals?.["nutrient.fat"]),
+    goalWaterMl: num(goals?.water),
+    goalSteps: num(goals?.["activity.step"]),
+    waterMl: num(record.water_intake),
+    steps: num(record.steps),
+    weightKg: positive(user?.current_weight),
+  };
+}
+
 export function mapYazioDailySummary(
   raw: unknown,
   options: YazioMappingOptions,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RateLimitedError } from "../errors";
+import { ProviderError, RateLimitedError } from "../errors";
 import { YazioClient } from "./client";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -19,7 +19,7 @@ const tokenResponse = () =>
 const summaryResponse = () => jsonResponse({ steps: 9000, water_intake: 1500 });
 
 describe("YazioClient", () => {
-  it("logs in and fetches the daily summary", async () => {
+  it("logs in with JSON and fetches the daily summary", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(tokenResponse())
@@ -39,19 +39,44 @@ describe("YazioClient", () => {
 
     const tokenCall = fetchMock.mock.calls[0];
     if (!tokenCall?.[0] || !tokenCall[1]) throw new Error("missing token call");
-    expect(tokenCall[0]).toBe("https://yzapi.yazio.com/v15/oauth/token");
-    expect(String(tokenCall[1].body)).toContain("grant_type=password");
-    expect(String(tokenCall[1].body)).toContain("username=user%40example.com");
+    expect(tokenCall[0]).toBe("https://yzapi.yazio.com/v22/oauth/token");
+    expect((tokenCall[1].headers as Record<string, string>)["User-Agent"]).toContain("YAZIO/");
+    const tokenBody = JSON.parse(String(tokenCall[1].body)) as Record<string, unknown>;
+    expect(tokenBody).toMatchObject({
+      grant_type: "password",
+      username: "user@example.com",
+    });
 
     const summaryCall = fetchMock.mock.calls[1];
     if (!summaryCall?.[0] || !summaryCall[1]) throw new Error("missing summary call");
-    expect(summaryCall[0]).toContain("/v15/user/widgets/daily-summary?date=2026-10-25");
+    expect(summaryCall[0]).toContain("/v22/user/widgets/daily-summary?date=2026-10-25");
     expect((summaryCall[1].headers as Record<string, string>).Authorization).toBe(
       "Bearer yazio-token",
     );
   });
 
-  it("falls back to v20 when v15 is unavailable", async () => {
+  it("supports an imported refresh token (Google/social login)", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ email: "user@example.com" }));
+
+    const client = new YazioClient({
+      credentials: { refreshToken: "imported-refresh" },
+      fetchImpl: fetchMock,
+    });
+
+    await expect(client.getUser()).resolves.toEqual({ email: "user@example.com" });
+
+    const tokenCall = fetchMock.mock.calls[0];
+    const tokenBody = JSON.parse(String(tokenCall?.[1]?.body)) as Record<string, unknown>;
+    expect(tokenBody).toMatchObject({
+      grant_type: "refresh_token",
+      refresh_token: "imported-refresh",
+    });
+  });
+
+  it("falls back to v20 when v22 is unavailable", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(new Response("not found", { status: 404 }))
@@ -88,6 +113,28 @@ describe("YazioClient", () => {
       water_intake: 1500,
     });
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns a clear error when the Yazio version is blocked", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ error: "version_blocked" }, 403));
+
+    const client = new YazioClient({
+      credentials: { email: "user@example.com", password: "secret" },
+      fetchImpl: fetchMock,
+    });
+
+    let caught: unknown;
+    try {
+      await client.getDailySummary("2026-10-25");
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(ProviderError);
+    expect((caught as Error).message).toMatch(/version blocked/i);
   });
 
   it("maps 429 to RateLimitedError", async () => {

@@ -1,6 +1,6 @@
 # AI Personal Trainer — Piano di prodotto e architettura
 
-**Versione:** 0.2.6  
+**Versione:** 0.2.7  
 **Data:** 26 ottobre 2026  
 **Stato:** v0.2 — Fase 0 in corso (scaffold pronto, spike Garmin da eseguire)  
 **Documenti collegati:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
@@ -32,14 +32,14 @@
 | Client Garmin Personal + mapper + test di contratto | fatto, 11 test |
 | Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
 | Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
-| Yazio client + mapper + sync + UI | fatto; test reale in attesa credenziali |
+| Yazio client v22 + mapper + sync + UI | fatto; supporto refresh token per login Google; test reale in attesa token |
 | API NestJS `health` + Garmin/Yazio `sync`/`overview` | fatto |
 | Web React/Vite con dati Garmin + nutrizione Yazio | fatto |
-| Test totali | 46 verdi |
+| Test totali | 50 verdi |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
 | Auth Google, Zepp, Hevy, export `.FIT` | da fare |
-| Prossimi passi | Test Yazio reale + export `.FIT` |
+| Prossimi passi | Test Yazio reale (token Google) + export `.FIT` |
 
 **Cosa resta valido dalla v0.1** (è il cuore del progetto):
 
@@ -122,7 +122,7 @@ Dettagli operativi, endpoint e mapping: [`INTEGRAZIONI.md`](INTEGRAZIONI.md).
 |---|---|---|---|---|
 | **Garmin Personal API** | attività JSON + `.FIT`, sonno, HRV, RHR, stress, Body Battery, passi, peso, food log | Chiave personale da Garmin Connect, token 24h, **pull** | Solo uso personale; chiave 30/90/180/365 giorni; **read-only**; nessun push di workout; nessun refresh token (si riusa la chiave) | **Sync passivo web sì**: polling server-side. Fonte principale corsa/bici/nuoto |
 | **Garmin Training API** | push di workout strutturati | Programma Startup/Enterprise | Richiede organizzazione; no storico; free fino a ~1.000 utenti | Fase successiva, solo se vuoi push automatico |
-| **Yazio** | diario, summary giornaliero, macro, peso | **API non ufficiale v15** (OAuth password/refresh) | Nessuna API pubblica; ToS; 2FA; possibili rotture; client credentials statiche | **Uso personale**: adapter isolato, credenziali cifrate, feature flag |
+| **Yazio** | diario, nutrients-daily, summary, macro, peso | **API non ufficiale v22** (JSON token, User-Agent gate, refresh token import) | Nessuna API pubblica; ToS; 2FA; login Google senza password; possibili rotture; UA da aggiornare | **Uso personale**: adapter isolato, credenziali/token cifrati, feature flag |
 | **Zepp** | peso, composizione corporea, HR, sonno, attività | **API non ufficiale** (token da cattura proxy, ~30 giorni) **oppure Health Connect su Android** | Fragile; token a scadenza; region-specific; ToS | **Peso**: adapter opzionale; su Android preferire Health Connect |
 | **Hevy** | routine, workout completati, exercise templates, body measurements | **API pubblica**, solo Hevy Pro, API key | Beta, nessuna garanzia di stabilità; richiede Pro | **Export schede palestra** e import dei workout completati |
 | **Android Health Connect** | passi, sonno, HR, peso, esercizio, nutrizione (se le app scrivono) | App Android nativa | Android 14+ per alcune integrazioni; permessi granulari; Play policy | **Fonte primaria Android**; Garmin/Zepp possono arrivare via HC |
@@ -135,7 +135,7 @@ Dettagli operativi, endpoint e mapping: [`INTEGRAZIONI.md`](INTEGRAZIONI.md).
 **Sì.** La Personal API è pensata esattamente per questo: crei una chiave, la dai al tuo backend, il backend la scambia con un token di 24 ore e fa polling periodico su attività, sonno, HRV, RHR, peso, passi, stress. Non ci sono webhook: è **pull**. La chiave scade (30/90/180/365 giorni) e va ruotata; il token si rigenera dalla chiave. È **read-only**: non puoi inviare workout a Garmin con questa API.
 
 **Yazio: si può usare?**  
-Sì, tramite l'API non ufficiale documentata in [`saganos/yazio_public_api`](https://github.com/saganos/yazio_public_api) (v15, aggiornata a giugno 2026). Espone login OAuth, diario, summary giornaliero, obiettivi e ultimo peso. Non è ufficiale: va isolata, con credenziali cifrate, gestione token e fallback manuale.
+Sì, tramite API non ufficiale. La specifica community corrente è **v22** (non più v15), con `nutrients-daily`, summary, obiettivi e ultimo peso. Richiede un **User-Agent app valido** (`YAZIO_USER_AGENT`) e, per account Google/social, un **refresh token importato**: il grant password funziona solo se l'account ha una password Yazio. Non è ufficiale: va isolata, con token cifrati e fallback manuale.
 
 **Zepp: si può prendere il peso?**  
 Sì, via endpoint non ufficiale `GET /users/{id}/members/-1/weightRecords`, ma serve un `app_token` ottenuto da una cattura proxy e scade in ~30 giorni. Su Android l'alternativa pulita è **Health Connect** (se l'app Zepp scrive il peso). Per il web: adapter opzionale, non dipendenza critica.
@@ -794,7 +794,7 @@ Mitigazione: uso personale, feature flag, adapter isolato, nessun dato condiviso
 ## 14. Prossimi passi
 
 1. ~~**Spike Garmin reale:**~~ fatto il 26 ottobre 2026 — vedi `docs/spikes/garmin.md` (Go con workaround 406/token raw).
-2. **Yazio reale:** credenziali in `secrets/yazio.json`, poi login/summary/peso; documentare 2FA e rate limit in `docs/spikes/yazio.md`.
+2. **Yazio reale:** refresh token (login Google) in `secrets/yazio.json`, poi login/nutrients/peso; documentare 2FA e rate limit in `docs/spikes/yazio.md`.
 3. **Spike Hevy + export `.FIT`:** verificare creazione routine e import workout in Garmin Connect.
 4. **Auth Google + onboarding minimo:** `/api/me`, `users` in Mongo, schermata "oggi".
 5. **Prima vertical slice:** onboarding → piano → check-in → review.

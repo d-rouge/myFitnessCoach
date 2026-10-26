@@ -61,7 +61,7 @@ Motivazione:
 |---|---|---|---|
 | Garmin Personal | `garmin.md` | in attesa di chiave reale | — |
 | Garmin `.FIT` export | `garmin-export.md` | da fare | — |
-| Yazio | `yazio.md` | implementato, in attesa di credenziali | — |
+| Yazio | `yazio.md` | implementato, in attesa di refresh token/password | — |
 | Zepp | `zepp.md` | da fare | — |
 | Hevy | `hevy.md` | da fare | — |
 | Google Drive backup | `drive.md` | da fare | — |

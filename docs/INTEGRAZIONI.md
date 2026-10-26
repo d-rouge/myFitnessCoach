@@ -1,6 +1,6 @@
 # Integrazioni — specifiche operative
 
-**Versione:** 1.4  
+**Versione:** 1.5  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | Garmin Personal | **client + mapper + sync persistente + UI**: 3 attività e 7 giorni di metriche salvati in Mongo; test reale con 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `apps/api/src/integrations/garmin-sync.service.ts`, `packages/db/src/`, `docs/spikes/garmin.md` |
 | Garmin `.FIT` export | non iniziato | — |
-| Yazio | **client + mapper + sync persistente + UI**; test reale in attesa di credenziali | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
+| Yazio | **client v22 + mapper + sync persistente + UI**; test reale in attesa di credenziali/token | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
 | Zepp | non iniziato | — |
 | Hevy | non iniziato | — |
 | Health Connect | non iniziato (fase 3) | — |
@@ -257,7 +257,7 @@ encoder.onMesg(Profile.MesgNum.WORKOUT_STEP, {
 
 ---
 
-## 4. Yazio (API non ufficiale v15/v20)
+## 4. Yazio (API non ufficiale v22)
 
 ### 4.1 Cosa è
 
@@ -266,46 +266,53 @@ Documentazione community di API reverse-engineered: <https://github.com/saganos/
 ### 4.2 Autenticazione
 
 ```http
-POST https://yzapi.yazio.com/v15/oauth/token
-Content-Type: application/x-www-form-urlencoded
+POST https://yzapi.yazio.com/v22/oauth/token
+Content-Type: application/json
 
-grant_type=password
-&client_id=<client_id>
-&client_secret=<client_secret>
-&username=<email>
-&password=<password>
+{
+  "grant_type": "password",
+  "client_id": "<client_id>",
+  "client_secret": "<client_secret>",
+  "username": "<email>",
+  "password": "<password>"
+}
 ```
 
 - Token `expires_in` ≈ 172800 s (48h).
 - `refresh_token` per rinnovare.
-- Le `client_id`/`client_secret` sono pubblicate negli esempi del repo; sono configurabili via env, con default pubblici.
-- Il client prova **v15** e, se il token endpoint non è disponibile, **v20**. Il report dello spike indica la versione usata.
-- Credenziali in sviluppo: `secrets/yazio.json` (`{ "email": "...", "password": "..." }`) oppure `YAZIO_EMAIL`/`YAZIO_PASSWORD`. In produzione solo env/secret manager.
+- **User-Agent gate:** l'API risponde `403 {"error":"version_blocked"}` se il client non invia una versione app riconosciuta. Default: `YAZIO/26.30.1 (...) Ktor`; configurabile con `YAZIO_USER_AGENT`.
+- Le `client_id`/`client_secret` sono quelle dell'app mobile (pubbliche, non per-utente); configurabili via env.
+- Il client usa **v22** e, se il token endpoint non è disponibile, **v20**.
+- **Google/social login:** l'API non espone un grant Google. Servono o una password impostata sull'account, oppure un **refresh token importato** (`{ "refreshToken": "..." }`) catturato dall'app ufficiale.
+- Credenziali in sviluppo: `secrets/yazio.json` oppure env. In produzione solo env/secret manager.
 
 ### 4.3 Endpoint utili
 
 | Dato | Endpoint |
 |---|---|
-| Profilo | `GET /v15/user` |
-| Diario del giorno | `GET /v15/user/consumed-items?date=YYYY-MM-DD` |
-| Summary giornaliero | `GET /v15/user/widgets/daily-summary?date=YYYY-MM-DD` |
-| Ultimo peso | `GET /v15/user/bodyvalues/weight/last?date=YYYY-MM-DD` |
-| Obiettivi | `GET /v15/user/goals/unmodified?date=YYYY-MM-DD` |
-| Esercizi registrati | `GET /v15/user/exercises?date=YYYY-MM-DD` |
-| Acqua | `GET /v15/user/water-intake?date=YYYY-MM-DD` |
-| Impostazioni | `GET /v15/user/settings` |
+| Profilo | `GET /v22/user` |
+| Nutrienti giornalieri (range) | `GET /v22/user/consumed-items/nutrients-daily?start=YYYY-MM-DD&end=YYYY-MM-DD` |
+| Diario del giorno | `GET /v22/user/consumed-items?date=YYYY-MM-DD` |
+| Summary giornaliero | `GET /v22/user/widgets/daily-summary?date=YYYY-MM-DD` |
+| Ultimo peso | `GET /v22/user/bodyvalues/weight/last?date=YYYY-MM-DD` |
+| Obiettivi | `GET /v22/user/goals/unmodified?date=YYYY-MM-DD` |
+| Esercizi registrati | `GET /v22/user/exercises?date=YYYY-MM-DD` |
+| Acqua | `GET /v22/user/water-intake?date=YYYY-MM-DD` |
+| Impostazioni | `GET /v22/user/settings` |
+
+> `nutrients-daily` è la fonte preferita per i macro: restituisce i totali esatti per giorno. Il summary resta utile per goals, acqua, passi e peso.
 
 > Lo swagger non espone una storia peso completa, solo l'ultimo valore. Per il trend: polling giornaliero e storage locale.
 
 ### 4.4 Implementazione attuale
 
-- `packages/integrations/src/yazio/client.ts`: login password, refresh, retry 401, fallback v15→v20, errori tipizzati, timeout.
-- `packages/integrations/src/yazio/mapper.ts`: somma `meals.*.nutrients`, fallback ai nutrienti top-level, obiettivi, acqua, passi, peso.
+- `packages/integrations/src/yazio/client.ts`: v22, JSON token, User-Agent gate, login password, refresh token import, retry 401, fallback v20, errori tipizzati, timeout.
+- `packages/integrations/src/yazio/mapper.ts`: `nutrients-daily`, summary extras (goals/acqua/passi/peso), fallback ai pasti, peso.
 - Sync: `POST /api/integrations/yazio/sync?days=7`; overview: `GET /api/integrations/yazio/overview?days=7`; check: `POST /api/integrations/yazio/check`.
 - Persistenza: `nutrition_daily` e `metrics_daily` (source `yazio`), audit in `sync_runs` / `sync_state`.
 - UI: card “Nutrizione Yazio” con verifica, sync e tabella kcal/macro/acqua/peso.
-- Test di contratto e mapper con fixture sintetiche (20 test integrations totali).
-- **Non verificato con account reale:** login/2FA, forma effettiva del daily summary, rate limit, versione API.
+- Test di contratto e mapper con fixture sintetiche (24 test integrations totali).
+- **Non verificato con account reale:** login Google/token import, 2FA, rate limit, forma effettiva delle risposte.
 
 ### 4.5 Sync
 
@@ -320,11 +327,13 @@ grant_type=password
 | Rischio | Mitigazione |
 |---|---|
 | API non ufficiale / ToS | uso personale; feature flag; documentazione; no multi-utente senza valutazione |
+| Login Google senza password | refresh token importato dall'app ufficiale; oppure password impostata |
+| User-Agent bloccato (`version_blocked`) | aggiornare `YAZIO_USER_AGENT` a una versione app corrente |
 | 2FA / login bloccato | messaggio chiaro; fallback manuale |
-| Token scaduto | refresh automatico; se fallisce, riconnessione |
+| Token scaduto/revocato | refresh automatico; se fallisce, re-import del refresh token |
 | Rate limit | backoff; 1–2 sync/giorno |
 | Rottura endpoint | adapter isolato; test di contratto; fallback manuale |
-| Credenziali | cifratura AES-GCM; mai log; accesso minimo |
+| Credenziali/token | cifratura AES-GCM; mai log; accesso minimo; `secrets/` ignorato |
 
 ---
 

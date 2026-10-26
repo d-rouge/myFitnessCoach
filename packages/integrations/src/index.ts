@@ -36,7 +36,9 @@ export {
   type YazioToken,
 } from "./yazio/client";
 export {
+  mapYazioDailyNutrients,
   mapYazioDailySummary,
+  mapYazioSummaryExtras,
   mapYazioWeight,
   type YazioMappingOptions,
 } from "./yazio/mapper";

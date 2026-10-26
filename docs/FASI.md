@@ -1,6 +1,6 @@
 # Fasi di realizzazione
 
-**Versione:** 1.6  
+**Versione:** 1.7  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -35,9 +35,9 @@ Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, me
 ### Stato (26 ottobre 2026)
 
 **Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, **sync Garmin persistente** (attività + metriche in Mongo), **Yazio client/mapper/sync/UI** (test reale in attesa credenziali), API `/api/health`, overview e sync in UI, CI, MongoDB locale, `.env.example`, repo git.
-**Verde:** `npm run build`, `npm test` (46 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
+**Verde:** `npm run build`, `npm test` (50 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
 **Bloccato su:** credenziali Yazio/Google OAuth, chiave Hevy Pro per l'export.
-**Prossimo passo:** Yazio (nutrizione/peso) + export workout `.FIT`; poi auth Google e onboarding.
+**Prossimo passo:** test Yazio reale (refresh token da login Google) + export workout `.FIT`; poi auth Google e onboarding.
 
 > Nota: NestJS è alla versione **12 (ESM)**, con `type: module` e import `.js`. Non reintrodurre CommonJS o Nest 11.
 
@@ -90,7 +90,8 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 #### 0.4 Yazio
 
-- [x] Client con login/refresh, fallback v15→v20, errori tipizzati.
+- [x] Client v22 con login/refresh, User-Agent gate, fallback v20, errori tipizzati.
+- [x] Supporto token import (`refreshToken`) per account Google/social.
 - [x] Mapper: somma macro dei pasti, obiettivi, acqua, passi, peso.
 - [x] Sync persistente in `nutrition_daily` / `metrics_daily` + audit.
 - [x] Endpoint `check` / `sync` / `overview` e card UI “Nutrizione Yazio”.

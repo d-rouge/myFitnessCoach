@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mapYazioDailySummary, mapYazioWeight } from "./mapper";
+import {
+  mapYazioDailyNutrients,
+  mapYazioDailySummary,
+  mapYazioSummaryExtras,
+  mapYazioWeight,
+} from "./mapper";
 
 const fetchedAt = "2026-10-26T10:00:00.000Z";
 
@@ -95,6 +100,58 @@ describe("Yazio mapper", () => {
       source: "yazio",
       steps: 9000,
       hydrationMl: 1500,
+      weightKg: 74.2,
+    });
+  });
+
+  it("maps the nutrients-daily endpoint", () => {
+    const nutrition = mapYazioDailyNutrients(
+      {
+        date: "2026-10-25",
+        energy: 1900,
+        carb: 225,
+        protein: 110,
+        fat: 59,
+        energy_goal: 2200,
+      },
+      { userId: "personal", date: "2026-10-25", fetchedAt },
+    );
+
+    expect(nutrition).toMatchObject({
+      date: "2026-10-25",
+      kcal: 1900,
+      carbsG: 225,
+      proteinG: 110,
+      fatG: 59,
+      goalKcal: 2200,
+    });
+  });
+
+  it("maps summary extras (goals, water, steps, weight)", () => {
+    const extras = mapYazioSummaryExtras(
+      {
+        steps: 9000,
+        water_intake: 1500,
+        goals: {
+          "energy.energy": 2200,
+          "nutrient.protein": 150,
+          "nutrient.carb": 250,
+          "nutrient.fat": 70,
+          "activity.step": 10000,
+          water: 2000,
+        },
+        user: { current_weight: 74.2 },
+      },
+      { userId: "personal", date: "2026-10-25", fetchedAt },
+    );
+
+    expect(extras).toMatchObject({
+      goalKcal: 2200,
+      goalProteinG: 150,
+      goalSteps: 10000,
+      goalWaterMl: 2000,
+      waterMl: 1500,
+      steps: 9000,
       weightKg: 74.2,
     });
   });
