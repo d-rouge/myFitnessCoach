@@ -54,7 +54,7 @@ npm run spike:garmin     # spike Garmin Personal API
 ## Spike Garmin
 
 1. Crea una chiave personale su <https://connect.garmin.com/app/settings/personalApiToken>.
-2. Aggiungila a `.env` oppure salvala in `secrets/garmin-key.txt` (ignorato da git):
+2. Aggiungila a `.env` oppure salvala in `secrets/garmin-key.txt` (ignorato da git). In sviluppo anche l'API legge quel file; in produzione usare env/secret manager:
 
 ```bash
 GARMIN_PERSONAL_API_KEY=...

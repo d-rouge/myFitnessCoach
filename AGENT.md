@@ -174,7 +174,7 @@ Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_END
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
 - **Test attuali:** 37 test verdi (domain 20, config 3, integrations 11, api 3). Build e typecheck verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
-- **Env:** `apps/api/src/main.ts` e `scripts/spike-garmin.ts` caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. Lo spike Garmin accetta anche `secrets/garmin-key.txt` (ignorato da git).
+- **Env:** `apps/api/src/main.ts` e `scripts/spike-garmin.ts` caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo anche l'API e lo spike accettano `secrets/garmin-key.txt` (ignorato da git); in produzione la chiave deve arrivare da env/secret manager.
 
 ---
 

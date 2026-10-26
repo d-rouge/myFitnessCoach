@@ -105,6 +105,7 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 ### 2.4 Implementazione attuale
 
 - `packages/integrations/src/garmin/personal-client.ts`: token exchange, cache con scadenza, retry singolo su 401, errori tipizzati (`AuthExpiredError`, `RateLimitedError`), timeout.
+- In sviluppo l'API legge la chiave da `GARMIN_PERSONAL_API_KEY` oppure da `secrets/garmin-key.txt` (ignorato da git). In produzione solo env/secret manager.
 - Wrapper: `getProfileSettings`, `searchActivities`, `getActivity`, `downloadActivity`, `getDailySleep`, `getHrv`, `getDailySummaries`, `getWeightMeasurements`, `getSteps`, `getStress`, `healthCheck`.
 - Test: `personal-client.spec.ts` con fetch mockato (token raw/JSON, cache, 401, 429, download, health check).
 - Spike: `scripts/spike-garmin.ts`, output redatto; non salva token né valori clinici.
