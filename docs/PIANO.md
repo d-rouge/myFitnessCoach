@@ -1,6 +1,6 @@
 # AI Personal Trainer — Piano di prodotto e architettura
 
-**Versione:** 0.2.3  
+**Versione:** 0.2.4  
 **Data:** 26 ottobre 2026  
 **Stato:** v0.2 — Fase 0 in corso (scaffold pronto, spike Garmin da eseguire)  
 **Documenti collegati:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
@@ -29,13 +29,14 @@
 |---|---|
 | Monorepo npm workspaces | fatto |
 | Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator) | fatto, 20 test |
-| Client Garmin Personal + test di contratto | fatto, 5 test |
+| Client Garmin Personal + test di contratto | fatto, 7 test |
+| Spike Garmin con chiave reale | fatto (6 attività, sonno, HRV, `.FIT`); peso 0 |
 | API NestJS `health` + `integrations` | fatto |
 | Web React/Vite status page | fatto |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
 | Auth Google, Yazio, Zepp, Hevy, export `.FIT` | da fare |
-| Spike con chiave Garmin reale | **prossimo passo** |
+| Prossimi spike | Yazio + export `.FIT` |
 
 **Cosa resta valido dalla v0.1** (è il cuore del progetto):
 
@@ -788,7 +789,7 @@ Mitigazione: uso personale, feature flag, adapter isolato, nessun dato condiviso
 
 ## 14. Prossimi passi
 
-1. **Spike Garmin reale:** `npm run spike:garmin` con `GARMIN_PERSONAL_API_KEY`, poi compilare `docs/spikes/garmin.md`.
+1. ~~**Spike Garmin reale:**~~ fatto il 26 ottobre 2026 — vedi `docs/spikes/garmin.md` (Go con workaround 406/token raw).
 2. **Spike Yazio:** login, refresh, summary, peso; documentare rischi e 2FA in `docs/spikes/yazio.md`.
 3. **Spike Hevy + export `.FIT`:** verificare creazione routine e import workout in Garmin Connect.
 4. **Auth Google + onboarding minimo:** `/api/me`, `users` in Mongo, schermata "oggi".

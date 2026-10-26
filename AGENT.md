@@ -105,7 +105,7 @@ Leggere `docs/FASI.md`. Alla data di questo file la fase attiva è la **Fase 0 �
 
 Non saltare gli spike: Garmin, Yazio, Zepp, Hevy e l'export `.FIT` hanno dettagli che non si possono indovinare. Ogni spike produce un documento in `docs/spikes/` con risposte reali e un verdetto.
 
-**Prossimo passo:** eseguire `npm run spike:garmin` con una chiave Garmin reale e compilare `docs/spikes/garmin.md`.
+**Prossimo passo:** spike Yazio (nutrizione/peso) e export workout `.FIT` verso Garmin; poi auth Google + onboarding. Lo spike Garmin è completato in `docs/spikes/garmin.md`.
 
 ---
 
@@ -158,7 +158,7 @@ Se un comando non esiste, verifica `package.json`, crea lo script solo se fa par
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 31 test verdi (domain 20, config 3, integrations 5, api 3). Build e typecheck verdi.
+- **Test attuali:** 33 test verdi (domain 20, config 3, integrations 7, api 3). Build e typecheck verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` e `scripts/spike-garmin.ts` caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod.
 

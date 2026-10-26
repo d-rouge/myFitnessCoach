@@ -1,6 +1,6 @@
 # Fasi di realizzazione
 
-**Versione:** 1.3  
+**Versione:** 1.4  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -34,12 +34,12 @@ Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, me
 
 ### Stato (26 ottobre 2026)
 
-**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, API `/api/health`, UI web di stato, CI, MongoDB locale, `.env.example`.
-**Verde:** `npm run build`, `npm test` (31 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
-**Bloccato su:** chiave Garmin reale, credenziali Google OAuth.
-**Prossimo passo:** eseguire `npm run spike:garmin` e compilare `docs/spikes/garmin.md`.
+**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, API `/api/health`, UI web di stato, CI, MongoDB locale, `.env.example`, repo git, **spike Garmin reale**.
+**Verde:** `npm run build`, `npm test` (33 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
+**Bloccato su:** credenziali Yazio/Google OAuth, chiave Hevy Pro per l'export.
+**Prossimo passo:** Yazio (nutrizione/peso) + export workout `.FIT`; poi auth Google e onboarding.
 
-> Nota: NestJS è alla versione **11 (CJS)**. Nest 12 è ESM-only e richiede una migrazione dedicata; non aggiornare senza task.
+> Nota: NestJS è alla versione **12 (ESM)**, con `type: module` e import `.js`. Non reintrodurre CommonJS o Nest 11.
 
 ### Obiettivo
 
@@ -55,7 +55,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] `apps/web` React + Vite + Tailwind (shadcn/ui da aggiungere).
 - [x] `packages/domain` con schemi Zod (profilo, anamnesi, obiettivi, disponibilità, attrezzatura, check-in, sessione, piano).
 - [x] Regole pure: `readiness`, `load`, `feasibility`, `progression`, `safety`, `validator` + 20 test.
-- [x] `packages/integrations` con `ProviderAdapter` e client Garmin + 5 test di contratto.
+- [x] `packages/integrations` con `ProviderAdapter` e client Garmin + 7 test di contratto.
 - [x] `packages/config`, `packages/db`, `packages/ai`, `packages/ui`.
 - [x] MongoDB locale configurato su `127.0.0.1:27017` (nessun Docker).
 - [x] CI: workflow GitHub Actions (typecheck, lint, test, build). Prima esecuzione su GitHub da verificare.
@@ -65,12 +65,13 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 #### 0.2 Garmin Personal
 
 - [x] Client Garmin: token exchange, cache 24h, retry su 401, gestione 429, endpoint attività/sonno/HRV/peso/passi/stress.
-- [x] Script `npm run spike:garmin` con output redatto e `--write`.
-- [ ] Creare una chiave personale reale su Garmin Connect (scadenza 90 giorni per il test).
-- [ ] Pull di 7 giorni con la chiave reale: attività, sonno, HRV, RHR, peso, passi, stress.
-- [ ] Scaricare un `.FIT` di un'attività reale.
-- [ ] Misurare latenza, errori, eventuali rate limit.
-- [ ] Salvare risposte reali (redatte) in `docs/spikes/garmin.md`.
+- [x] Script `npm run spike:garmin` con output redatto, `--write` e `--download`.
+- [x] Creare una chiave personale reale su Garmin Connect.
+- [x] Pull di 14 giorni con la chiave reale: 6 attività, sonno, HRV, passi, stress; peso 0 record.
+- [x] Scaricare un `.FIT` di un'attività reale (ZIP 529 KB, valido).
+- [x] Misurare latenza (~2,9 s totale) e verificare errori/rate limit (nessun 429 nel singolo run).
+- [x] Salvare risposte reali (redatte) in `docs/spikes/garmin.md`.
+- [x] Gestire il workaround 406: niente header `Accept` su token/download; token raw JWT.
 
 #### 0.3 Garmin export workout
 

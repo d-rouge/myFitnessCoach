@@ -77,6 +77,22 @@ async function main(): Promise<void> {
   const stepList = asArray(steps);
   const stressList = asArray(stress);
 
+  let activityDownload: { bytes: number; isZip: boolean } | undefined;
+  if (process.argv.includes("--download")) {
+    const first = activityList[0] as Record<string, unknown> | undefined;
+    const activityId = typeof first?.activityId === "number" ? first.activityId : undefined;
+    if (activityId === undefined) {
+      console.warn("No activity ID available for download test.");
+    } else {
+      const zip = await client.downloadActivity(activityId);
+      const bytes = new Uint8Array(zip);
+      activityDownload = {
+        bytes: bytes.byteLength,
+        isZip: bytes[0] === 0x50 && bytes[1] === 0x4b,
+      };
+    }
+  }
+
   const report = {
     generatedAt: new Date().toISOString(),
     range: { from, to: today, hrvDate, weightFrom },
@@ -86,6 +102,7 @@ async function main(): Promise<void> {
       count: activityList.length,
       sampleKeys: keysOf(activityList[0]),
     },
+    activityDownload,
     sleep: { present: sleep !== null, keys: keysOf(sleep) },
     hrv: { present: hrv !== null, keys: keysOf(hrv) },
     weight: {

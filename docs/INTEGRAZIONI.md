@@ -1,6 +1,6 @@
 # Integrazioni — specifiche operative
 
-**Versione:** 1.1  
+**Versione:** 1.2  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -10,7 +10,7 @@
 
 | Provider | Stato | Dove |
 |---|---|---|
-| Garmin Personal | client + test di contratto + spike script; **test con chiave reale da fare** | `packages/integrations/src/garmin/personal-client.ts`, `scripts/spike-garmin.ts` |
+| Garmin Personal | **testato con chiave reale** (6 attività, sonno, HRV, passi, stress, `.FIT` 529 KB); peso 0 record | `packages/integrations/src/garmin/personal-client.ts`, `scripts/spike-garmin.ts`, `docs/spikes/garmin.md` |
 | Garmin `.FIT` export | non iniziato | — |
 | Yazio | non iniziato | — |
 | Zepp | non iniziato | — |
@@ -106,9 +106,17 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 
 - `packages/integrations/src/garmin/personal-client.ts`: token exchange, cache con scadenza, retry singolo su 401, errori tipizzati (`AuthExpiredError`, `RateLimitedError`), timeout.
 - Wrapper: `getProfileSettings`, `searchActivities`, `getActivity`, `downloadActivity`, `getDailySleep`, `getHrv`, `getDailySummaries`, `getWeightMeasurements`, `getSteps`, `getStress`, `healthCheck`.
-- Test: `personal-client.spec.ts` con fetch mockato (token, cache, 401, 429, health check).
+- Test: `personal-client.spec.ts` con fetch mockato (token raw/JSON, cache, 401, 429, download, health check).
 - Spike: `scripts/spike-garmin.ts`, output redatto; non salva token né valori clinici.
-- **Non ancora verificato:** risposte reali, rate limit, download `.FIT`, nomi esatti dei campi nelle risposte.
+
+**Verificato con chiave reale (26 ottobre 2026):**
+
+- Il token endpoint restituisce **406** se si invia `Accept: application/json`; senza `Accept` restituisce **200** con un **JWT in testo**, non JSON. Il client gestisce entrambi.
+- Il download attività restituisce **406** con `Accept: application/octet-stream`; senza `Accept` restituisce uno ZIP valido (529 KB nel test).
+- 6 attività in 14 giorni, sonno/HRV/passi/stress presenti, peso 0 record (nessuna bilancia Garmin).
+- Nessun rate limit osservato in un singolo run.
+
+**Non ancora verificato:** rate limit su 24–48h di polling, mapping completo dei campi, comportamento con attività manuali/indoor.
 
 ### 2.4 Sync
 

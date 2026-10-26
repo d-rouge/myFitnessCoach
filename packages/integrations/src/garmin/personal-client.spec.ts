@@ -15,8 +15,12 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { "content-type": "application/json" },
   });
 
+// The real endpoint returns a raw JWT (text/plain) and rejects Accept: application/json.
 const tokenResponse = () =>
-  jsonResponse({ access_token: makeJwt(), token_type: "bearer", expires_in: 86_400 });
+  new Response(makeJwt(), {
+    status: 200,
+    headers: { "content-type": "text/plain" },
+  });
 
 describe("GarminPersonalClient", () => {
   it("exchanges the API key for a bearer token and calls an endpoint", async () => {
@@ -38,11 +42,28 @@ describe("GarminPersonalClient", () => {
     if (!tokenCall?.[0] || !tokenCall[1]) throw new Error("missing token call");
     expect(tokenCall[0]).toContain("/personalapitoken-service/personal-api");
     expect((tokenCall[1].headers as Record<string, string>).Authorization).toBe("ApiKey test-key");
+    expect((tokenCall[1].headers as Record<string, string>).Accept).toBeUndefined();
 
     const dataCall = fetchMock.mock.calls[1];
     if (!dataCall?.[0] || !dataCall[1]) throw new Error("missing data call");
     expect(dataCall[0]).toContain("/userprofile-service/userprofile/settings");
     expect((dataCall[1].headers as Record<string, string>).Authorization).toMatch(/^Bearer /);
+  });
+
+  it("also accepts a JSON token response", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: makeJwt(), token_type: "bearer", expires_in: 86_400 }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ displayName: "Json" }));
+
+    const client = new GarminPersonalClient({
+      apiKey: "test-key",
+      fetchImpl: fetchMock,
+    });
+
+    await expect(client.getProfileSettings()).resolves.toEqual({ displayName: "Json" });
   });
 
   it("caches the token across calls", async () => {
@@ -77,6 +98,28 @@ describe("GarminPersonalClient", () => {
 
     await expect(client.getProfileSettings()).resolves.toEqual({ displayName: "Retry" });
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("downloads an activity ZIP without an Accept header", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04]), { status: 200 }),
+      );
+
+    const client = new GarminPersonalClient({
+      apiKey: "test-key",
+      fetchImpl: fetchMock,
+    });
+
+    const zip = await client.downloadActivity(123);
+    expect(zip.byteLength).toBe(4);
+
+    const downloadCall = fetchMock.mock.calls[1];
+    if (!downloadCall?.[0] || !downloadCall[1]) throw new Error("missing download call");
+    expect(downloadCall[0]).toContain("/download-service/files/activity/123");
+    expect((downloadCall[1].headers as Record<string, string>).Accept).toBeUndefined();
   });
 
   it("maps 429 to RateLimitedError", async () => {

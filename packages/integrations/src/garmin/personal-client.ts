@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   AuthExpiredError,
+  InvalidResponseError,
   ProviderError,
   ProviderUnavailableError,
   RateLimitedError,
@@ -71,10 +72,11 @@ export class GarminPersonalClient {
       return this.token;
     }
 
+    // Garmin is strict: sending Accept: application/json on the token endpoint
+    // returns 406 and the token is returned as a raw JWT, not JSON.
     const response = await this.request(`${this.baseUrl}${TOKEN_PATH}`, {
       method: "POST",
       headers: {
-        Accept: "application/json",
         Authorization: `ApiKey ${this.apiKey}`,
       },
     });
@@ -83,18 +85,39 @@ export class GarminPersonalClient {
       throw await this.toError(response, "token");
     }
 
-    const body = await response.json();
-    const parsed = TokenResponseSchema.safeParse(body);
-
-    if (!parsed.success) {
-      throw new Error("Garmin returned an invalid token response");
+    const raw = (await response.text()).trim();
+    if (!raw) {
+      throw new InvalidResponseError("garmin", "Garmin returned an empty token response");
     }
 
-    const expiresAt = parsed.data.expires_in
-      ? this.now() + parsed.data.expires_in * 1000
-      : (decodeJwtExpiry(parsed.data.access_token) ?? this.now() + 23 * 60 * 60 * 1000);
+    let accessToken: string | undefined;
+    let expiresIn: number | undefined;
 
-    this.token = { accessToken: parsed.data.access_token, expiresAt };
+    if (raw.startsWith("{")) {
+      try {
+        const parsed = TokenResponseSchema.safeParse(JSON.parse(raw));
+        if (parsed.success) {
+          accessToken = parsed.data.access_token;
+          expiresIn = parsed.data.expires_in;
+        }
+      } catch {
+        // Fall through to raw JWT handling.
+      }
+    }
+
+    if (!accessToken && raw.split(".").length === 3) {
+      accessToken = raw;
+    }
+
+    if (!accessToken) {
+      throw new InvalidResponseError("garmin", "Garmin returned an invalid token response");
+    }
+
+    const expiresAt = expiresIn
+      ? this.now() + expiresIn * 1000
+      : (decodeJwtExpiry(accessToken) ?? this.now() + 23 * 60 * 60 * 1000);
+
+    this.token = { accessToken, expiresAt };
     return this.token;
   }
 
@@ -122,7 +145,6 @@ export class GarminPersonalClient {
       this.buildUrl(`/download-service/files/activity/${activityId}`),
       {
         headers: {
-          Accept: "application/octet-stream",
           Authorization: `Bearer ${token.accessToken}`,
         },
       },
