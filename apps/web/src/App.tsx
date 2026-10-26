@@ -126,6 +126,20 @@ interface ActivityAnalysis {
   brief: string;
 }
 
+interface UserInfo {
+  id: string;
+  email: string;
+  name: string;
+  picture?: string;
+  roles: string[];
+}
+
+async function fetchMe(): Promise<UserInfo> {
+  const response = await fetch("/api/me");
+  if (!response.ok) throw new Error(`Me failed (${response.status})`);
+  return response.json() as Promise<UserInfo>;
+}
+
 async function fetchHealth(): Promise<HealthReport> {
   const response = await fetch("/api/health");
   if (!response.ok) throw new Error(`Health check failed (${response.status})`);
@@ -303,6 +317,7 @@ function Card({
 
 export default function App() {
   const queryClient = useQueryClient();
+  const me = useQuery({ queryKey: ["me"], queryFn: fetchMe });
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth });
   const overview = useQuery({ queryKey: ["garmin-overview"], queryFn: fetchGarminOverview });
   const yazioOverview = useQuery({
@@ -359,6 +374,11 @@ export default function App() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {me.data ? (
+            <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
+              Atleta: {me.data.name} ({me.data.email})
+            </span>
+          ) : null}
           <span className="rounded-full bg-lime-300/10 px-3 py-1.5 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-300/30">
             Fase 0 · Fondamenta
           </span>
@@ -726,6 +746,53 @@ export default function App() {
             </table>
           </div>
         )}
+      </Card>
+
+      <Card title="Export Workout Garmin (.FIT)" eyebrow="Export manuale" className="mt-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-white">5×800m Ripetute Corsa</h3>
+            <p className="mt-1 text-xs text-slate-400">
+              Riscaldamento 10 min (Zona 2) · 5× [800m @ 4:15–4:35/km + 200m recupero] ·
+              Defaticamento 10 min (Zona 1).
+            </p>
+          </div>
+          <a
+            href="/api/export/workouts/sample-5x800m.fit"
+            download="5x800m-intervals.fit"
+            className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
+          >
+            Scarica workout (.FIT)
+          </a>
+        </div>
+        <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs text-slate-400">
+          <p className="font-medium text-slate-300">Come importare in Garmin Connect:</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4">
+            <li>
+              Apri{" "}
+              <a
+                href="https://connect.garmin.com/modern/workouts"
+                target="_blank"
+                rel="noreferrer"
+                className="text-lime-300 underline"
+              >
+                Garmin Connect Workouts
+              </a>{" "}
+              su computer.
+            </li>
+            <li>
+              Clicca su <strong>Importa</strong> accanto a &quot;Crea un allenamento&quot;.
+            </li>
+            <li>
+              Trascina o seleziona il file{" "}
+              <code className="text-slate-200">5x800m-intervals.fit</code> scaricato.
+            </li>
+            <li>
+              In alternativa, collega l&apos;orologio via USB e copia il file nella cartella{" "}
+              <code className="text-slate-200">GARMIN/NewFiles/</code>.
+            </li>
+          </ol>
+        </div>
       </Card>
 
       <footer className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">

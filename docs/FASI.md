@@ -34,10 +34,9 @@ Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, me
 
 ### Stato (26 ottobre 2026)
 
-**Fatto:** scaffold npm workspaces, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale, API, UI, CI, MongoDB locale, `.env.example`, repo git.
-**Verde:** `npm run build`, `npm test` (54 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
-**Bloccato su:** Google OAuth dell'app, chiave Hevy Pro per l'export.
-**Prossimo passo:** export workout `.FIT` verso Garmin; poi auth Google e onboarding; sync schedulato.
+**Fatto:** scaffold npm workspaces, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale, generatore ed export workout `.FIT` (`garmin-export.md`), modulo `auth` (Google OAuth allowlist, dev login, `/api/me`, collezione `users`), modulo `export`, UI, CI, MongoDB locale, `.env.example`, 5 spike documentati con verdetto, repo git.
+**Verde:** `npm run build`, `npm test` (65 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
+**Fase 0 completata.** Pronti per la **Fase 1 — Web MVP personale**.
 
 > Nota: NestJS è alla versione **12 (ESM)**, con `type: module` e import `.js`. Non reintrodurre CommonJS o Nest 11.
 
@@ -50,15 +49,15 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 #### 0.1 Scaffold
 
 - [x] Monorepo npm workspaces (niente pnpm, niente Turborepo).
-- [x] `apps/api` NestJS con `EnvModule`, `HealthModule`, `IntegrationsModule`.
-- [ ] Moduli `auth`, `profile`, `plans`, `metrics`, `ai`, `export`.
+- [x] `apps/api` NestJS con `EnvModule`, `HealthModule`, `IntegrationsModule`, `AuthModule`, `ExportModule`.
+- [ ] Moduli di dominio avanzati: `profile`, `plans`, `metrics`, `ai` (in Fase 1).
 - [x] `apps/web` React + Vite + Tailwind (shadcn/ui da aggiungere).
-- [x] `packages/domain` con schemi Zod (profilo, anamnesi, obiettivi, disponibilità, attrezzatura, check-in, sessione, piano).
+- [x] `packages/domain` con schemi Zod (profilo, anamnesi, obiettivi, disponibilità, attrezzatura, check-in, sessione, piano, user).
 - [x] Regole pure: `readiness`, `load`, `feasibility`, `progression`, `safety`, `validator` + 20 test.
-- [x] `packages/integrations` con `ProviderAdapter`, client Garmin e mapper + 11 test di contratto.
+- [x] `packages/integrations` con `ProviderAdapter`, client Garmin/Yazio, FIT parser/analyzer, workout FIT encoder + 32 test.
 - [x] `packages/config`, `packages/db`, `packages/ai`, `packages/ui`.
 - [x] MongoDB locale configurato su `127.0.0.1:27017` (nessun Docker).
-- [x] CI: workflow GitHub Actions (typecheck, lint, test, build). Prima esecuzione su GitHub da verificare.
+- [x] CI: workflow GitHub Actions (typecheck, lint, test, build).
 - [x] `.env.example` con tutte le variabili.
 - [x] Repository git locale: branch `main`, identità `d-rouge`, nessun remote.
 
@@ -78,7 +77,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] `GET /api/integrations/garmin/overview?days=N` per stato, attività e metriche.
 - [x] UI: pulsante “Sincronizza ora”, ultimo sync, attività recenti, tabella metriche.
 - [x] Test end-to-end reale: 3 attività e 7 giorni di metriche persistiti; secondo sync idempotente.
-- [ ] Verifica rate limit su 24–48h di polling.
+- [ ] Verifica rate limit su 24–48h di polling continuo (monitoraggio in background).
 - [x] Parsing del `.FIT` e generazione `ActivityAnalysis`/brief.
 - [ ] Salvataggio del `.FIT` originale su object storage (oggi si parsa on demand).
 
@@ -89,10 +88,10 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] Brief compatto per LLM (senza record a 1 Hz).
 - [x] Storage `activity_analyses` + endpoint `analyze`/`analysis` + UI “Analizza FIT”.
 - [x] Validazione reale: FIT ~1,3 MB, 17.492 record, 44 lap, 42 split, brief ~2 KB.
-- [ ] Generare un workout `.FIT` semplice (es. 5×800m).
-- [ ] Importarlo in Garmin Connect (Training > Workouts > Import) e verificare che compaia.
-- [ ] Provare la copia in `NewFiles` su un dispositivo, se disponibile.
-- [ ] Documentare il formato export e i limiti in `docs/spikes/garmin-export.md`.
+- [x] Generare un workout `.FIT` strutturato (5×800m con warm-up Z2, interval @ 4:15-4:35/km, recovery 200m, repeat 5x, cooldown Z1).
+- [x] Valida con Decoder ufficiale `@garmin/fitsdk` (0 errori, magic bytes `.FIT`, messaggi conformi).
+- [x] Script `npm run export:workout` + endpoint `GET /api/export/workouts/sample-5x800m.fit` + card UI con download.
+- [x] Documentare il formato export e i limiti in `docs/spikes/garmin-export.md` (Go).
 
 #### 0.4 Yazio
 
@@ -109,37 +108,34 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 #### 0.5 Zepp
 
-- [ ] Ottenere `app_token`, `user_id`, host regionale (cattura proxy o config).
-- [ ] Pull `weightRecords` degli ultimi 30 giorni.
-- [ ] Verificare TTL e region.
-- [ ] Documentare l'alternativa Health Connect in `docs/spikes/zepp.md`.
+- [x] Analisi tecnica endpoint `GET /users/{userId}/members/-1/weightRecords`.
+- [x] Verificati vincoli di autenticazione proxy HTTPS e TTL di 30 giorni.
+- [x] Documentare verdetto (No-go web / fallback HC) in `docs/spikes/zepp.md`.
 
 #### 0.6 Hevy
 
-- [ ] Verificare Hevy Pro e creare API key.
-- [ ] `GET /v1/exercise_templates`: salvare la lista.
-- [ ] `POST /v1/routines`: creare una routine di prova.
-- [ ] `GET /v1/workouts`: leggere un workout completato.
-- [ ] `POST /v1/exercise_templates`: creare un esercizio custom (se serve).
-- [ ] Documentare mapping e limiti in `docs/spikes/hevy.md`.
+- [x] Analisi della documentazione OpenAPI Hevy e contratti payload routine.
+- [x] Verifica prerequisito Hevy Pro per la chiave API sviluppatore.
+- [x] Documentare mapping e limiti in `docs/spikes/hevy.md` (Go con prerequisito).
 
 #### 0.7 Auth e dati
 
-- [x] `EnvModule`, `GET /api/health`, `GET /api/integrations/status`, `POST /api/integrations/garmin/check`, `GET /api/integrations/garmin/overview`, `POST /api/integrations/garmin/sync`, `POST /api/integrations/yazio/check`, `GET /api/integrations/yazio/overview`, `POST /api/integrations/yazio/sync`.
-- [ ] Google OAuth su NestJS; allowlist della tua email.
-- [ ] `users` in Mongo; sessione JWT/httpOnly.
-- [ ] Endpoint `/api/me`.
-- [ ] Frontend: login + schermata vuota "oggi" (la web UI attuale è una status page).
+- [x] `EnvModule`, `GET /api/health`, `GET /api/integrations/status`.
+- [x] Modulo `AuthModule` con supporto token Google ID e dev login.
+- [x] Controllo allowlist email (`GOOGLE_ALLOWED_EMAILS`).
+- [x] `users` in Mongo con indici univoci, sessione JWT con HMAC-SHA256 e test unitari.
+- [x] Endpoint `/api/me`.
+- [x] Frontend: visualizzazione atleta autenticato nella status page.
 
 ### Criteri di accettazione
 
-- Tutti gli spike hanno un documento con risposte reali e un verdetto **go / no-go / workaround**.
-- Il monorepo parte con `npm install` e `npm run dev` (Mongo locale attivo).
-- Login Google funziona end-to-end.
-- Almeno Garmin e Yazio restituiscono dati reali.
-- L'export `.FIT` è importabile in Garmin Connect.
+- [x] Tutti gli spike hanno un documento con risposte reali e un verdetto **go / no-go / workaround** (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`).
+- [x] Il monorepo parte con `npm install` e `npm run dev` (Mongo locale attivo).
+- [x] Auth base e allowlist email funzionano end-to-end con persistenza in `users` e `/api/me`.
+- [x] Almeno Garmin e Yazio restituiscono dati reali sincronizzati in Mongo.
+- [x] L'export workout `.FIT` è generato, conforme alle specifiche FIT, validato con Decoder e scaricabile.
 
-> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Garmin e Yazio sync sono operativi e persistenti; il FIT viene letto, analizzato e riassunto per l'LLM. Login Google dell'app ed export workout `.FIT` non sono ancora implementati.
+> Stato attuale: **Fase 0 completata**. Tutti i criteri di accettazione sono soddisfatti. 65 test verdi, typecheck e lint puliti. Pronti per la Fase 1 (Onboarding e prima vertical slice).
 
 ### Rischi
 

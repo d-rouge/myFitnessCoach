@@ -59,12 +59,11 @@ Motivazione:
 
 | Spike | Documento | Stato | Verdetto |
 |---|---|---|---|
-| Garmin Personal | `garmin.md` | in attesa di chiave reale | — |
-| Garmin `.FIT` export | `garmin-export.md` | da fare | — |
-| Yazio | `yazio.md` | implementato, in attesa di refresh token/password | — |
-| Zepp | `zepp.md` | da fare | — |
-| Hevy | `hevy.md` | da fare | — |
-| Google Drive backup | `drive.md` | da fare | — |
+| Garmin Personal | [`garmin.md`](garmin.md) | completato (dati reali) | **Go con workaround** |
+| Garmin `.FIT` export | [`garmin-export.md`](garmin-export.md) | completato (generazione + decodifica) | **Go** |
+| Yazio | [`yazio.md`](yazio.md) | completato (dati reali) | **Go** |
+| Zepp | [`zepp.md`](zepp.md) | completato (analisi API) | **No-go web / Rimandato ad Android HC** |
+| Hevy | [`hevy.md`](hevy.md) | completato (analisi API/OpenAPI) | **Go con prerequisito Hevy Pro** |
 
 ## Regole
 

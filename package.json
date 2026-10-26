@@ -24,7 +24,8 @@
     "format": "biome format --write .",
     "spike:garmin": "npm run build:packages && tsx scripts/spike-garmin.ts",
     "spike:yazio": "npm run build:packages && tsx scripts/spike-yazio.ts",
-    "analyze:fit": "npm run build:packages && tsx scripts/analyze-fit.ts"
+    "analyze:fit": "npm run build:packages && tsx scripts/analyze-fit.ts",
+    "export:workout": "npm run build:packages && tsx scripts/export-workout-fit.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",

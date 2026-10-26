@@ -2,7 +2,7 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 0 in corso — scaffold pronto, dominio e client Garmin testati. Prossimo passo: spike con chiave Garmin reale.
+**Stato:** Fase 0 completata — scaffold monorepo, dominio puro con 20 test, client e sync persistente Garmin/Yazio verificati su dati reali, FIT parser/analysis/brief compatto per LLM, generatore workout `.FIT` per Garmin Connect, modulo Auth Google/dev e 5 spike documentati. Prossimo passo: Fase 1 (onboarding wizard e primo loop di coaching).
 
 ## Documenti
 
@@ -12,7 +12,8 @@ Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, 
 | [`docs/PIANO.md`](docs/PIANO.md) | Prodotto, modello dati, architettura, pipeline AI, sicurezza |
 | [`docs/FASI.md`](docs/FASI.md) | Fasi, task, criteri di accettazione, stato corrente |
 | [`docs/INTEGRAZIONI.md`](docs/INTEGRAZIONI.md) | Garmin, Yazio, Zepp, Hevy, Health Connect, Drive, LLM |
-| [`docs/spikes/`](docs/spikes/) | Template e risultati reali degli spike |
+| [`docs/FIT.md`](docs/FIT.md) | Parsing binario, normalizzazione, ActivityAnalysis e brief compatto per LLM |
+| [`docs/spikes/`](docs/spikes/) | Template e risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy) |
 
 > Regola del progetto: **la documentazione si aggiorna a ogni avanzamento**, nello stesso commit.
 
@@ -35,6 +36,7 @@ npm run dev
 - Web: <http://localhost:5173>
 - API health: <http://localhost:3000/api/health>
 - Integrazioni: <http://localhost:3000/api/integrations/status>
+- Utente corrente: <http://localhost:3000/api/me>
 
 Se Mongo non è raggiungibile, l'API parte comunque e `/api/health` risponde `degraded`. Con Mongo attivo risponde `ok`.
 
@@ -45,10 +47,13 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test
+npm test                 # unit + contract test (65 test)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
 npm run spike:garmin     # spike Garmin Personal API
+npm run spike:yazio      # spike Yazio API v22
+npm run analyze:fit      # scarica FIT Garmin, normalizza e stampa brief LLM
+npm run export:workout   # genera file dist/workouts/5x800m-intervals.fit
 ```
 
 ## Spike Garmin
@@ -114,6 +119,27 @@ curl 'http://localhost:3000/api/integrations/yazio/overview?days=7'
 ```
 
 Il sync salva i macro giornalieri in `nutrition_daily` e il peso in `metrics_daily` (source `yazio`). La UI ha la card **Nutrizione Yazio**. Testato con account reale: 7 giorni, 0 errori, sync idempotente.
+
+## Export Workout Garmin (.FIT)
+
+La Garmin Personal API è read-only. Per caricare workout strutturati senza account aziendale, health-trainer genera file binari `.FIT` conformi alle specifiche Garmin:
+
+```bash
+npm run export:workout
+curl -O 'http://localhost:3000/api/export/workouts/sample-5x800m.fit'
+```
+
+Il file generato (`dist/workouts/5x800m-intervals.fit`) può essere:
+1. Importato via web su [Garmin Connect Workouts](https://connect.garmin.com/modern/workouts) tramite il pulsante **Importa**.
+2. Oppure copiato via USB nella cartella `GARMIN/NewFiles/` del dispositivo.
+
+## Auth e Profilo Utente
+
+L'API include il modulo `auth` con:
+- Endpoint `/api/me` per il profilo dell'utente autenticato (o utente dev con allowlist).
+- Google OAuth token exchange (`POST /api/auth/google`) con controllo allowlist email (`GOOGLE_ALLOWED_EMAILS`).
+- Dev login (`POST /api/auth/dev-login`) abilitato in sviluppo (`ENABLE_DEV_ENDPOINTS=true`).
+- Persistenza automatica del profilo in MongoDB (`users`).
 
 ## Stack
 

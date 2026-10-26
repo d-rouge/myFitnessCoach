@@ -38,3 +38,9 @@ export {
   startSyncRun,
   updateSyncState,
 } from "./sync";
+export {
+  countUsers,
+  getUserByEmail,
+  getUserById,
+  upsertUser,
+} from "./users";

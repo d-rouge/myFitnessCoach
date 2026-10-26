@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@garmin/fitsdk": "^21.218.0",
     "@health-trainer/domain": "*",
     "fflate": "^0.8.3",
     "fit-file-parser": "^6.2.3",

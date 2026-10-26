@@ -7,10 +7,13 @@ export const COLLECTIONS = {
   nutritionDaily: "nutrition_daily",
   syncRuns: "sync_runs",
   syncState: "sync_state",
+  users: "users",
 } as const;
 
 export async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
+    db.collection(COLLECTIONS.users).createIndex({ id: 1 }, { unique: true }),
+    db.collection(COLLECTIONS.users).createIndex({ email: 1 }, { unique: true }),
     db
       .collection(COLLECTIONS.activities)
       .createIndex({ userId: 1, source: 1, externalId: 1 }, { unique: true }),

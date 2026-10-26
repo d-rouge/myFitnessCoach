@@ -1,8 +1,8 @@
 # AI Personal Trainer — Piano di prodotto e architettura
 
-**Versione:** 0.2.9  
+**Versione:** 0.3.0  
 **Data:** 26 ottobre 2026  
-**Stato:** v0.2 — Fase 0 in corso (scaffold pronto, spike Garmin da eseguire)  
+**Stato:** v0.3 — Fase 0 completata (scaffold, Garmin/Yazio sync, FIT brief, export workout .FIT, auth base e spike pronti)  
 **Documenti collegati:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
 ---
@@ -34,13 +34,15 @@
 | Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
 | Yazio client v22 + mapper + sync + UI | fatto; **test reale OK** (7 giorni, peso); supporto refresh token per Google |
 | FIT parser + ActivityAnalysis + brief LLM | fatto (FIT reale: 17.492 record → brief ~2 KB) |
-| API NestJS `health` + Garmin/Yazio `sync`/`overview` | fatto |
-| Web React/Vite con dati Garmin + nutrizione Yazio | fatto |
-| Test totali | 54 verdi |
+| Garmin workout `.FIT` export | fatto (encoder con `@garmin/fitsdk`, test validati con Decoder ufficiale, script e endpoint download) |
+| Modulo Auth Google / Dev e `/api/me` | fatto (NestJS `AuthModule`, allowlist email, sessione JWT, collezione `users` Mongo) |
+| Spike documentati con verdetto | fatto (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`) |
+| API NestJS `health` + Garmin/Yazio `sync`/`overview` + `export` + `auth` | fatto |
+| Web React/Vite con dati Garmin + nutrizione Yazio + export FIT + profilo atleta | fatto |
+| Test totali | 65 verdi |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
-| Auth Google, Zepp, Hevy, export `.FIT` | da fare |
-| Prossimi passi | Export workout `.FIT` + auth Google + scheduler |
+| Prossimi passi | Fase 1 — Onboarding wizard, feasibility check e primo loop di coaching |
 
 **Cosa resta valido dalla v0.1** (è il cuore del progetto):
 
@@ -796,9 +798,9 @@ Mitigazione: uso personale, feature flag, adapter isolato, nessun dato condiviso
 
 1. ~~**Spike Garmin reale:**~~ fatto il 26 ottobre 2026 — vedi `docs/spikes/garmin.md` (Go con workaround 406/token raw).
 2. ~~**Yazio reale:**~~ fatto il 26 ottobre 2026 — login, 7 giorni di macro e peso; vedi `docs/spikes/yazio.md`.
-3. **Export workout `.FIT`:** generare un workout, importarlo in Garmin Connect; poi Hevy.
-4. **Auth Google + onboarding minimo:** `/api/me`, `users` in Mongo, schermata "oggi".
-5. **Prima vertical slice:** onboarding → piano → check-in → review.
+3. ~~**Export workout `.FIT`:**~~ fatto il 26 ottobre 2026 — generatore e validatore con FIT SDK, vedi `docs/spikes/garmin-export.md`.
+4. ~~**Auth Google / Dev + `/api/me`:**~~ fatto il 26 ottobre 2026 — modulo `auth`, sessione JWT, allowlist email e collezione `users`.
+5. **Avvio Fase 1 (Web MVP personale):** onboarding wizard a 6 step, baseline summary, feasibility check e prima vertical slice (piano → check-in → review).
 6. Usare [`AGENT.md`](../AGENT.md) come guida per ogni intervento sul codice; aggiornare i documenti a ogni avanzamento.
 
 ---

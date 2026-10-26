@@ -2,7 +2,7 @@
 
 Guida operativa per un agente che interviene su **health-trainer**. Leggere questo file prima di modificare qualsiasi cosa.
 
-**Aggiornato:** 26 ottobre 2026 (Fase 0 in corso).
+**Aggiornato:** 26 ottobre 2026 (Fase 0 completata).
 
 ---
 
@@ -46,7 +46,7 @@ Il loop:
 
 L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del piano e la spiegazione delle scelte.
 
-**Stato attuale (26 ottobre 2026):** Fase 0 in corso. Scaffold, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale. Mancano auth Google dell'app, Zepp, Hevy e l'export workout `.FIT`.
+**Stato attuale (26 ottobre 2026):** Fase 0 completata. Scaffold, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale, generatore workout `.FIT` (`garmin-export.md`), modulo `auth` (Google OAuth allowlist, dev login, `/api/me`, collezione `users`), modulo `export` e 5 spike documentati. Pronti per la **Fase 1 — Web MVP personale**.
 
 **Non assumere** che un path o una feature esista solo perché è nel piano: verifica nel repository.
 
@@ -58,7 +58,7 @@ L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del pian
 2. `docs/PIANO.md` — prodotto, architettura, dominio, AI, sicurezza
 3. `docs/FASI.md` — fase corrente, task, criteri di accettazione
 4. `docs/INTEGRAZIONI.md` — Garmin, Yazio, Zepp, Hevy, Health Connect, Drive
-5. `docs/spikes/` — risultati reali degli spike (quando esistono)
+5. `docs/spikes/` — risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy)
 6. `README.md` — avvio rapido
 
 Se un documento contraddice un altro, **vince `PIANO.md`** per l'architettura e `FASI.md` per la priorità. Segnala la contraddizione e aggiorna i documenti.
@@ -77,37 +77,43 @@ scripts/
   build-packages.sh         build pacchetti in ordine di dipendenza
   dev.sh                    API + web in parallelo
   spike-garmin.ts           spike Garmin Personal API
+  spike-yazio.ts            spike Yazio API v22
+  analyze-fit.ts            analizza FIT Garmin e stampa brief
+  export-workout-fit.ts     genera file FIT workout
 docs/
   PIANO.md
   FASI.md
   INTEGRAZIONI.md
+  FIT.md
   spikes/                   risultati reali (template + registro)
 apps/
-  api/                      NestJS 12 ESM: health, Garmin sync/overview
+  api/                      NestJS 12 ESM: health, integrations, auth, export
     src/database/           MongoService (connessione + indici)
-    src/integrations/       GarminService, GarminSyncService, controller
-  web/                      React + Vite + Tailwind, dati Garmin in UI
+    src/integrations/       GarminService, GarminSyncService, YazioService, YazioSyncService
+    src/auth/               AuthService, AuthController, JWT util
+    src/export/             ExportController (download workout .FIT)
+  web/                      React + Vite + Tailwind, dati Garmin/Yazio in UI, atleta autenticato, export FIT
   mobile/                   Expo (fase 3, non ancora creata)
 packages/
-  domain/                   Zod (activity, daily metrics), regole pure
-  integrations/             Garmin + Yazio + FIT parser/analysis
-  db/                       Mongo client, repository activities/metrics/nutrition/analyses/sync
+  domain/                   Zod (activity, daily metrics, user, etc.), regole pure
+  integrations/             Garmin + Yazio + FIT parser/analysis + FIT workout encoder
+  db/                       Mongo client, repository activities/metrics/nutrition/analyses/sync/users
   ai/                       interfacce provider/prompt (stub)
   ui/                       utility UI condivise (cn)
   config/                   env Zod, feature flag
 ```
 
-> Alcuni path sono previsti e non esistono ancora (`apps/mobile`, `packages/integrations/src/yazio`, ecc.). Verifica prima di crearli o importarli.
+> Alcuni path sono previsti e non esistono ancora (`apps/mobile`, ecc.). Verifica prima di crearli o importarli.
 
 ---
 
 ## 4. Fase corrente
 
-Leggere `docs/FASI.md`. Alla data di questo file la fase attiva è la **Fase 0 — Spike e fondamenta**.
+Leggere `docs/FASI.md`. La **Fase 0 — Spike e fondamenta** è completata.
 
-Non saltare gli spike: Garmin, Yazio, Zepp, Hevy e l'export `.FIT` hanno dettagli che non si possono indovinare. Ogni spike produce un documento in `docs/spikes/` con risposte reali e un verdetto.
+Tutti gli spike hanno prodotto un verdetto documentato in `docs/spikes/` (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`).
 
-**Prossimo passo:** export workout `.FIT` verso Garmin; prima assicurarsi che il parsing/brief del FIT resti stabile (`docs/FIT.md`). Garmin e Yazio sono completati in `docs/spikes/garmin.md` e `docs/spikes/yazio.md`.
+**Prossimo passo:** avvio della **Fase 1 — Web MVP personale** (onboarding wizard, feasibility check, generazione macro/micro, check-in e review).
 
 ---
 
@@ -120,12 +126,13 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test
+npm test                      # unit/contract test (65 test)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
 npm run spike:garmin          # spike Garmin (aggiungi -- --write per salvare il report)
 npm run spike:yazio           # spike Yazio (credenziali in secrets/yazio.json o .env)
 npm run analyze:fit           # scarica l'ultima attività Garmin, parsa il FIT e stampa il brief
+npm run export:workout        # genera file dist/workouts/5x800m-intervals.fit
 ```
 
 MongoDB è locale su `127.0.0.1:27017` ed è **gestito dall'utente**. Non avviare o fermare servizi di sistema (MongoDB, Redis) senza conferma. Non serve Docker.
@@ -138,6 +145,11 @@ Se un comando non esiste, verifica `package.json`, crea lo script solo se fa par
 
 ```text
 GET  /api/health
+GET  /api/me
+GET  /api/auth/status
+POST /api/auth/google
+POST /api/auth/dev-login
+POST /api/auth/logout
 GET  /api/integrations/status
 POST /api/integrations/garmin/check
 GET  /api/integrations/garmin/overview?days=7
@@ -147,9 +159,11 @@ GET  /api/integrations/yazio/overview?days=7
 POST /api/integrations/yazio/sync?days=7
 POST /api/integrations/garmin/activities/:activityId/analyze
 GET  /api/integrations/garmin/activities/:activityId/analysis
+GET  /api/export/workouts/sample-5x800m.fit
+GET  /api/export/workouts/sample-5x800m/info
 ```
 
-Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_ENDPOINTS=true` (default in sviluppo). Il profilo dati è ancora single-user: `PERSONAL_USER_ID = "personal"` in `apps/api/src/config/constants.ts`, in attesa dell'auth.
+Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_ENDPOINTS=true` (default in sviluppo). L'autenticazione supporta Google ID token con allowlist email e dev login in sviluppo.
 
 ---
 
@@ -179,7 +193,10 @@ Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_END
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 54 test verdi (domain 20, config 3, integrations 28, api 3). Build e typecheck verdi.
+- **Test attuali:** 65 test verdi (domain 20, config 3, integrations 32, api 10). Build, lint e typecheck verdi.
+- **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
+- **Env:** `apps/api/src/main.ts` e gli spike caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
+- **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` e gli spike caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
 - **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.

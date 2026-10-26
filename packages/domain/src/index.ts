@@ -17,3 +17,4 @@ export * from "./schemas/nutrition";
 export * from "./schemas/plan";
 export * from "./schemas/profile";
 export * from "./schemas/session";
+export * from "./schemas/user";

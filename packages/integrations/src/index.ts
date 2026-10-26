@@ -13,6 +13,18 @@ export {
   unzipFit,
 } from "./fit/parser";
 export {
+  create5x800mWorkout,
+  encodeWorkoutToFit,
+  paceToSpeedMs,
+  parsePaceStringToSecKm,
+  type WorkoutDef,
+  type WorkoutDuration,
+  type WorkoutSport,
+  type WorkoutStepDef,
+  type WorkoutStepIntensity,
+  type WorkoutTarget,
+} from "./fit/workout-encoder";
+export {
   buildGarminDailyMetrics,
   type DatedGarminRaw,
   type GarminDailyMetricsInput,

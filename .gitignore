@@ -8,3 +8,5 @@ secrets/
 .DS_Store
 *.log
 docs/spikes/*.local.*
+*.fit
+*.FIT
