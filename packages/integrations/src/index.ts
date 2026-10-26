@@ -6,6 +6,14 @@ export {
   RateLimitedError,
 } from "./errors";
 export {
+  buildGarminDailyMetrics,
+  type DatedGarminRaw,
+  type GarminDailyMetricsInput,
+  type GarminMappingOptions,
+  mapGarminActivities,
+  mapGarminSport,
+} from "./garmin/mapper";
+export {
   type GarminActivitySearchParams,
   type GarminHealthCheck,
   type GarminJson,

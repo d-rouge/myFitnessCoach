@@ -1,6 +1,6 @@
 # Fasi di realizzazione
 
-**Versione:** 1.4  
+**Versione:** 1.5  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -34,8 +34,8 @@ Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, me
 
 ### Stato (26 ottobre 2026)
 
-**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, API `/api/health`, UI web di stato, CI, MongoDB locale, `.env.example`, repo git, **spike Garmin reale**.
-**Verde:** `npm run build`, `npm test` (33 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
+**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, **sync Garmin persistente** (attività + metriche in Mongo), API `/api/health`, overview e sync in UI, CI, MongoDB locale, `.env.example`, repo git, **spike Garmin reale**.
+**Verde:** `npm run build`, `npm test` (37 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
 **Bloccato su:** credenziali Yazio/Google OAuth, chiave Hevy Pro per l'export.
 **Prossimo passo:** Yazio (nutrizione/peso) + export workout `.FIT`; poi auth Google e onboarding.
 
@@ -55,7 +55,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] `apps/web` React + Vite + Tailwind (shadcn/ui da aggiungere).
 - [x] `packages/domain` con schemi Zod (profilo, anamnesi, obiettivi, disponibilità, attrezzatura, check-in, sessione, piano).
 - [x] Regole pure: `readiness`, `load`, `feasibility`, `progression`, `safety`, `validator` + 20 test.
-- [x] `packages/integrations` con `ProviderAdapter` e client Garmin + 7 test di contratto.
+- [x] `packages/integrations` con `ProviderAdapter`, client Garmin e mapper + 11 test di contratto.
 - [x] `packages/config`, `packages/db`, `packages/ai`, `packages/ui`.
 - [x] MongoDB locale configurato su `127.0.0.1:27017` (nessun Docker).
 - [x] CI: workflow GitHub Actions (typecheck, lint, test, build). Prima esecuzione su GitHub da verificare.
@@ -72,6 +72,14 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] Misurare latenza (~2,9 s totale) e verificare errori/rate limit (nessun 429 nel singolo run).
 - [x] Salvare risposte reali (redatte) in `docs/spikes/garmin.md`.
 - [x] Gestire il workaround 406: niente header `Accept` su token/download; token raw JWT.
+- [x] Mapper canonico attività → `activities` e metriche → `metrics_daily`.
+- [x] Repository Mongo con upsert idempotente, indici e `sync_state`.
+- [x] `POST /api/integrations/garmin/sync?days=N` con audit in `sync_runs`.
+- [x] `GET /api/integrations/garmin/overview?days=N` per stato, attività e metriche.
+- [x] UI: pulsante “Sincronizza ora”, ultimo sync, attività recenti, tabella metriche.
+- [x] Test end-to-end reale: 3 attività e 7 giorni di metriche persistiti; secondo sync idempotente.
+- [ ] Verifica rate limit su 24–48h di polling.
+- [ ] Salvataggio/parsing del `.FIT` originale (oggi si scarica solo nello spike).
 
 #### 0.3 Garmin export workout
 
@@ -106,7 +114,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 #### 0.7 Auth e dati
 
-- [x] `EnvModule`, `GET /api/health`, `GET /api/integrations/status`, `POST /api/integrations/garmin/check`.
+- [x] `EnvModule`, `GET /api/health`, `GET /api/integrations/status`, `POST /api/integrations/garmin/check`, `GET /api/integrations/garmin/overview`, `POST /api/integrations/garmin/sync`.
 - [ ] Google OAuth su NestJS; allowlist della tua email.
 - [ ] `users` in Mongo; sessione JWT/httpOnly.
 - [ ] Endpoint `/api/me`.
@@ -120,7 +128,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - Almeno Garmin e Yazio restituiscono dati reali.
 - L'export `.FIT` è importabile in Garmin Connect.
 
-> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Login Google, Yazio e `.FIT` non sono ancora implementati.
+> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Garmin sync è operativo e persistente. Login Google, Yazio e export `.FIT` non sono ancora implementati.
 
 ### Rischi
 

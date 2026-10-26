@@ -1,6 +1,6 @@
 # Integrazioni — specifiche operative
 
-**Versione:** 1.2  
+**Versione:** 1.3  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -10,7 +10,7 @@
 
 | Provider | Stato | Dove |
 |---|---|---|
-| Garmin Personal | **testato con chiave reale**: 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/personal-client.ts`, `scripts/spike-garmin.ts`, `docs/spikes/garmin.md` |
+| Garmin Personal | **client + mapper + sync persistente + UI**: 3 attività e 7 giorni di metriche salvati in Mongo; test reale con 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `apps/api/src/integrations/garmin-sync.service.ts`, `packages/db/src/`, `docs/spikes/garmin.md` |
 | Garmin `.FIT` export | non iniziato | — |
 | Yazio | non iniziato | — |
 | Zepp | non iniziato | — |
@@ -102,7 +102,7 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 
 > I path sono quelli usati dal client ufficiale `garmin/connect-personal-api-python`. Verificare sempre nella Swagger docs e con risposte reali.
 
-### 2.3.1 Implementazione attuale
+### 2.4 Implementazione attuale
 
 - `packages/integrations/src/garmin/personal-client.ts`: token exchange, cache con scadenza, retry singolo su 401, errori tipizzati (`AuthExpiredError`, `RateLimitedError`), timeout.
 - Wrapper: `getProfileSettings`, `searchActivities`, `getActivity`, `downloadActivity`, `getDailySleep`, `getHrv`, `getDailySummaries`, `getWeightMeasurements`, `getSteps`, `getStress`, `healthCheck`.
@@ -115,10 +115,39 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 - Il download attività restituisce **406** con `Accept: application/octet-stream`; senza `Accept` restituisce uno ZIP valido (529 KB nel test).
 - 6 attività in 14 giorni; sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR presenti; peso 0 record (nessuna bilancia Garmin); idratazione/fitness age raggiungibili ma senza dati.
 - Nessun rate limit osservato in un singolo run.
+- **Sync persistente verificato:** 3 attività e 7 giorni di metriche in `activities` / `metrics_daily`; secondo sync idempotente (stessi conteggi).
 
-**Non ancora verificato:** rate limit su 24–48h di polling, mapping completo dei campi, comportamento con attività manuali/indoor.
+**Non ancora verificato:** rate limit su 24–48h di polling, comportamento con attività manuali/indoor, salvataggio del `.FIT` originale.
 
-### 2.4 Sync
+### 2.5 Persistenza e sync
+
+Collezioni:
+
+| Collezione | Contenuto | Chiave |
+|---|---|---|
+| `activities` | attività canoniche | `(userId, source, externalId)` unico |
+| `metrics_daily` | metriche giornaliere canoniche | `(userId, date, source)` unico |
+| `sync_runs` | audit di ogni sync | `runId`, stato, stats, errori |
+| `sync_state` | ultimo sync per provider | `(userId, provider)` unico |
+
+Endpoint:
+
+```text
+POST /api/integrations/garmin/sync?days=7
+GET  /api/integrations/garmin/overview?days=7
+```
+
+Flusso:
+
+1. `searchActivities` + `getDailySummaries` + `getBodyBattery` + `getWeightMeasurements`.
+2. Per ogni giorno: `getDailySleep`, `getHrv`, `getDailyHeartRate`, `getSpo2` (concorrenza 3, errori per giorno non bloccanti).
+3. `mapGarminActivities` / `buildGarminDailyMetrics`.
+4. Upsert idempotente in Mongo.
+5. `sync_runs` + `sync_state`; l'overview legge da Mongo e non chiama Garmin.
+
+UI: pulsante “Sincronizza ora”, ultimo sync, 3 attività recenti, tabella metriche a 7 giorni.
+
+### 2.6 Sync scheduling (da fare)
 
 - **Attività:** ogni 30–60 minuti (o all'apertura dell'app).
 - **Salute:** 1–2 volte al giorno (sonno/HRV/RHR al mattino).
@@ -129,7 +158,18 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 - **Token cache:** salvarlo cifrato con `expiresAt`; rinnovare 1 ora prima.
 - **Chiave in scadenza:** reminder a 7 giorni; stato `expiring` in UI.
 
-### 2.5 Errori
+> Oggi il sync è manuale (endpoint/UI); lo scheduler automatico è il passo successivo.
+
+- **Attività:** ogni 30–60 minuti (o all'apertura dell'app).
+- **Salute:** 1–2 volte al giorno (sonno/HRV/RHR al mattino).
+- **Peso:** 1 volta al giorno.
+- **Backfill:** all'onboarding, ultimi 30–90 giorni (attività e peso). Personal API consente range; rispettare rate limit.
+- **Cursore:** `lastActivityStartDate` e `lastHealthDate`.
+- **Dedupe:** `externalId = activityId`; conservare `source: "garmin"`.
+- **Token cache:** salvarlo cifrato con `expiresAt`; rinnovare 1 ora prima.
+- **Chiave in scadenza:** reminder a 7 giorni; stato `expiring` in UI.
+
+### 2.7 Errori
 
 | Codice | Significato | Azione |
 |---|---|---|
@@ -138,14 +178,14 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 | 429 | rate limit | backoff esponenziale + jitter |
 | 5xx | Garmin down | retry con backoff; non marcare la connessione come rotta |
 
-### 2.6 Limiti
+### 2.8 Limiti
 
 - **Nessun push di workout.**
 - **Nessun webhook:** solo polling.
 - **Chiave personale:** non usarla per più utenti. Per la fase test: Garmin Startup o chiavi personali separate (con UX chiara).
 - **Scadenza:** la chiave va ruotata; il token dura 24h.
 
-### 2.7 Mapping canonico
+### 2.9 Mapping canonico
 
 | Garmin | Canonico |
 |---|---|

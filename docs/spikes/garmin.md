@@ -101,11 +101,16 @@ Solo nomi dei campi, nessun valore personale.
 - [ ] Gestione scadenza chiave e reminder.
 - [ ] Verifica rate limit su 24–48h di polling.
 
-## Prossimo passo
+## Implementazione successiva
 
-1. Implementare il mapping canonico e il sync Garmin schedulato.
-2. Aggiungere Yazio per nutrizione e peso.
-3. Testare l'export workout `.FIT` verso Garmin Connect.
+- [x] Mapping canonico attività → `activities` e metriche → `metrics_daily`.
+- [x] Sync manuale con upsert idempotente in Mongo.
+- [x] Overview API + UI (attività e metriche).
+- [ ] Sync schedulato e verifica rate limit su 24–48h.
+- [ ] Salvataggio/parsing del `.FIT` originale.
+- [ ] Export workout `.FIT` verso Garmin Connect.
+
+**Prossimo:** Yazio (nutrizione/peso) e poi export workout `.FIT`.
 
 ## Privacy
 

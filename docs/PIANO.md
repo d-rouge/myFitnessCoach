@@ -1,6 +1,6 @@
 # AI Personal Trainer — Piano di prodotto e architettura
 
-**Versione:** 0.2.4  
+**Versione:** 0.2.5  
 **Data:** 26 ottobre 2026  
 **Stato:** v0.2 — Fase 0 in corso (scaffold pronto, spike Garmin da eseguire)  
 **Documenti collegati:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
@@ -29,10 +29,12 @@
 |---|---|
 | Monorepo npm workspaces | fatto |
 | Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator) | fatto, 20 test |
-| Client Garmin Personal + test di contratto | fatto, 7 test |
+| Client Garmin Personal + mapper + test di contratto | fatto, 11 test |
 | Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
-| API NestJS `health` + `integrations` | fatto |
-| Web React/Vite status page | fatto |
+| Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
+| API NestJS `health` + Garmin `sync`/`overview` | fatto |
+| Web React/Vite con dati Garmin | fatto (sync, attività, tabella metriche) |
+| Test totali | 37 verdi |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
 | Auth Google, Yazio, Zepp, Hevy, export `.FIT` | da fare |
@@ -401,6 +403,7 @@ assets/fit/*
 | `reviews` | L4 | period, metrics, adherence, decisions, nextCycleInputs |
 | `provider_credentials` | credenziali | provider, encryptedPayload, expiresAt, status |
 | `sync_runs` | audit sync | provider, startedAt, status, stats, error |
+| `sync_state` | ultimo sync per provider | userId, provider, lastSyncAt, status, error |
 | `export_jobs` | export | type (hevy/garmin/backup), status, fileKey |
 | `hevy_mappings` | mapping esercizi | exerciseKey, hevyTemplateId |
 | `ai_runs` | audit AI | layer, model, promptVersion, contextHash, tokens, cost, validation |

@@ -1,6 +1,6 @@
 import type { Env } from "@health-trainer/config";
 import { GarminPersonalClient } from "@health-trainer/integrations";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { APP_ENV } from "../config/env.module.js";
 
 export interface GarminCheckResult {
@@ -18,6 +18,17 @@ export class GarminService {
     return Boolean(this.env.GARMIN_PERSONAL_API_KEY);
   }
 
+  getClient(): GarminPersonalClient {
+    if (!this.env.GARMIN_PERSONAL_API_KEY) {
+      throw new ServiceUnavailableException("GARMIN_PERSONAL_API_KEY is not configured");
+    }
+
+    return new GarminPersonalClient({
+      apiKey: this.env.GARMIN_PERSONAL_API_KEY,
+      timeoutMs: 20_000,
+    });
+  }
+
   async check(): Promise<GarminCheckResult> {
     if (!this.env.GARMIN_PERSONAL_API_KEY) {
       return {
@@ -28,12 +39,7 @@ export class GarminService {
       };
     }
 
-    const client = new GarminPersonalClient({
-      apiKey: this.env.GARMIN_PERSONAL_API_KEY,
-      timeoutMs: 15_000,
-    });
-
-    const health = await client.healthCheck();
+    const health = await this.getClient().healthCheck();
 
     return {
       configured: true,

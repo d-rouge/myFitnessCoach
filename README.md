@@ -69,6 +69,17 @@ npm run spike:garmin -- --write   # salva docs/spikes/garmin.local.json (ignorat
 
 Il report è redatto: niente token, niente valori clinici completi. Dopo lo spike compila `docs/spikes/garmin.md` con verdetto go / go con workaround / no-go.
 
+## Sync Garmin
+
+Con API e Mongo attivi, la UI ha il pulsante **Sincronizza ora**. Da terminale:
+
+```bash
+curl -X POST 'http://localhost:3000/api/integrations/garmin/sync?days=7'
+curl 'http://localhost:3000/api/integrations/garmin/overview?days=7'
+```
+
+Il sync salva attività e metriche giornaliere in MongoDB (`activities`, `metrics_daily`) e registra l'esito in `sync_runs` / `sync_state`. È idempotente: rilanciarlo non duplica i dati.
+
 ## Stack
 
 - **API:** NestJS 12 (ESM) + TypeScript 6

@@ -46,7 +46,7 @@ Il loop:
 
 L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del piano e la spiegazione delle scelte.
 
-**Stato attuale (26 ottobre 2026):** Fase 0 in corso. Scaffold monorepo, dominio, client Garmin, API health e web UI sono presenti e testati. Manca lo spike con la chiave Garmin reale, l'auth Google e gli adapter Yazio/Zepp/Hevy/`.FIT`.
+**Stato attuale (26 ottobre 2026):** Fase 0 in corso. Scaffold monorepo, dominio, client Garmin, **sync Garmin persistente**, API health/overview/sync e web UI sono presenti e testati. Mancano auth Google, Yazio, Zepp, Hevy e l'export `.FIT`.
 
 **Non assumere** che un path o una feature esista solo perché è nel piano: verifica nel repository.
 
@@ -83,13 +83,15 @@ docs/
   INTEGRAZIONI.md
   spikes/                   risultati reali (template + registro)
 apps/
-  api/                      NestJS 12 ESM: health, integrations, auth (da fare)
-  web/                      React + Vite + Tailwind
+  api/                      NestJS 12 ESM: health, Garmin sync/overview
+    src/database/           MongoService (connessione + indici)
+    src/integrations/       GarminService, GarminSyncService, controller
+  web/                      React + Vite + Tailwind, dati Garmin in UI
   mobile/                   Expo (fase 3, non ancora creata)
 packages/
-  domain/                   Zod, tipi, regole pure, feasibility, safety
-  integrations/             Garmin client (+ Yazio/Zepp/Hevy da fare)
-  db/                       Mongo client e ping
+  domain/                   Zod (activity, daily metrics), regole pure
+  integrations/             Garmin client + mapper canonico
+  db/                       Mongo client, repository activities/metrics/sync
   ai/                       interfacce provider/prompt (stub)
   ui/                       utility UI condivise (cn)
   config/                   env Zod, feature flag
@@ -130,6 +132,18 @@ Comandi **non ancora presenti** (non inventarli): `test:e2e`, `db:migrate`, `eva
 
 Se un comando non esiste, verifica `package.json`, crea lo script solo se fa parte del task, aggiorna questo file.
 
+### 5.1 Endpoint API attuali
+
+```text
+GET  /api/health
+GET  /api/integrations/status
+POST /api/integrations/garmin/check
+GET  /api/integrations/garmin/overview?days=7
+POST /api/integrations/garmin/sync?days=7
+```
+
+Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_ENDPOINTS=true` (default in sviluppo). Il profilo dati è ancora single-user: `PERSONAL_USER_ID = "personal"` in `apps/api/src/config/constants.ts`, in attesa dell'auth.
+
 ---
 
 ## 6. Invarianti non negoziabili
@@ -158,7 +172,7 @@ Se un comando non esiste, verifica `package.json`, crea lo script solo se fa par
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 33 test verdi (domain 20, config 3, integrations 7, api 3). Build e typecheck verdi.
+- **Test attuali:** 37 test verdi (domain 20, config 3, integrations 11, api 3). Build e typecheck verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` e `scripts/spike-garmin.ts` caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. Lo spike Garmin accetta anche `secrets/garmin-key.txt` (ignorato da git).
 
