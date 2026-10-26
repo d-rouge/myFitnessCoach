@@ -80,6 +80,24 @@ curl 'http://localhost:3000/api/integrations/garmin/overview?days=7'
 
 Il sync salva attività e metriche giornaliere in MongoDB (`activities`, `metrics_daily`) e registra l'esito in `sync_runs` / `sync_state`. È idempotente: rilanciarlo non duplica i dati.
 
+## Sync Yazio
+
+Metti le credenziali in `secrets/yazio.json` (ignorato da git):
+
+```json
+{ "email": "la-tua-email", "password": "la-tua-password" }
+```
+
+Poi, con API e Mongo attivi:
+
+```bash
+npm run spike:yazio
+curl -X POST 'http://localhost:3000/api/integrations/yazio/sync?days=7'
+curl 'http://localhost:3000/api/integrations/yazio/overview?days=7'
+```
+
+Il sync salva i macro giornalieri in `nutrition_daily` e il peso in `metrics_daily` (source `yazio`). La UI ha la card **Nutrizione Yazio**.
+
 ## Stack
 
 - **API:** NestJS 12 (ESM) + TypeScript 6

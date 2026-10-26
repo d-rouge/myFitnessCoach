@@ -6,7 +6,9 @@ export {
 export { COLLECTIONS, ensureIndexes } from "./collections";
 export {
   countDailyMetrics,
+  countDailyMetricsBySource,
   getRecentDailyMetrics,
+  getRecentDailyMetricsBySource,
   upsertDailyMetrics,
 } from "./daily-metrics";
 export {
@@ -15,6 +17,11 @@ export {
   type MongoPingResult,
   pingMongo,
 } from "./mongo";
+export {
+  countNutrition,
+  getRecentNutrition,
+  upsertNutrition,
+} from "./nutrition";
 export {
   finishSyncRun,
   getSyncState,

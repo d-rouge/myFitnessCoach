@@ -36,6 +36,28 @@ export async function getRecentDailyMetrics(
     .toArray();
 }
 
+export async function getRecentDailyMetricsBySource(
+  db: Db,
+  userId: string,
+  source: string,
+  limit = 14,
+): Promise<DailyMetrics[]> {
+  return db
+    .collection<DailyMetrics>(COLLECTIONS.dailyMetrics)
+    .find({ userId, source })
+    .sort({ date: -1 })
+    .limit(limit)
+    .toArray();
+}
+
 export async function countDailyMetrics(db: Db, userId: string): Promise<number> {
   return db.collection<DailyMetrics>(COLLECTIONS.dailyMetrics).countDocuments({ userId });
+}
+
+export async function countDailyMetricsBySource(
+  db: Db,
+  userId: string,
+  source: string,
+): Promise<number> {
+  return db.collection<DailyMetrics>(COLLECTIONS.dailyMetrics).countDocuments({ userId, source });
 }

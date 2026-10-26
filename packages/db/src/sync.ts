@@ -7,6 +7,8 @@ export type SyncStatus = "running" | "ok" | "partial" | "error";
 export interface SyncStats {
   activities: number;
   metrics: number;
+  nutrition?: number;
+  weightEntries?: number;
   errors: string[];
 }
 

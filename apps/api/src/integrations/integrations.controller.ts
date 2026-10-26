@@ -2,6 +2,8 @@ import { BadRequestException, Controller, Get, Post, Query, UseGuards } from "@n
 import { DevOnlyGuard } from "./dev-only.guard.js";
 import { GarminService } from "./garmin.service.js";
 import { GarminSyncService } from "./garmin-sync.service.js";
+import { YazioService } from "./yazio.service.js";
+import { YazioSyncService } from "./yazio-sync.service.js";
 
 function parseDays(value?: string): number {
   if (value === undefined) return 7;
@@ -17,12 +19,15 @@ export class IntegrationsController {
   constructor(
     private readonly garmin: GarminService,
     private readonly garminSync: GarminSyncService,
+    private readonly yazio: YazioService,
+    private readonly yazioSync: YazioSyncService,
   ) {}
 
   @Get("status")
   status() {
     return {
       garmin: { configured: this.garmin.isConfigured() },
+      yazio: { configured: this.yazio.isConfigured() },
     };
   }
 
@@ -42,5 +47,23 @@ export class IntegrationsController {
   @UseGuards(DevOnlyGuard)
   syncGarmin(@Query("days") days?: string) {
     return this.garminSync.sync(parseDays(days));
+  }
+
+  @Post("yazio/check")
+  @UseGuards(DevOnlyGuard)
+  checkYazio() {
+    return this.yazio.check();
+  }
+
+  @Get("yazio/overview")
+  @UseGuards(DevOnlyGuard)
+  yazioOverview(@Query("days") days?: string) {
+    return this.yazioSync.overview(parseDays(days));
+  }
+
+  @Post("yazio/sync")
+  @UseGuards(DevOnlyGuard)
+  syncYazio(@Query("days") days?: string) {
+    return this.yazioSync.sync(parseDays(days));
   }
 }

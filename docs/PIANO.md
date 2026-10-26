@@ -1,6 +1,6 @@
 # AI Personal Trainer — Piano di prodotto e architettura
 
-**Versione:** 0.2.5  
+**Versione:** 0.2.6  
 **Data:** 26 ottobre 2026  
 **Stato:** v0.2 — Fase 0 in corso (scaffold pronto, spike Garmin da eseguire)  
 **Documenti collegati:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
@@ -32,13 +32,14 @@
 | Client Garmin Personal + mapper + test di contratto | fatto, 11 test |
 | Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
 | Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
-| API NestJS `health` + Garmin `sync`/`overview` | fatto |
-| Web React/Vite con dati Garmin | fatto (sync, attività, tabella metriche) |
-| Test totali | 37 verdi |
+| Yazio client + mapper + sync + UI | fatto; test reale in attesa credenziali |
+| API NestJS `health` + Garmin/Yazio `sync`/`overview` | fatto |
+| Web React/Vite con dati Garmin + nutrizione Yazio | fatto |
+| Test totali | 46 verdi |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
-| Auth Google, Yazio, Zepp, Hevy, export `.FIT` | da fare |
-| Prossimi spike | Yazio + export `.FIT` |
+| Auth Google, Zepp, Hevy, export `.FIT` | da fare |
+| Prossimi passi | Test Yazio reale + export `.FIT` |
 
 **Cosa resta valido dalla v0.1** (è il cuore del progetto):
 
@@ -793,7 +794,7 @@ Mitigazione: uso personale, feature flag, adapter isolato, nessun dato condiviso
 ## 14. Prossimi passi
 
 1. ~~**Spike Garmin reale:**~~ fatto il 26 ottobre 2026 — vedi `docs/spikes/garmin.md` (Go con workaround 406/token raw).
-2. **Spike Yazio:** login, refresh, summary, peso; documentare rischi e 2FA in `docs/spikes/yazio.md`.
+2. **Yazio reale:** credenziali in `secrets/yazio.json`, poi login/summary/peso; documentare 2FA e rate limit in `docs/spikes/yazio.md`.
 3. **Spike Hevy + export `.FIT`:** verificare creazione routine e import workout in Garmin Connect.
 4. **Auth Google + onboarding minimo:** `/api/me`, `users` in Mongo, schermata "oggi".
 5. **Prima vertical slice:** onboarding → piano → check-in → review.

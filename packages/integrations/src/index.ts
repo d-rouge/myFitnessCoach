@@ -27,3 +27,16 @@ export type {
   ProviderConnection,
   ProviderHealth,
 } from "./provider";
+export {
+  YazioClient,
+  type YazioClientOptions,
+  type YazioCredentials,
+  type YazioHealthCheck,
+  type YazioJson,
+  type YazioToken,
+} from "./yazio/client";
+export {
+  mapYazioDailySummary,
+  mapYazioWeight,
+  type YazioMappingOptions,
+} from "./yazio/mapper";

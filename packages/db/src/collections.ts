@@ -3,6 +3,7 @@ import type { Db } from "mongodb";
 export const COLLECTIONS = {
   activities: "activities",
   dailyMetrics: "metrics_daily",
+  nutritionDaily: "nutrition_daily",
   syncRuns: "sync_runs",
   syncState: "sync_state",
 } as const;
@@ -17,6 +18,10 @@ export async function ensureIndexes(db: Db): Promise<void> {
       .collection(COLLECTIONS.dailyMetrics)
       .createIndex({ userId: 1, date: 1, source: 1 }, { unique: true }),
     db.collection(COLLECTIONS.dailyMetrics).createIndex({ userId: 1, date: -1 }),
+    db
+      .collection(COLLECTIONS.nutritionDaily)
+      .createIndex({ userId: 1, date: 1, source: 1 }, { unique: true }),
+    db.collection(COLLECTIONS.nutritionDaily).createIndex({ userId: 1, date: -1 }),
     db.collection(COLLECTIONS.syncRuns).createIndex({ userId: 1, provider: 1, startedAt: -1 }),
     db.collection(COLLECTIONS.syncState).createIndex({ userId: 1, provider: 1 }, { unique: true }),
   ]);

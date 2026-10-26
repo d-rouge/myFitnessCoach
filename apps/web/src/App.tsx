@@ -67,6 +67,46 @@ interface GarminSyncResult {
   syncedAt: string;
 }
 
+interface YazioCheck {
+  configured: boolean;
+  ok: boolean;
+  latencyMs: number;
+  baseUrl?: string;
+  error?: string;
+}
+
+interface YazioDay {
+  date: string;
+  kcal: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  waterMl: number | null;
+  steps: number | null;
+  weightKg: number | null;
+  goalKcal: number | null;
+}
+
+interface YazioOverview {
+  configured: boolean;
+  lastSync: string | null;
+  status: SyncStatus;
+  error: string | null;
+  counts: { days: number; weightEntries: number };
+  days: YazioDay[];
+}
+
+interface YazioSyncResult {
+  status: "ok" | "partial";
+  from: string;
+  to: string;
+  days: number;
+  nutritionDays: number;
+  weightEntries: number;
+  errors: string[];
+  syncedAt: string;
+}
+
 async function fetchHealth(): Promise<HealthReport> {
   const response = await fetch("/api/health");
   if (!response.ok) throw new Error(`Health check failed (${response.status})`);
@@ -93,6 +133,29 @@ async function syncGarmin(): Promise<GarminSyncResult> {
   const response = await fetch("/api/integrations/garmin/sync?days=7", { method: "POST" });
   const body = (await response.json()) as GarminSyncResult & { message?: string };
   if (!response.ok) throw new Error(body.message ?? `Garmin sync failed (${response.status})`);
+  return body;
+}
+
+async function checkYazio(): Promise<YazioCheck> {
+  const response = await fetch("/api/integrations/yazio/check", { method: "POST" });
+  const body = (await response.json()) as YazioCheck & { message?: string };
+  if (!response.ok) throw new Error(body.message ?? `Yazio check failed (${response.status})`);
+  return body;
+}
+
+async function fetchYazioOverview(): Promise<YazioOverview> {
+  const response = await fetch("/api/integrations/yazio/overview?days=7");
+  const body = (await response.json()) as YazioOverview & { message?: string };
+  if (!response.ok) {
+    throw new Error(body.message ?? `Yazio overview failed (${response.status})`);
+  }
+  return body;
+}
+
+async function syncYazio(): Promise<YazioSyncResult> {
+  const response = await fetch("/api/integrations/yazio/sync?days=7", { method: "POST" });
+  const body = (await response.json()) as YazioSyncResult & { message?: string };
+  if (!response.ok) throw new Error(body.message ?? `Yazio sync failed (${response.status})`);
   return body;
 }
 
@@ -212,6 +275,10 @@ export default function App() {
   const queryClient = useQueryClient();
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth });
   const overview = useQuery({ queryKey: ["garmin-overview"], queryFn: fetchGarminOverview });
+  const yazioOverview = useQuery({
+    queryKey: ["yazio-overview"],
+    queryFn: fetchYazioOverview,
+  });
   const garminCheck = useMutation({ mutationFn: checkGarmin });
   const garminSync = useMutation({
     mutationFn: syncGarmin,
@@ -220,9 +287,18 @@ export default function App() {
       await queryClient.invalidateQueries({ queryKey: ["health"] });
     },
   });
+  const yazioCheck = useMutation({ mutationFn: checkYazio });
+  const yazioSync = useMutation({
+    mutationFn: syncYazio,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["yazio-overview"] });
+      await queryClient.invalidateQueries({ queryKey: ["health"] });
+    },
+  });
 
   const apiStatus = health.isError ? "error" : health.data ? "ok" : "unchecked";
   const data = overview.data;
+  const yazioData = yazioOverview.data;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-10 sm:px-8 lg:px-10">
@@ -366,10 +442,10 @@ export default function App() {
 
         <Card title="Prossimo passo" eyebrow="Fase 0">
           <ol className="space-y-2 text-sm leading-6 text-slate-300">
-            <li>1. Sync Garmin persistente</li>
-            <li>2. Spike Yazio (cibo e peso)</li>
-            <li>3. Export workout `.FIT` verso Garmin</li>
-            <li>4. Auth Google + onboarding</li>
+            <li>1. Test Yazio con credenziali reali</li>
+            <li>2. Export workout `.FIT` verso Garmin</li>
+            <li>3. Auth Google + onboarding</li>
+            <li>4. Sync schedulato</li>
           </ol>
         </Card>
       </div>
@@ -467,6 +543,122 @@ export default function App() {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+      </Card>
+
+      <Card title="Nutrizione Yazio" eyebrow="Ultimi 7 giorni" className="mt-4">
+        <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <SyncPill status={yazioData?.status ?? "never"} />
+            <span>
+              {yazioData?.lastSync
+                ? `Ultimo sync: ${formatDateTime(yazioData.lastSync)}`
+                : "Nessun sync"}
+            </span>
+            <span className="text-slate-600">·</span>
+            <span>{yazioData?.counts.days ?? 0} giorni</span>
+            <span className="text-slate-600">·</span>
+            <span>{yazioData?.counts.weightEntries ?? 0} pesi</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => yazioCheck.mutate()}
+              disabled={yazioCheck.isPending}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {yazioCheck.isPending ? "Verifica…" : "Verifica Yazio"}
+            </button>
+            <button
+              type="button"
+              onClick={() => yazioSync.mutate()}
+              disabled={yazioSync.isPending}
+              className="rounded-xl bg-lime-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {yazioSync.isPending ? "Sincronizzo…" : "Sincronizza Yazio"}
+            </button>
+          </div>
+        </div>
+
+        {yazioData?.error ? <p className="mt-3 text-xs text-rose-300">{yazioData.error}</p> : null}
+        {yazioCheck.data ? (
+          <p
+            className={cn(
+              "mt-3 text-xs",
+              yazioCheck.data.ok ? "text-emerald-300" : "text-rose-300",
+            )}
+          >
+            {yazioCheck.data.ok
+              ? `OK · ${yazioCheck.data.latencyMs} ms · ${yazioCheck.data.baseUrl ?? ""}`
+              : (yazioCheck.data.error ?? "Verifica fallita")}
+          </p>
+        ) : yazioCheck.isError ? (
+          <p className="mt-3 text-xs text-rose-300">{yazioCheck.error.message}</p>
+        ) : null}
+        {yazioSync.isSuccess ? (
+          <p className="mt-3 text-xs text-emerald-300">
+            Sync {yazioSync.data.status}: {yazioSync.data.nutritionDays} giorni,{" "}
+            {yazioSync.data.weightEntries} pesi.
+          </p>
+        ) : yazioSync.isError ? (
+          <p className="mt-3 text-xs text-rose-300">{yazioSync.error.message}</p>
+        ) : null}
+
+        {yazioOverview.isLoading ? (
+          <p className="py-6 text-sm text-slate-500">Carico i dati Yazio…</p>
+        ) : yazioOverview.isError ? (
+          <p className="py-6 text-sm text-rose-300">{yazioOverview.error.message}</p>
+        ) : !yazioData || yazioData.days.length === 0 ? (
+          <div className="py-6 text-sm text-slate-500">
+            {yazioData?.configured === false ? (
+              <p>
+                Yazio non configurato. Aggiungi le credenziali in{" "}
+                <code className="text-slate-300">secrets/yazio.json</code> e riavvia l&apos;API.
+              </p>
+            ) : (
+              <p>
+                Nessun dato. Premi <strong className="text-white">Sincronizza Yazio</strong>.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-slate-500">
+                <tr>
+                  <th className="pb-2 pr-3 font-medium">Giorno</th>
+                  <th className="pb-2 pr-3 font-medium">Kcal</th>
+                  <th className="pb-2 pr-3 font-medium">Proteine</th>
+                  <th className="pb-2 pr-3 font-medium">Carbo</th>
+                  <th className="pb-2 pr-3 font-medium">Grassi</th>
+                  <th className="pb-2 pr-3 font-medium">Acqua</th>
+                  <th className="pb-2 pr-3 font-medium">Peso</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-300">
+                {yazioData.days.map((day) => (
+                  <tr key={day.date} className="border-t border-white/5">
+                    <td className="py-2 pr-3 whitespace-nowrap">{formatDate(day.date)}</td>
+                    <td className="py-2 pr-3">
+                      {formatNumber(day.kcal)}
+                      {day.goalKcal !== null ? (
+                        <span className="text-slate-600"> / {day.goalKcal}</span>
+                      ) : null}
+                    </td>
+                    <td className="py-2 pr-3">{formatNumber(day.proteinG, " g")}</td>
+                    <td className="py-2 pr-3">{formatNumber(day.carbsG, " g")}</td>
+                    <td className="py-2 pr-3">{formatNumber(day.fatG, " g")}</td>
+                    <td className="py-2 pr-3">
+                      {day.waterMl !== null ? `${(day.waterMl / 1000).toFixed(1)} L` : "—"}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {day.weightKg !== null ? `${day.weightKg.toFixed(1)} kg` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>

@@ -1,6 +1,6 @@
 # Integrazioni — specifiche operative
 
-**Versione:** 1.3  
+**Versione:** 1.4  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | Garmin Personal | **client + mapper + sync persistente + UI**: 3 attività e 7 giorni di metriche salvati in Mongo; test reale con 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `apps/api/src/integrations/garmin-sync.service.ts`, `packages/db/src/`, `docs/spikes/garmin.md` |
 | Garmin `.FIT` export | non iniziato | — |
-| Yazio | non iniziato | — |
+| Yazio | **client + mapper + sync persistente + UI**; test reale in attesa di credenziali | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
 | Zepp | non iniziato | — |
 | Hevy | non iniziato | — |
 | Health Connect | non iniziato (fase 3) | — |
@@ -257,7 +257,7 @@ encoder.onMesg(Profile.MesgNum.WORKOUT_STEP, {
 
 ---
 
-## 4. Yazio (API non ufficiale v15)
+## 4. Yazio (API non ufficiale v15/v20)
 
 ### 4.1 Cosa è
 
@@ -278,7 +278,9 @@ grant_type=password
 
 - Token `expires_in` ≈ 172800 s (48h).
 - `refresh_token` per rinnovare.
-- Le `client_id`/`client_secret` sono pubblicate negli esempi del repo; non hardcodarle nel codice: mettile in configurazione e verifica i termini.
+- Le `client_id`/`client_secret` sono pubblicate negli esempi del repo; sono configurabili via env, con default pubblici.
+- Il client prova **v15** e, se il token endpoint non è disponibile, **v20**. Il report dello spike indica la versione usata.
+- Credenziali in sviluppo: `secrets/yazio.json` (`{ "email": "...", "password": "..." }`) oppure `YAZIO_EMAIL`/`YAZIO_PASSWORD`. In produzione solo env/secret manager.
 
 ### 4.3 Endpoint utili
 
@@ -295,14 +297,25 @@ grant_type=password
 
 > Lo swagger non espone una storia peso completa, solo l'ultimo valore. Per il trend: polling giornaliero e storage locale.
 
-### 4.4 Sync
+### 4.4 Implementazione attuale
+
+- `packages/integrations/src/yazio/client.ts`: login password, refresh, retry 401, fallback v15→v20, errori tipizzati, timeout.
+- `packages/integrations/src/yazio/mapper.ts`: somma `meals.*.nutrients`, fallback ai nutrienti top-level, obiettivi, acqua, passi, peso.
+- Sync: `POST /api/integrations/yazio/sync?days=7`; overview: `GET /api/integrations/yazio/overview?days=7`; check: `POST /api/integrations/yazio/check`.
+- Persistenza: `nutrition_daily` e `metrics_daily` (source `yazio`), audit in `sync_runs` / `sync_state`.
+- UI: card “Nutrizione Yazio” con verifica, sync e tabella kcal/macro/acqua/peso.
+- Test di contratto e mapper con fixture sintetiche (20 test integrations totali).
+- **Non verificato con account reale:** login/2FA, forma effettiva del daily summary, rate limit, versione API.
+
+### 4.5 Sync
 
 - 1–2 volte al giorno, dopo i pasti principali.
 - `date` nel fuso dell'utente.
 - Salvare `nutrition_daily` con `source: "yazio"` e `confidence: "high"` (dati inseriti dall'utente).
 - Peso: `metrics_daily` con `source: "yazio"`.
+- Oggi il sync è manuale (endpoint/UI); lo scheduler automatico è il passo successivo.
 
-### 4.5 Rischi e mitigazioni
+### 4.6 Rischi e mitigazioni
 
 | Rischio | Mitigazione |
 |---|---|

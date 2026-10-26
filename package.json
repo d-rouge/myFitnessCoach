@@ -22,7 +22,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "spike:garmin": "npm run build:packages && tsx scripts/spike-garmin.ts"
+    "spike:garmin": "npm run build:packages && tsx scripts/spike-garmin.ts",
+    "spike:yazio": "npm run build:packages && tsx scripts/spike-yazio.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",

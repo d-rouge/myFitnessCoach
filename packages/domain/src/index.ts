@@ -12,6 +12,7 @@ export * from "./schemas/common";
 export * from "./schemas/daily-metrics";
 export * from "./schemas/equipment";
 export * from "./schemas/goal";
+export * from "./schemas/nutrition";
 export * from "./schemas/plan";
 export * from "./schemas/profile";
 export * from "./schemas/session";
