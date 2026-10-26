@@ -1,4 +1,5 @@
 export * from "./fixtures/personas";
+export * from "./rules/daily-adjustment";
 export * from "./rules/feasibility";
 export * from "./rules/load";
 export * from "./rules/plan-generator";

@@ -187,12 +187,12 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.4 Esecuzione e feedback
 
-- [ ] Check-in mattutino (sonno, energia, indolenzimento, dolore, tempo).
-- [ ] Post-sessione (RPE, sensazioni, dolore, note).
+- [x] Check-in mattutino (sonno, energia, indolenzimento, dolore, tempo) con form rapido 20 secondi (`MorningCheckinCard.tsx`).
+- [x] Post-sessione (RPE, sensazioni, dolore, note) e registrazione completamento sessione.
 - [ ] Inserimento attività manuale.
 - [ ] Upload `.FIT`/`.TCX` e parsing.
 - [ ] Confronto dati device vs pianificato.
-- [ ] Adattamento giornaliero (conferma/riduzione/swap/riposo).
+- [x] Adattamento giornaliero (`computeDailyAdjustment`: conferma/riduzione/swap/riposo con aggiornamento immediato della sessione).
 
 #### 1.5 Integrazioni
 

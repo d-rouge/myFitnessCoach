@@ -4,6 +4,7 @@ export const COLLECTIONS = {
   activities: "activities",
   activityAnalyses: "activity_analyses",
   baselines: "athlete_baselines",
+  checkins: "checkins",
   macroPlans: "athlete_macro_plans",
   microPlans: "athlete_micro_plans",
   dailyMetrics: "metrics_daily",
@@ -19,6 +20,9 @@ export async function ensureIndexes(db: Db): Promise<void> {
     db.collection(COLLECTIONS.users).createIndex({ email: 1 }, { unique: true }),
     db.collection(COLLECTIONS.baselines).createIndex({ userId: 1, version: -1 }),
     db.collection(COLLECTIONS.baselines).createIndex({ userId: 1, supersededAt: 1 }),
+    db
+      .collection(COLLECTIONS.checkins)
+      .createIndex({ userId: 1, date: 1, type: 1 }, { unique: true }),
     db.collection(COLLECTIONS.macroPlans).createIndex({ userId: 1, id: 1 }, { unique: true }),
     db.collection(COLLECTIONS.macroPlans).createIndex({ userId: 1, startDate: -1 }),
     db

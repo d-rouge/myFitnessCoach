@@ -7,6 +7,7 @@ import {
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
+import { MorningCheckinCard } from "./components/MorningCheckinCard";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { TrainingPlanBoard } from "./components/TrainingPlanBoard";
 
@@ -586,6 +587,13 @@ export default function App() {
           </Card>
         )}
       </section>
+
+      {/* Check-in Mattutino & Adattamento in Tempo Reale (Task 1.4) */}
+      {baseline.data ? (
+        <section className="mt-8">
+          <MorningCheckinCard />
+        </section>
+      ) : null}
 
       {/* Board Settimanale e Sessione Oggi (Task 1.3) */}
       <TrainingPlanBoard hasBaseline={Boolean(baseline.data)} />

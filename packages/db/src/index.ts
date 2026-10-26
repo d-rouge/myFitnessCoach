@@ -14,6 +14,12 @@ export {
   getCurrentBaseline,
   saveBaseline,
 } from "./baselines";
+export {
+  getCheckin,
+  getRecentCheckins,
+  type StoredCheckin,
+  saveCheckin,
+} from "./checkins";
 export { COLLECTIONS, ensureIndexes } from "./collections";
 export {
   countDailyMetrics,

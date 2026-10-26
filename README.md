@@ -2,7 +2,7 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 1 in corso — completati Task 1.1 (dominio puro, schemi L0–L4, 3 personas), Task 1.2 (onboarding wizard in 6 step mobile-friendly, scorciatoie demo personas, persistenza baseline in MongoDB e integrazione web) e Task 1.3 (generatore macro/micro-piano deterministico da baseline, safety critic per infortuni, board settimanale multisport e card interattiva "Oggi" con alternative 15/30 min). 80 test verdi, typecheck e lint puliti. In corso: Task 1.4 (check-in giornaliero e adattamento del piano).
+**Stato:** Fase 1 in corso — completati Task 1.1 (dominio puro, schemi L0–L4, 3 personas), Task 1.2 (onboarding wizard in 6 step mobile-friendly, scorciatoie demo personas, persistenza baseline in MongoDB e integrazione web), Task 1.3 (generatore macro/micro-piano deterministico da baseline, safety critic per infortuni, board settimanale multisport e card interattiva "Oggi" con alternative 15/30 min) e Task 1.4 parziale (check-in mattutino rapido in 20 sec con feedback immediato e adattamento deterministico della sessione). 88 test verdi, typecheck e lint puliti.
 
 ## Documenti
 
@@ -47,7 +47,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (80 test)
+npm test                 # unit + contract test (88 test)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
 npm run spike:garmin     # spike Garmin Personal API
