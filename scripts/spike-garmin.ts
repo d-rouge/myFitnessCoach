@@ -14,7 +14,15 @@ const daysAgo = (days: number) => {
 const asArray = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") {
-    for (const key of ["activityList", "dateWeightList", "weightList", "items", "data"]) {
+    for (const key of [
+      "activityList",
+      "dateWeightList",
+      "weightList",
+      "items",
+      "data",
+      "summaries",
+      "dailySummaries",
+    ]) {
       const candidate = (value as Record<string, unknown>)[key];
       if (Array.isArray(candidate)) return candidate;
     }
@@ -89,6 +97,38 @@ async function main(): Promise<void> {
   const stepList = asArray(steps);
   const stressList = asArray(stress);
 
+  const safe = async (
+    label: string,
+    promise: Promise<unknown>,
+  ): Promise<{ ok: true; value: unknown } | { ok: false; error: string }> => {
+    try {
+      return { ok: true, value: await promise };
+    } catch (error) {
+      return {
+        ok: false,
+        error: `${label}: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  };
+
+  const describe = (result: Awaited<ReturnType<typeof safe>>) => {
+    if (!result.ok) return { ok: false, error: result.error };
+    const list = asArray(result.value);
+    const sample = list[0] ?? result.value;
+    return { ok: true, count: list.length, keys: keysOf(sample) };
+  };
+
+  const [dailySummaries, bodyBattery, dailyHeartRate, spo2, zones, hydration, fitnessAge] =
+    await Promise.all([
+      safe("daily-summaries", client.getDailySummaries(daysAgo(7), today)),
+      safe("body-battery", client.getBodyBattery(daysAgo(7), today)),
+      safe("daily-heart-rate", client.getDailyHeartRate(hrvDate)),
+      safe("spo2", client.getSpo2(hrvDate)),
+      safe("heart-rate-zones", client.getHeartRateZones()),
+      safe("hydration", client.getHydration(daysAgo(7), today)),
+      safe("fitness-age", client.getFitnessAge(hrvDate)),
+    ]);
+
   let activityDownload: { bytes: number; isZip: boolean } | undefined;
   if (process.argv.includes("--download")) {
     const first = activityList[0] as Record<string, unknown> | undefined;
@@ -128,6 +168,15 @@ async function main(): Promise<void> {
     stress: {
       count: stressList.length,
       sampleKeys: keysOf(stressList[0]),
+    },
+    metrics: {
+      dailySummaries: describe(dailySummaries),
+      bodyBattery: describe(bodyBattery),
+      dailyHeartRate: describe(dailyHeartRate),
+      spo2: describe(spo2),
+      heartRateZones: describe(zones),
+      hydration: describe(hydration),
+      fitnessAge: describe(fitnessAge),
     },
   };
 

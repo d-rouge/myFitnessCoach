@@ -31,8 +31,28 @@ La chiave è stata letta da `secrets/garmin-key.txt` (ignorato da git). Lo scrip
 | Passi (7 giorni) | 8 record |
 | Stress (7 giorni) | 8 record |
 | Download `.FIT` | **OK**, ZIP 529.432 byte, magic `PK` |
+| Daily summaries | **8 giorni** |
+| Body Battery | **8 giorni** |
+| RHR / daily heart rate | presente (`restingHeartRate`, media 7 giorni) |
+| SpO₂ | oggetto presente |
+| Heart rate zones | 3 record |
+| Hydration | endpoint OK, 0 record |
+| Fitness age | oggetto presente |
 | Rate limit osservati | nessuno nel test |
-| Tempo totale | ~2,9 s |
+| Tempo totale | ~4,4 s (tutte le metriche) |
+
+### Metriche giornaliere verificate
+
+| Metrica | Endpoint | Record | Campi principali |
+|---|---|---|---|
+| Daily summary | `/usersummary-service/v2/dailysummaries` | 8 | `calendarDate`, `movement`, `calories`, `heartRate`, `intensityMinutes`, `stress`, `bodyBattery`, `hydration`, `respiration`, `pulseOx` |
+| Body Battery | `/wellness-service/wellness/bodyBattery/reports/daily` | 8 | `charged`, `drained`, `bodyBatteryValuesArray`, `bodyBatteryActivityEvent` |
+| RHR / HR giornaliera | `/wellness-service/wellness/dailyHeartRate` | oggetto | `restingHeartRate`, `lastSevenDaysAvgRestingHeartRate`, `maxHeartRate`, `minHeartRate`, `heartRateValues` |
+| SpO₂ | `/wellness-service/wellness/daily/spo2acclimation/{date}` | oggetto | `averageSpO2`, `lowestSpO2`, `lastSevenDaysAvgSpO2`, `spO2HourlyAverages` |
+| Zone HR | `/biometric-service/heartRateZones/v2` | 3 | `zone1Floor..zone5Floor`, `maxHeartRateUsed`, `sport` |
+| Idratazione | `/usersummary-service/stats/hydration/daily/{start}/{end}` | 0 | nessun dato |
+| Fitness age | `/fitnessage-service/fitnessage/v2/{date}` | oggetto | `chronologicalAge`, `fitnessAge`, `components` |
+| Peso | `/weight-service/weight/range/{start}/{end}` | 0 | nessun dato |
 
 ## Campi reali osservati
 
@@ -64,6 +84,7 @@ Solo nomi dei campi, nessun valore personale.
    - Il peso dovrà arrivare da Yazio, Zepp o inserimento manuale.
 5. **Il payload attività è molto ricco**: distanza, durata, HR, cadenza, potenza, training effect, zone, split. È più che sufficiente per il coaching.
 6. **6 attività in 14 giorni**: dataset piccolo ma sufficiente per il mapping iniziale.
+7. **Il daily summary è un documento ricco e annidato**: `heartRate`, `stress`, `bodyBattery`, `respiration`, `pulseOx`, `hydration`, `intensityMinutes`. È la fonte migliore per `metrics_daily`, con Body Battery e RHR come endpoint separati quando serve il dettaglio.
 
 ## Verdetto
 
@@ -75,7 +96,7 @@ Solo nomi dei campi, nessun valore personale.
 - [x] Endpoint attività, sonno, HRV, peso, passi, stress, download.
 - [x] Test di contratto (7 test).
 - [ ] Mapper canonico attività → `activities`.
-- [ ] Mapper sonno/HRV/steps/stress → `metrics_daily`.
+- [ ] Mapper daily summary/sonno/HRV/Body Battery/SpO₂/stress → `metrics_daily`.
 - [ ] Sync schedulato + cursori.
 - [ ] Gestione scadenza chiave e reminder.
 - [ ] Verifica rate limit su 24–48h di polling.

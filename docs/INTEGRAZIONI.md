@@ -10,7 +10,7 @@
 
 | Provider | Stato | Dove |
 |---|---|---|
-| Garmin Personal | **testato con chiave reale** (6 attività, sonno, HRV, passi, stress, `.FIT` 529 KB); peso 0 record | `packages/integrations/src/garmin/personal-client.ts`, `scripts/spike-garmin.ts`, `docs/spikes/garmin.md` |
+| Garmin Personal | **testato con chiave reale**: 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/personal-client.ts`, `scripts/spike-garmin.ts`, `docs/spikes/garmin.md` |
 | Garmin `.FIT` export | non iniziato | — |
 | Yazio | non iniziato | — |
 | Zepp | non iniziato | — |
@@ -113,7 +113,7 @@ Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ri
 
 - Il token endpoint restituisce **406** se si invia `Accept: application/json`; senza `Accept` restituisce **200** con un **JWT in testo**, non JSON. Il client gestisce entrambi.
 - Il download attività restituisce **406** con `Accept: application/octet-stream`; senza `Accept` restituisce uno ZIP valido (529 KB nel test).
-- 6 attività in 14 giorni, sonno/HRV/passi/stress presenti, peso 0 record (nessuna bilancia Garmin).
+- 6 attività in 14 giorni; sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR presenti; peso 0 record (nessuna bilancia Garmin); idratazione/fitness age raggiungibili ma senza dati.
 - Nessun rate limit osservato in un singolo run.
 
 **Non ancora verificato:** rate limit su 24–48h di polling, mapping completo dei campi, comportamento con attività manuali/indoor.

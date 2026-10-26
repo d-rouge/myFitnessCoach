@@ -30,7 +30,7 @@
 | Monorepo npm workspaces | fatto |
 | Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator) | fatto, 20 test |
 | Client Garmin Personal + test di contratto | fatto, 7 test |
-| Spike Garmin con chiave reale | fatto (6 attività, sonno, HRV, `.FIT`); peso 0 |
+| Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
 | API NestJS `health` + `integrations` | fatto |
 | Web React/Vite status page | fatto |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |

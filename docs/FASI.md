@@ -67,7 +67,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] Client Garmin: token exchange, cache 24h, retry su 401, gestione 429, endpoint attività/sonno/HRV/peso/passi/stress.
 - [x] Script `npm run spike:garmin` con output redatto, `--write` e `--download`.
 - [x] Creare una chiave personale reale su Garmin Connect.
-- [x] Pull di 14 giorni con la chiave reale: 6 attività, sonno, HRV, passi, stress; peso 0 record.
+- [x] Pull di 14 giorni con la chiave reale: 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR; peso 0 record.
 - [x] Scaricare un `.FIT` di un'attività reale (ZIP 529 KB, valido).
 - [x] Misurare latenza (~2,9 s totale) e verificare errori/rate limit (nessun 429 nel singolo run).
 - [x] Salvare risposte reali (redatte) in `docs/spikes/garmin.md`.

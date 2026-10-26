@@ -183,6 +183,33 @@ export class GarminPersonalClient {
     return this.get(`/usersummary-service/stats/stress/daily/${startDate}/${endDate}`);
   }
 
+  async getBodyBattery(startDate: string, endDate: string): Promise<GarminJson> {
+    return this.get("/wellness-service/wellness/bodyBattery/reports/daily", {
+      startDate,
+      endDate,
+    });
+  }
+
+  async getDailyHeartRate(date: string): Promise<GarminJson> {
+    return this.get("/wellness-service/wellness/dailyHeartRate", { date });
+  }
+
+  async getSpo2(date: string): Promise<GarminJson> {
+    return this.get(`/wellness-service/wellness/daily/spo2acclimation/${date}`);
+  }
+
+  async getHeartRateZones(): Promise<GarminJson> {
+    return this.get("/biometric-service/heartRateZones/v2");
+  }
+
+  async getHydration(startDate: string, endDate: string): Promise<GarminJson> {
+    return this.get(`/usersummary-service/stats/hydration/daily/${startDate}/${endDate}`);
+  }
+
+  async getFitnessAge(date: string): Promise<GarminJson> {
+    return this.get(`/fitnessage-service/fitnessage/v2/${date}`);
+  }
+
   async healthCheck(): Promise<GarminHealthCheck> {
     const startedAt = this.now();
     try {
