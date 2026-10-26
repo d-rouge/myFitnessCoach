@@ -1,8 +1,14 @@
 export {
   countActivities,
+  getActivityByExternalId,
   getRecentActivities,
   upsertActivities,
 } from "./activities";
+export {
+  getActivityAnalysis,
+  getRecentActivityAnalyses,
+  upsertActivityAnalysis,
+} from "./activity-analyses";
 export { COLLECTIONS, ensureIndexes } from "./collections";
 export {
   countDailyMetrics,

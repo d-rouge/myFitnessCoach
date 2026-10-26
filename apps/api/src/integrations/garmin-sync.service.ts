@@ -2,19 +2,23 @@ import {
   countActivities,
   countDailyMetrics,
   finishSyncRun,
+  getActivityByExternalId,
   getRecentActivities,
   getRecentDailyMetrics,
+  getActivityAnalysis as getStoredActivityAnalysis,
   getSyncState,
   startSyncRun,
   updateSyncState,
   upsertActivities,
+  upsertActivityAnalysis,
   upsertDailyMetrics,
 } from "@health-trainer/db";
-import type { DailyMetrics } from "@health-trainer/domain";
+import type { ActivityAnalysis, DailyMetrics } from "@health-trainer/domain";
 import {
   buildGarminDailyMetrics,
   type DatedGarminRaw,
   mapGarminActivities,
+  parseGarminActivityZip,
 } from "@health-trainer/integrations";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { GARMIN_PROVIDER, PERSONAL_USER_ID } from "../config/constants.js";
@@ -261,6 +265,29 @@ export class GarminSyncService {
 
       throw new ServiceUnavailableException(message);
     }
+  }
+
+  async analyzeActivity(activityId: string): Promise<ActivityAnalysis> {
+    const db = await this.db();
+    const userId = PERSONAL_USER_ID;
+    const activity = await getActivityByExternalId(db, userId, GARMIN_PROVIDER, activityId);
+    const zip = await this.garmin.getClient().downloadActivity(activityId);
+
+    const analysis = await parseGarminActivityZip(new Uint8Array(zip), {
+      userId,
+      externalId: activityId,
+      source: GARMIN_PROVIDER,
+      localDate: activity?.localDate,
+      fetchedAt: new Date().toISOString(),
+    });
+
+    await upsertActivityAnalysis(db, analysis);
+    return analysis;
+  }
+
+  async getActivityAnalysis(activityId: string): Promise<ActivityAnalysis | null> {
+    const db = await this.db();
+    return getStoredActivityAnalysis(db, PERSONAL_USER_ID, GARMIN_PROVIDER, activityId);
   }
 
   async overview(days = 7): Promise<GarminOverview> {

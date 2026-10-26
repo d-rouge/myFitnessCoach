@@ -5,6 +5,7 @@ export * from "./rules/readiness";
 export * from "./rules/safety";
 export * from "./rules/validator";
 export * from "./schemas/activity";
+export * from "./schemas/activity-analysis";
 export * from "./schemas/anamnesis";
 export * from "./schemas/availability";
 export * from "./schemas/checkin";

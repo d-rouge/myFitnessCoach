@@ -1,6 +1,6 @@
 # Fasi di realizzazione
 
-**Versione:** 1.8  
+**Versione:** 1.9  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -34,10 +34,10 @@ Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, me
 
 ### Stato (26 ottobre 2026)
 
-**Fatto:** scaffold npm workspaces, dominio con regole e test, client Garmin, **sync Garmin persistente** (attività + metriche in Mongo), **Yazio v22 client/mapper/sync/UI con test reale**, API `/api/health`, overview e sync in UI, CI, MongoDB locale, `.env.example`, repo git.
-**Verde:** `npm run build`, `npm test` (51 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
+**Fatto:** scaffold npm workspaces, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale, API, UI, CI, MongoDB locale, `.env.example`, repo git.
+**Verde:** `npm run build`, `npm test` (54 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
 **Bloccato su:** Google OAuth dell'app, chiave Hevy Pro per l'export.
-**Prossimo passo:** export workout `.FIT` + auth Google e onboarding; poi sync schedulato.
+**Prossimo passo:** export workout `.FIT` verso Garmin; poi auth Google e onboarding; sync schedulato.
 
 > Nota: NestJS è alla versione **12 (ESM)**, con `type: module` e import `.js`. Non reintrodurre CommonJS o Nest 11.
 
@@ -79,14 +79,20 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - [x] UI: pulsante “Sincronizza ora”, ultimo sync, attività recenti, tabella metriche.
 - [x] Test end-to-end reale: 3 attività e 7 giorni di metriche persistiti; secondo sync idempotente.
 - [ ] Verifica rate limit su 24–48h di polling.
-- [ ] Salvataggio/parsing del `.FIT` originale (oggi si scarica solo nello spike).
+- [x] Parsing del `.FIT` e generazione `ActivityAnalysis`/brief.
+- [ ] Salvataggio del `.FIT` originale su object storage (oggi si parsa on demand).
 
-#### 0.3 Garmin export workout
+#### 0.3 FIT: lettura, analisi, export
 
+- [x] Parser FIT/ZIP (`fit-file-parser` + `fflate`).
+- [x] Normalizzazione `ActivityAnalysis`: summary, lap, split, zone HR, deriva HR, negative split, variabilità passo.
+- [x] Brief compatto per LLM (senza record a 1 Hz).
+- [x] Storage `activity_analyses` + endpoint `analyze`/`analysis` + UI “Analizza FIT”.
+- [x] Validazione reale: FIT ~1,3 MB, 17.492 record, 44 lap, 42 split, brief ~2 KB.
 - [ ] Generare un workout `.FIT` semplice (es. 5×800m).
 - [ ] Importarlo in Garmin Connect (Training > Workouts > Import) e verificare che compaia.
 - [ ] Provare la copia in `NewFiles` su un dispositivo, se disponibile.
-- [ ] Documentare il formato e i limiti in `docs/spikes/garmin-export.md`.
+- [ ] Documentare il formato export e i limiti in `docs/spikes/garmin-export.md`.
 
 #### 0.4 Yazio
 
@@ -133,7 +139,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - Almeno Garmin e Yazio restituiscono dati reali.
 - L'export `.FIT` è importabile in Garmin Connect.
 
-> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Garmin e Yazio sync sono operativi e persistenti. Login Google dell'app e export `.FIT` non sono ancora implementati.
+> Stato attuale: build/test/typecheck/lint verdi; API e web si avviano. MongoDB locale è attivo e `/api/health` risponde `ok`. Garmin e Yazio sync sono operativi e persistenti; il FIT viene letto, analizzato e riassunto per l'LLM. Login Google dell'app ed export workout `.FIT` non sono ancora implementati.
 
 ### Rischi
 

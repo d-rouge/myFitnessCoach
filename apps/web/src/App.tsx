@@ -1,7 +1,7 @@
 import { computeReadiness } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 type CheckStatus = "ok" | "error" | "configured" | "missing" | "unchecked";
 type SyncStatus = "never" | "running" | "ok" | "partial" | "error";
@@ -107,6 +107,25 @@ interface YazioSyncResult {
   syncedAt: string;
 }
 
+interface ActivityAnalysis {
+  externalId: string;
+  sport: string;
+  date: string;
+  summary: {
+    durationSec: number;
+    distanceM?: number;
+    avgHr?: number;
+    maxHr?: number;
+    avgPaceSecKm?: number;
+  };
+  derived: {
+    negativeSplit?: boolean;
+    hrDriftPct?: number;
+    paceVariabilityPct?: number;
+  };
+  brief: string;
+}
+
 async function fetchHealth(): Promise<HealthReport> {
   const response = await fetch("/api/health");
   if (!response.ok) throw new Error(`Health check failed (${response.status})`);
@@ -156,6 +175,17 @@ async function syncYazio(): Promise<YazioSyncResult> {
   const response = await fetch("/api/integrations/yazio/sync?days=7", { method: "POST" });
   const body = (await response.json()) as YazioSyncResult & { message?: string };
   if (!response.ok) throw new Error(body.message ?? `Yazio sync failed (${response.status})`);
+  return body;
+}
+
+async function analyzeGarminActivity(activityId: string): Promise<ActivityAnalysis> {
+  const response = await fetch(`/api/integrations/garmin/activities/${activityId}/analyze`, {
+    method: "POST",
+  });
+  const body = (await response.json()) as ActivityAnalysis & { message?: string };
+  if (!response.ok) {
+    throw new Error(body.message ?? `FIT analysis failed (${response.status})`);
+  }
   return body;
 }
 
@@ -285,6 +315,13 @@ export default function App() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["garmin-overview"] });
       await queryClient.invalidateQueries({ queryKey: ["health"] });
+    },
+  });
+  const [analyses, setAnalyses] = useState<Record<string, ActivityAnalysis>>({});
+  const analyzeActivity = useMutation({
+    mutationFn: analyzeGarminActivity,
+    onSuccess: (analysis) => {
+      setAnalyses((previous) => ({ ...previous, [analysis.externalId]: analysis }));
     },
   });
   const yazioCheck = useMutation({ mutationFn: checkYazio });
@@ -480,31 +517,59 @@ export default function App() {
                 Attività recenti
               </h3>
               <ul className="space-y-2">
-                {data.activities.map((activity) => (
-                  <li
-                    key={activity.id}
-                    className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2.5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {activity.title ?? activity.sport}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {formatDate(activity.date)} · {activity.sport}
-                        </p>
+                {data.activities.map((activity) => {
+                  const analysis = analyses[activity.id];
+                  return (
+                    <li
+                      key={activity.id}
+                      className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">
+                            {activity.title ?? activity.sport}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {formatDate(activity.date)} · {activity.sport}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-slate-400">
+                          <p>{activity.durationMin} min</p>
+                          <p>
+                            {activity.distanceKm !== null
+                              ? `${activity.distanceKm.toFixed(2)} km`
+                              : "—"}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right text-xs text-slate-400">
-                        <p>{activity.durationMin} min</p>
-                        <p>
-                          {activity.distanceKm !== null
-                            ? `${activity.distanceKm.toFixed(2)} km`
-                            : "—"}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
+
+                      <button
+                        type="button"
+                        onClick={() => analyzeActivity.mutate(activity.id)}
+                        disabled={analyzeActivity.isPending}
+                        className="mt-3 rounded-lg border border-lime-300/30 bg-lime-300/10 px-2.5 py-1.5 text-[11px] font-semibold text-lime-300 transition hover:bg-lime-300/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {analyzeActivity.isPending && analyzeActivity.variables === activity.id
+                          ? "Analizzo FIT…"
+                          : "Analizza FIT"}
+                      </button>
+
+                      {analysis ? (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-[11px] font-semibold text-slate-400">
+                            Brief pronto per l&apos;LLM
+                          </summary>
+                          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-black/30 p-3 text-[11px] leading-5 text-slate-300">
+                            {analysis.brief}
+                          </pre>
+                        </details>
+                      ) : null}
+                    </li>
+                  );
+                })}
+                {analyzeActivity.isError ? (
+                  <li className="text-xs text-rose-300">{analyzeActivity.error.message}</li>
+                ) : null}
               </ul>
             </div>
 

@@ -1,4 +1,14 @@
-import { BadRequestException, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import type { ActivityAnalysis } from "@health-trainer/domain";
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import { DevOnlyGuard } from "./dev-only.guard.js";
 import { GarminService } from "./garmin.service.js";
 import { GarminSyncService } from "./garmin-sync.service.js";
@@ -47,6 +57,34 @@ export class IntegrationsController {
   @UseGuards(DevOnlyGuard)
   syncGarmin(@Query("days") days?: string) {
     return this.garminSync.sync(parseDays(days));
+  }
+
+  @Post("garmin/activities/:activityId/analyze")
+  @UseGuards(DevOnlyGuard)
+  async analyzeGarminActivity(@Param("activityId") activityId: string) {
+    return this.toAnalysisDto(await this.garminSync.analyzeActivity(activityId));
+  }
+
+  @Get("garmin/activities/:activityId/analysis")
+  @UseGuards(DevOnlyGuard)
+  async getGarminActivityAnalysis(@Param("activityId") activityId: string) {
+    const analysis = await this.garminSync.getActivityAnalysis(activityId);
+    if (!analysis) throw new NotFoundException("Activity analysis not found");
+    return this.toAnalysisDto(analysis);
+  }
+
+  private toAnalysisDto(analysis: ActivityAnalysis) {
+    return {
+      externalId: analysis.externalId,
+      sport: analysis.sport,
+      date: analysis.date,
+      summary: analysis.summary,
+      derived: analysis.derived,
+      hrZones: analysis.hrZones,
+      lapsCount: analysis.laps.length,
+      splitsCount: analysis.splits.length,
+      brief: analysis.brief,
+    };
   }
 
   @Post("yazio/check")

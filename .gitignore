@@ -7,4 +7,4 @@ coverage/
 secrets/
 .DS_Store
 *.log
-docs/spikes/*.local.json
+docs/spikes/*.local.*

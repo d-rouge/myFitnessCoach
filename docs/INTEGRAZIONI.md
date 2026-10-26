@@ -1,6 +1,6 @@
 # Integrazioni — specifiche operative
 
-**Versione:** 1.6  
+**Versione:** 1.7  
 **Data:** 26 ottobre 2026  
 **Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
@@ -10,7 +10,7 @@
 
 | Provider | Stato | Dove |
 |---|---|---|
-| Garmin Personal | **client + mapper + sync persistente + UI**: 3 attività e 7 giorni di metriche salvati in Mongo; test reale con 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `apps/api/src/integrations/garmin-sync.service.ts`, `packages/db/src/`, `docs/spikes/garmin.md` |
+| Garmin Personal | **client + mapper + sync persistente + UI + FIT analysis/brief**: 3 attività e 7 giorni di metriche in Mongo; FIT reale parsato (17.492 record, 44 lap, 42 split); test con 6 attività, sonno, HRV, passi, stress, Body Battery, RHR, SpO₂, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `packages/integrations/src/fit/`, `apps/api/src/integrations/garmin-sync.service.ts`, `docs/FIT.md` |
 | Garmin `.FIT` export | non iniziato | — |
 | Yazio | **client v22 + mapper + sync persistente + UI**; **test reale OK**: 7 giorni di macro e peso, 0 errori, sync idempotente | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
 | Zepp | non iniziato | — |
@@ -200,6 +200,28 @@ UI: pulsante “Sincronizza ora”, ultimo sync, 3 attività recenti, tabella me
 | `elevationGain` | `activities.elevationM` |
 | `calories` | `activities.calories` |
 | sonno/HRV/RHR/peso | `metrics_daily` con `source: "garmin"` |
+
+### 2.10 FIT analysis e brief per LLM
+
+Un LLM non legge il `.FIT` binario. La pipeline è:
+
+```text
+ZIP/.FIT → fit-file-parser → messaggi → ActivityAnalysis → brief compatto → LLM
+```
+
+- Parser: `packages/integrations/src/fit/parser.ts` (`fit-file-parser` + `fflate`).
+- Analisi: summary, lap/split filtrati, zone HR, deriva HR, negative split, variabilità passo, miglior/peggior split.
+- Brief: `ActivityAnalysis.brief`, ~1–3 KB, senza record a 1 Hz.
+- Storage: `activity_analyses` (unique `userId+source+externalId`).
+- API:
+  ```text
+  POST /api/integrations/garmin/activities/:activityId/analyze
+  GET  /api/integrations/garmin/activities/:activityId/analysis
+  ```
+- UI: pulsante **Analizza FIT** sulle attività Garmin, con brief espandibile.
+- Dettagli: [`FIT.md`](FIT.md).
+
+Validato su un’attività reale: FIT ~1,3 MB, 17.492 record, 44 lap, 42 split utili, brief ~2 KB.
 
 ---
 

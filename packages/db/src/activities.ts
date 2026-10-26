@@ -32,6 +32,19 @@ export async function getRecentActivities(db: Db, userId: string, limit = 10): P
     .toArray();
 }
 
+export async function getActivityByExternalId(
+  db: Db,
+  userId: string,
+  source: string,
+  externalId: string,
+): Promise<Activity | null> {
+  return db.collection<Activity>(COLLECTIONS.activities).findOne({
+    userId,
+    source,
+    externalId,
+  });
+}
+
 export async function countActivities(db: Db, userId: string): Promise<number> {
   return db.collection<Activity>(COLLECTIONS.activities).countDocuments({ userId });
 }

@@ -80,6 +80,17 @@ curl 'http://localhost:3000/api/integrations/garmin/overview?days=7'
 
 Il sync salva attività e metriche giornaliere in MongoDB (`activities`, `metrics_daily`) e registra l'esito in `sync_runs` / `sync_state`. È idempotente: rilanciarlo non duplica i dati.
 
+## Analisi FIT
+
+Il `.FIT` non viene dato all'LLM: viene parsato, normalizzato e riassunto in un brief compatto.
+
+```bash
+npm run analyze:fit
+curl -X POST 'http://localhost:3000/api/integrations/garmin/activities/<id>/analyze'
+```
+
+Nella UI, ogni attività Garmin ha il pulsante **Analizza FIT**: mostra il brief con summary, split, zone HR e osservazioni (negative split, deriva HR, variabilità). Dettagli in [`docs/FIT.md`](docs/FIT.md).
+
 ## Sync Yazio
 
 Yazio usa l'API non ufficiale **v22** e richiede uno User-Agent app valido. Se entri con **Google** (senza password), importa un refresh token catturato dall'app ufficiale:

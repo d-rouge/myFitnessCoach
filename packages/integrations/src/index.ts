@@ -6,6 +6,13 @@ export {
   RateLimitedError,
 } from "./errors";
 export {
+  extractFitActivity,
+  type FitActivityOptions,
+  parseFitFile,
+  parseGarminActivityZip,
+  unzipFit,
+} from "./fit/parser";
+export {
   buildGarminDailyMetrics,
   type DatedGarminRaw,
   type GarminDailyMetricsInput,

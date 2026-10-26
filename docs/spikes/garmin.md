@@ -107,10 +107,11 @@ Solo nomi dei campi, nessun valore personale.
 - [x] Sync manuale con upsert idempotente in Mongo.
 - [x] Overview API + UI (attività e metriche).
 - [ ] Sync schedulato e verifica rate limit su 24–48h.
-- [ ] Salvataggio/parsing del `.FIT` originale.
+- [x] Parsing FIT + `ActivityAnalysis` + brief per LLM; vedi `docs/FIT.md`.
+- [ ] Salvataggio del `.FIT` originale su object storage.
 - [ ] Export workout `.FIT` verso Garmin Connect.
 
-**Prossimo:** Yazio (nutrizione/peso) e poi export workout `.FIT`.
+**Prossimo:** export workout `.FIT` verso Garmin Connect.
 
 ## Privacy
 

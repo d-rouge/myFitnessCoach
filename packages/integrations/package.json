@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@health-trainer/domain": "*",
+    "fflate": "^0.8.3",
+    "fit-file-parser": "^6.2.3",
     "zod": "4.6.7"
   },
   "devDependencies": {
