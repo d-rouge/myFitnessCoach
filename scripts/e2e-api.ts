@@ -217,6 +217,25 @@ async function main(): Promise<void> {
     assertEqual(baselineB.userId, userB.id, "baseline B associata a B");
     results.push("baseline salvate sull'utente autenticato, userId del body ignorato");
 
+    assertEqual(
+      baselineA.profile.experienceTier,
+      "novice",
+      "tier derivato server-side per la persona principiante",
+    );
+    assertEqual(
+      baselineB.profile.experienceTier,
+      "trained",
+      "tier derivato server-side per la persona intermedia",
+    );
+
+    const capacityA = await readJson<{ available: boolean }>(
+      await request("/baseline/capacity", tokenA),
+    );
+    assertEqual(capacityA.available, false, "capacità non deducibile senza attività importate");
+    results.push(
+      "tier di esperienza derivato dal server, capacità assente segnalata esplicitamente",
+    );
+
     const generateA = await request("/plan/macro/generate", tokenA, {
       method: "POST",
       body: JSON.stringify({}),
@@ -324,6 +343,23 @@ async function main(): Promise<void> {
       { sub: userC.id, email: userC.email, name: userC.name, roles: userC.roles },
       jwtSecret,
     );
+    const garminWithoutData = await request("/baseline", tokenC, {
+      method: "POST",
+      body: JSON.stringify({
+        ...beginnerPersona,
+        profile: {
+          ...beginnerPersona.profile,
+          capacity: { ...beginnerPersona.profile.capacity, source: "garmin" },
+        },
+      }),
+    });
+    assertEqual(
+      garminWithoutData.status,
+      400,
+      "baseline con capacità 'garmin' senza attività importate",
+    );
+    results.push("capacità 'garmin' rifiutata quando non ci sono attività da misurare");
+
     const emptyBaseline = await request("/baseline", tokenC);
     const emptyMacro = await request("/plan/macro", tokenC);
     const emptyMicro = await request("/plan/micro", tokenC);

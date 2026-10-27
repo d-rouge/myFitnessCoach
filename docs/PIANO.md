@@ -28,7 +28,7 @@
 | Area | Stato |
 |---|---|
 | Monorepo npm workspaces | fatto |
-| Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator, date/timezone) | fatto, 56 test |
+| Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator, date/timezone) | fatto, 83 test |
 | Client Garmin Personal + mapper + test di contratto | fatto, 40 test nel pacchetto integrations |
 | Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
 | Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
@@ -39,7 +39,7 @@
 | Spike documentati con verdetto | fatto (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`) |
 | API NestJS `health` + Garmin/Yazio `sync`/`overview` + `export` + `auth` | fatto |
 | Web React/Vite con dati Garmin + nutrizione Yazio + export FIT + profilo atleta | fatto |
-| Test totali | 162 unitari + 10 verifiche e2e su MongoDB reale |
+| Test totali | 193 unitari + 12 verifiche e2e su MongoDB reale |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
 | Prossimi passi | Fase 1 funzionalmente completa; validazione d'uso di 14 giorni, poi F1-18/F1-19 o Fase 2 |
@@ -386,7 +386,7 @@ assets/fit/*
 |---|---|---|
 | `users` | account | email, name, locale, timezone, status |
 | `consents` | consensi | userId, type, version, grantedAt, revokedAt |
-| `athlete_profiles` | L0 profilo | version, validFrom, sex, birthDate, heightCm, weightKg, experience |
+| `athlete_profiles` | L0 profilo | version, validFrom, sex, birthDate, heightCm, weightKg, experienceTier (derivato), history, capacity |
 | `anamnesis` | L0 anamnesi | conditions[], medications[], injuries[], redFlags[], freeText |
 | `goals` | L0 obiettivi | primary{}, secondary[], targetDate |
 | `availability` | L0 disponibilità | weekly[], blackouts[] |

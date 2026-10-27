@@ -1,6 +1,7 @@
 import {
   type Baseline,
   computeReadiness,
+  experienceTierLabel,
   type FiveKProjection,
   type FiveKProjectionInput,
 } from "@health-trainer/domain";
@@ -487,7 +488,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-lime-400/10 px-3 py-1 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-400/30">
-                    {baseline.data.profile.experience}
+                    {experienceTierLabel(baseline.data.profile.experienceTier)}
                   </span>
                   <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-300 ring-1 ring-inset ring-white/10">
                     {baseline.data.profile.sex} · {baseline.data.profile.heightCm} cm ·{" "}
@@ -562,7 +563,7 @@ function Dashboard({ user }: { user: SessionUser }) {
                     feasibilityMutation.mutate({
                       current5kSec: 1800,
                       weeks: 8,
-                      experience: baseline.data?.profile.experience ?? "beginner",
+                      tier: baseline.data?.profile.experienceTier ?? "novice",
                       weeklyVolumeKm: 15,
                     })
                   }

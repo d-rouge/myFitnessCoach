@@ -11,6 +11,16 @@ export const PlanPhaseSchema = z.object({
   deload: z.boolean().default(false),
 });
 
+/**
+ * Recovery window forced by a recent race or very long effort. It lives on the
+ * macro plan so every weekly micro plan applies it without re-reading Garmin.
+ */
+export const RecoveryWindowSchema = z.object({
+  weeks: z.number().int().min(1).max(8),
+  reason: z.string().min(1),
+  untilDate: IsoDateSchema.nullable().default(null),
+});
+
 export const MacroPlanSchema = z.object({
   id: z.string().min(1),
   goalDescription: z.string().min(3),
@@ -21,6 +31,7 @@ export const MacroPlanSchema = z.object({
   rationale: z.string().min(1),
   assumptions: z.array(z.string()).default([]),
   flags: z.array(z.string()).default([]),
+  recoveryWindow: RecoveryWindowSchema.nullable().optional(),
 });
 
 export const MicroPlanSchema = z.object({

@@ -1,20 +1,28 @@
 import {
+  type AthleticHistory,
   type Baseline,
   beginnerPersona,
+  type CapacityEstimate,
+  type CurrentCapacity,
+  deriveExperienceTier,
+  deriveExperienceTierRationale,
   type EquipmentItem,
-  type Experience,
+  experienceTierLabel,
   type GoalType,
   type Injury,
   intermediatePersona,
   kneePainPersona,
   type PreferredTrainingTime,
+  primarySportOf,
+  returningPersona,
   type Sex,
   type Sport,
   type Tone,
+  type TrainingLevel,
   type Weekday,
 } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 
 interface OnboardingWizardProps {
@@ -62,6 +70,30 @@ const RED_FLAGS = [
   "febbre o infezione in corso",
 ];
 
+const TRAINING_LEVELS: Array<{ id: TrainingLevel; label: string }> = [
+  { id: "none", label: "Nessuna pratica strutturata" },
+  { id: "amateur", label: "Amatoriale regolare" },
+  { id: "competitive", label: "Agonistico" },
+  { id: "elite", label: "Alto livello / nazionale" },
+];
+
+function format5k(seconds: number | null): string {
+  if (!seconds) return "—";
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
+}
+
+function parse5k(value: string): number | null {
+  const match = value.trim().match(/^(\d{1,2})[:'.](\d{1,2})$/);
+  if (!match) return null;
+  const minutes = Number.parseInt(match[1] ?? "0", 10);
+  const seconds = Number.parseInt(match[2] ?? "0", 10);
+  if (seconds >= 60) return null;
+  const total = minutes * 60 + seconds;
+  return total > 0 ? total : null;
+}
+
 const INJURY_STATUSES: Array<{ id: Injury["status"]; label: string }> = [
   { id: "acute", label: "Acuto" },
   { id: "recovering", label: "In recupero" },
@@ -88,6 +120,79 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
     status: Injury["status"];
     painLevel: number;
   }>({ area: "", status: "recovering", painLevel: 3 });
+
+  const [capacityEstimate, setCapacityEstimate] = useState<CapacityEstimate | null>(null);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiFetch("/api/baseline/capacity");
+        if (!res.ok) return;
+        const body = (await res.json()) as CapacityEstimate;
+        if (cancelled) return;
+        setCapacityEstimate(body);
+
+        // Fresh onboarding with imported data: measure instead of asking.
+        if (body.available && !initialBaseline) {
+          setBaseline((current) => ({
+            ...current,
+            profile: { ...current.profile, capacity: body.capacity },
+          }));
+        }
+      } catch (err) {
+        if (!cancelled) setEstimateError((err as Error).message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialBaseline]);
+
+  const primarySport = primarySportOf(baseline);
+  const historyEntry: AthleticHistory["sports"][number] = baseline.profile.history.sports.find(
+    (entry) => entry.sport === primarySport,
+  ) ?? {
+    sport: primarySport,
+    level: "none",
+    yearsRegular: 0,
+    detrainingMonths: 0,
+  };
+
+  const updateHistory = (patch: Partial<AthleticHistory["sports"][number]>) => {
+    setBaseline((current) => {
+      const others = current.profile.history.sports.filter((e) => e.sport !== primarySport);
+      return {
+        ...current,
+        profile: {
+          ...current.profile,
+          history: { sports: [...others, { ...historyEntry, ...patch }] },
+        },
+      };
+    });
+  };
+
+  const updateCapacity = (patch: Partial<CurrentCapacity>) => {
+    setBaseline((current) => ({
+      ...current,
+      profile: {
+        ...current.profile,
+        capacity: { ...current.profile.capacity, ...patch },
+      },
+    }));
+  };
+
+  const derivedTier = deriveExperienceTier({
+    history: baseline.profile.history,
+    capacity: baseline.profile.capacity,
+    sport: primarySport,
+  });
+  const tierRationale = deriveExperienceTierRationale({
+    history: baseline.profile.history,
+    capacity: baseline.profile.capacity,
+    sport: primarySport,
+  });
 
   const loadPersona = (persona: Baseline) => {
     setBaseline({
@@ -230,6 +335,13 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
           </button>
           <button
             type="button"
+            onClick={() => loadPersona(returningPersona)}
+            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+          >
+            Sara (Rientro)
+          </button>
+          <button
+            type="button"
             onClick={() => loadPersona(kneePainPersona)}
             className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
           >
@@ -342,26 +454,238 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
               />
             </label>
 
-            <label className="block text-xs font-semibold text-slate-300">
-              Livello di esperienza
-              <select
-                value={baseline.profile.experience}
-                onChange={(e) =>
-                  setBaseline({
-                    ...baseline,
-                    profile: {
-                      ...baseline.profile,
-                      experience: e.target.value as Experience,
-                    },
-                  })
-                }
-                className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-              >
-                <option value="beginner">Principiante (&lt; 1 anno)</option>
-                <option value="intermediate">Intermedio (1–4 anni)</option>
-                <option value="advanced">Avanzato (&gt; 4 anni)</option>
-              </select>
-            </label>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-300">
+                  Storia sportiva ({primarySport})
+                </span>
+                <span className="rounded-full bg-lime-400/10 px-3 py-1 text-[11px] font-bold text-lime-300 ring-1 ring-inset ring-lime-400/30">
+                  {experienceTierLabel(derivedTier)}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">{tierRationale}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Livello raggiunto
+                  <select
+                    value={historyEntry.level}
+                    onChange={(e) => updateHistory({ level: e.target.value as TrainingLevel })}
+                    className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                  >
+                    {TRAINING_LEVELS.map((level) => (
+                      <option key={level.id} value={level.id}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-xs font-semibold text-slate-300">
+                  Anni di pratica
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={historyEntry.yearsRegular}
+                    onChange={(e) =>
+                      updateHistory({ yearsRegular: Number.parseInt(e.target.value, 10) || 0 })
+                    }
+                    className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-300">
+                  Fermo da (mesi)
+                  <input
+                    type="number"
+                    min={0}
+                    max={720}
+                    value={historyEntry.detrainingMonths}
+                    onChange={(e) =>
+                      updateHistory({ detrainingMonths: Number.parseInt(e.target.value, 10) || 0 })
+                    }
+                    className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-300">
+                  Capacità attuale ({primarySport})
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[11px] font-bold ring-1 ring-inset",
+                    baseline.profile.capacity.source === "garmin"
+                      ? "bg-sky-400/10 text-sky-300 ring-sky-400/30"
+                      : baseline.profile.capacity.source === "calibration"
+                        ? "bg-amber-400/10 text-amber-300 ring-amber-400/30"
+                        : "bg-white/5 text-slate-300 ring-white/10",
+                  )}
+                >
+                  {baseline.profile.capacity.source === "garmin"
+                    ? "Da Garmin"
+                    : baseline.profile.capacity.source === "calibration"
+                      ? "Settimana di test"
+                      : "Inserito a mano"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Quello che sai fare oggi, non quello che hai fatto in passato. È questo che decide
+                il carico di partenza.
+              </p>
+
+              {baseline.profile.capacity.source === "garmin" && capacityEstimate?.available ? (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-xl bg-white/5 p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        Settimane continue
+                      </div>
+                      <div className="text-lg font-bold text-white">
+                        {baseline.profile.capacity.activeWeeks}
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-white/5 p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        Sedute / sett.
+                      </div>
+                      <div className="text-lg font-bold text-white">
+                        {baseline.profile.capacity.weeklySessions}
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-white/5 p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        Uscita più lunga
+                      </div>
+                      <div className="text-lg font-bold text-white">
+                        {baseline.profile.capacity.longestRecentSessionMin} min
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-white/5 p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        5k stimato
+                      </div>
+                      <div className="text-lg font-bold text-white">
+                        {format5k(baseline.profile.capacity.recent5kSec)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                    <span>
+                      {capacityEstimate.coverage.activities} attività, ultima{" "}
+                      {capacityEstimate.coverage.lastActivityDate ?? "—"}.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateCapacity({ source: "manual" })}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-semibold text-slate-200 hover:bg-white/10"
+                    >
+                      Modifica a mano
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {capacityEstimate?.available ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBaseline({
+                          ...baseline,
+                          profile: { ...baseline.profile, capacity: capacityEstimate.capacity },
+                        })
+                      }
+                      className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-400/20"
+                    >
+                      Usa i dati Garmin ({capacityEstimate.coverage.activities} attività)
+                    </button>
+                  ) : null}
+
+                  <label className="flex items-center gap-3 text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={baseline.profile.capacity.source === "calibration"}
+                      onChange={(e) =>
+                        updateCapacity({ source: e.target.checked ? "calibration" : "manual" })
+                      }
+                      className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
+                    />
+                    <span>
+                      Non ho dati né riferimenti: usa la{" "}
+                      <strong>settimana 1 come test di capacità</strong> (RPE 4-5, nessun lavoro
+                      intenso).
+                    </span>
+                  </label>
+
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Settimane continue
+                      <input
+                        type="number"
+                        min={0}
+                        value={baseline.profile.capacity.activeWeeks}
+                        onChange={(e) =>
+                          updateCapacity({
+                            activeWeeks: Number.parseInt(e.target.value, 10) || 0,
+                          })
+                        }
+                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Sedute / settimana
+                      <input
+                        type="number"
+                        min={0}
+                        max={14}
+                        value={baseline.profile.capacity.weeklySessions}
+                        onChange={(e) =>
+                          updateCapacity({
+                            weeklySessions: Number.parseInt(e.target.value, 10) || 0,
+                          })
+                        }
+                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Uscita più lunga (min)
+                      <input
+                        type="number"
+                        min={0}
+                        value={baseline.profile.capacity.longestRecentSessionMin}
+                        onChange={(e) =>
+                          updateCapacity({
+                            longestRecentSessionMin: Number.parseInt(e.target.value, 10) || 0,
+                          })
+                        }
+                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-slate-300">
+                      5k recente (min:sec)
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="es. 25:30"
+                        value={
+                          baseline.profile.capacity.recent5kSec
+                            ? format5k(baseline.profile.capacity.recent5kSec)
+                            : ""
+                        }
+                        onChange={(e) => updateCapacity({ recent5kSec: parse5k(e.target.value) })}
+                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+              {estimateError ? (
+                <p className="mt-2 text-[11px] text-amber-300">
+                  Impossibile leggere i dati Garmin: {estimateError}
+                </p>
+              ) : null}
+            </div>
 
             <div className="sm:col-span-2">
               <span className="block text-xs font-semibold text-slate-300">Sport praticati</span>
@@ -763,7 +1087,14 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 <li>
                   <strong>Atleta:</strong> {baseline.profile.sex}, {baseline.profile.heightCm} cm,{" "}
-                  {baseline.profile.weightKg} kg, esperienza {baseline.profile.experience}.
+                  {baseline.profile.weightKg} kg, livello{" "}
+                  <strong>{experienceTierLabel(derivedTier)}</strong> (
+                  {baseline.profile.capacity.source === "garmin"
+                    ? "capacità misurata da Garmin"
+                    : baseline.profile.capacity.source === "calibration"
+                      ? "settimana 1 di calibrazione"
+                      : "capacità inserita a mano"}
+                  ).
                 </li>
                 <li>
                   <strong>Sport:</strong> {baseline.profile.sports.join(", ")}.

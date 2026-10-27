@@ -3,6 +3,7 @@ import {
   type FiveKProjectionInput,
   intermediatePersona,
   kneePainPersona,
+  returningPersona,
 } from "@health-trainer/domain";
 import { Body, Controller, Get, NotFoundException, Post } from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator.js";
@@ -28,6 +29,11 @@ export class BaselineController {
     return this.baselineService.save(user.id, body);
   }
 
+  @Get("capacity")
+  async getCapacity(@CurrentUser() user: { id: string }) {
+    return this.baselineService.estimateCapacity(user.id);
+  }
+
   @Get("history")
   async getHistory(@CurrentUser() user: { id: string }) {
     return this.baselineService.getHistory(user.id);
@@ -39,6 +45,7 @@ export class BaselineController {
       beginner: beginnerPersona,
       intermediate: intermediatePersona,
       kneePain: kneePainPersona,
+      returning: returningPersona,
     };
   }
 

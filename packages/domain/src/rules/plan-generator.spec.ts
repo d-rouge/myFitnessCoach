@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { beginnerPersona, intermediatePersona, kneePainPersona } from "../fixtures/personas";
+import {
+  beginnerPersona,
+  intermediatePersona,
+  kneePainPersona,
+  returningPersona,
+} from "../fixtures/personas";
 import type { Baseline } from "../schemas/baseline";
 import { generateMacroPlan, generateMicroPlan, goalPaceText } from "./plan-generator";
+import { buildRecentContext } from "./recent-context";
 import { validateMacroPlan, validatePlanSessions } from "./validator";
 
 describe("plan-generator", () => {
@@ -170,6 +176,72 @@ describe("plan-generator", () => {
       expect(week4.deload).toBe(true);
       expect(week4.flags).toContain("deload_week");
       expect(week4.weeklyVolumeMin).toBeLessThan(week3.weeklyVolumeMin);
+    });
+  });
+
+  describe("athlete model", () => {
+    const hasIntervals = (sessions: { type: string }[]) =>
+      sessions.some((session) => session.type === "intervals");
+
+    it("keeps a returning athlete out of intervals for the first two weeks", () => {
+      const macro = generateMacroPlan(returningPersona, { startDate: "2026-11-02" });
+
+      const week1 = generateMicroPlan(returningPersona, macro, 1);
+      const week2 = generateMicroPlan(returningPersona, macro, 2);
+      const week3 = generateMicroPlan(returningPersona, macro, 3);
+
+      expect(hasIntervals(week1.sessions)).toBe(false);
+      expect(hasIntervals(week2.sessions)).toBe(false);
+      expect(week1.sessions.every((s) => (s.intensity.rpe ?? 0) <= 6)).toBe(true);
+      // History still unlocks intensity once the base is rebuilt.
+      expect(hasIntervals(week3.sessions)).toBe(true);
+    });
+
+    it("forces recovery weeks after a marathon and records why", () => {
+      const recentContext = buildRecentContext(
+        [{ sport: "running", localDate: "2026-10-25", durationSec: 14_400, distanceM: 42_195 }],
+        { now: "2026-10-27T10:00:00.000Z" },
+      );
+
+      const macro = generateMacroPlan(returningPersona, {
+        startDate: "2026-10-27",
+        recentContext,
+      });
+
+      expect(macro.recoveryWindow?.weeks).toBe(3);
+      expect(macro.flags).toContain("post_race_recovery");
+      expect(macro.phases[0].focus).toMatch(/recupero post-gara/i);
+
+      const week1 = generateMicroPlan(returningPersona, macro, 1);
+      const week2 = generateMicroPlan(returningPersona, macro, 2);
+      const week5 = generateMicroPlan(returningPersona, macro, 5);
+
+      expect(hasIntervals(week1.sessions)).toBe(false);
+      expect(hasIntervals(week2.sessions)).toBe(false);
+      expect(week1.sessions.some((s) => s.notes?.includes("Recupero post-gara"))).toBe(true);
+      // The guard expires after the window (week 4 is a scheduled deload).
+      expect(hasIntervals(week5.sessions)).toBe(true);
+    });
+
+    it("uses week one as a capacity test when nothing is measured", () => {
+      const calibrationBaseline = {
+        ...beginnerPersona,
+        profile: {
+          ...beginnerPersona.profile,
+          capacity: { ...beginnerPersona.profile.capacity, source: "calibration" as const },
+        },
+      };
+
+      const macro = generateMacroPlan(calibrationBaseline, { startDate: "2026-11-02" });
+      const week1 = generateMicroPlan(calibrationBaseline, macro, 1);
+      const week2 = generateMicroPlan(calibrationBaseline, macro, 2);
+
+      expect(macro.flags).toContain("calibration_week_1");
+      expect(macro.assumptions.join(" ")).toMatch(/settimana 1/i);
+      expect(week1.sessions.every((s) => (s.intensity.rpe ?? 0) <= 6)).toBe(true);
+      expect(week1.sessions.some((s) => s.notes?.includes("calibrazione"))).toBe(true);
+      // Only week one is the test.
+      expect(week2.sessions.some((s) => s.notes?.includes("calibrazione"))).toBe(false);
     });
   });
 });

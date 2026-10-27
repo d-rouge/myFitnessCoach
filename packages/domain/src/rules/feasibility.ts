@@ -1,4 +1,4 @@
-import type { Experience } from "../schemas/common";
+import type { ExperienceTier } from "../schemas/common";
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -17,16 +17,23 @@ export function riegelTime(
   return currentTimeSec * (targetDistanceM / currentDistanceM) ** exponent;
 }
 
-const BASE_WEEKLY_IMPROVEMENT: Record<Experience, number> = {
-  beginner: 0.0075,
-  intermediate: 0.0045,
-  advanced: 0.0025,
+/**
+ * Expected weekly improvement in relative terms. Novices have the most
+ * headroom; returning athletes re-adapt fast but from a better base; highly
+ * trained athletes gain little in percentage because they are close to their
+ * ceiling.
+ */
+const BASE_WEEKLY_IMPROVEMENT: Record<ExperienceTier, number> = {
+  novice: 0.009,
+  returning: 0.008,
+  trained: 0.0045,
+  highly_trained: 0.0025,
 };
 
 export interface FiveKProjectionInput {
   current5kSec: number;
   weeks: number;
-  experience: Experience;
+  tier: ExperienceTier;
   weeklyVolumeKm: number;
   adherence?: number;
 }
@@ -48,7 +55,7 @@ export function project5k(input: FiveKProjectionInput): FiveKProjection {
   const adherence = clamp(input.adherence ?? 0.8, 0, 1);
   const adherenceFactor = 0.5 + adherence * 0.5;
   const volumeFactor = clamp(input.weeklyVolumeKm / 40, 0.6, 1.2);
-  const base = BASE_WEEKLY_IMPROVEMENT[input.experience];
+  const base = BASE_WEEKLY_IMPROVEMENT[input.tier];
 
   const weeklyRate = clamp(base * adherenceFactor * volumeFactor, 0, 0.015);
   const apply = (rate: number) => input.current5kSec * (1 - rate) ** input.weeks;
@@ -70,7 +77,7 @@ export function project5k(input: FiveKProjectionInput): FiveKProjection {
     worstSec: Math.round(worstSec),
     weeklyImprovementPct: Number((weeklyRate * 100).toFixed(2)),
     confidence,
-    rationale: `Stima basata su esperienza ${input.experience}, ${input.weeklyVolumeKm} km/settimana, aderenza ${Math.round(adherence * 100)}% e ${input.weeks} settimane.`,
+    rationale: `Stima basata su livello ${input.tier}, ${input.weeklyVolumeKm} km/settimana, aderenza ${Math.round(adherence * 100)}% e ${input.weeks} settimane.`,
   };
 }
 

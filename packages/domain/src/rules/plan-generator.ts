@@ -3,12 +3,19 @@ import type { Sport, Weekday } from "../schemas/common";
 import type { MacroPlan, MicroPlan, PlanPhase } from "../schemas/plan";
 import type { PlannedSession, SessionAlternative, SessionBlock } from "../schemas/session";
 import { todayLocalDate } from "./dates";
+import { experienceTierLabel } from "./experience";
 import { isDeloadWeek } from "./progression";
+import type { RecentContext } from "./recent-context";
 import { validateMacroPlan, validatePlanSessions } from "./validator";
 
 export interface MacroPlanOptions {
   startDate?: string;
   totalWeeks?: number;
+  /**
+   * Recent-past facts. Used as a hard guard (post-race recovery) and stored on
+   * the plan so every weekly generation inherits it.
+   */
+  recentContext?: RecentContext;
 }
 
 export interface MicroPlanOptions {
@@ -44,6 +51,7 @@ interface SessionDraft {
   rpe: number;
   location: PlannedSession["location"];
   blocks: SessionBlock[];
+  notes?: string;
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -148,13 +156,84 @@ function steadyBlocks(
   ];
 }
 
+/**
+ * How much latitude a tier gets in a given week of the plan.
+ *
+ * `structured` gates intervals/threshold work; `conservativeVolume` keeps long
+ * sessions short. Current capacity sets the starting point, history only
+ * accelerates what happens once the tissue has caught up.
+ */
+interface SessionPolicy {
+  structured: boolean;
+  conservativeVolume: boolean;
+  /** Week 1 is the capacity test: no intensity, explicit note, capped volume. */
+  calibration: boolean;
+  /** Forced by a recent race/long effort. Overrides the tier. */
+  forcedRecovery: boolean;
+}
+
+function sessionPolicy(
+  baseline: Baseline,
+  weekIndex: number,
+  forcedRecovery: boolean,
+): SessionPolicy {
+  const tier = baseline.profile.experienceTier;
+
+  // A race or a very long effort wins over everything else: the athlete may be
+  // `highly_trained`, but they are still recovering.
+  if (forcedRecovery) {
+    return {
+      structured: false,
+      conservativeVolume: true,
+      calibration: false,
+      forcedRecovery: true,
+    };
+  }
+
+  // Nothing measured and nothing declared: the first week is the measurement.
+  if (baseline.profile.capacity.source === "calibration" && weekIndex === 1) {
+    return {
+      structured: false,
+      conservativeVolume: true,
+      calibration: true,
+      forcedRecovery: false,
+    };
+  }
+
+  switch (tier) {
+    case "novice":
+      return {
+        structured: false,
+        conservativeVolume: true,
+        calibration: false,
+        forcedRecovery: false,
+      };
+    case "returning":
+      // Weeks 1-2 rebuild the base, weeks 3-4 add intensity with volume still
+      // capped, then the athlete is treated as trained.
+      return {
+        structured: weekIndex >= 3,
+        conservativeVolume: weekIndex <= 4,
+        calibration: false,
+        forcedRecovery: false,
+      };
+    default:
+      return {
+        structured: true,
+        conservativeVolume: false,
+        calibration: false,
+        forcedRecovery: false,
+      };
+  }
+}
+
 function buildRunningSession(
   baseline: Baseline,
   index: number,
   maxDurationMin: number,
   deload: boolean,
+  policy: SessionPolicy,
 ): SessionDraft {
-  const intermediate = baseline.profile.experience !== "beginner";
   const pace = goalPaceText(baseline);
   const thresholdTarget = pace
     ? `Passo ${pace}/km (Z4 / Soglia)`
@@ -181,7 +260,7 @@ function buildRunningSession(
   }
 
   if (index === 1) {
-    if (intermediate && !deload) {
+    if (policy.structured && !deload) {
       const durationMin = Math.min(maxDurationMin, 50);
       return {
         sport: "running",
@@ -210,6 +289,28 @@ function buildRunningSession(
       };
     }
 
+    // Conservative tiers (novice, returning, calibration, post-race) get an
+    // easy aerobic run instead of variations.
+    if (policy.conservativeVolume && !deload) {
+      const easyDuration = Math.min(maxDurationMin, 35);
+      return {
+        sport: "running",
+        title: "Corsa Facile Z2",
+        type: "aerobic_base",
+        durationMin: easyDuration,
+        rpe: 5,
+        location: "outdoor",
+        blocks: steadyBlocks(
+          easyDuration,
+          8,
+          5,
+          "Corsa costante Z2, ritmo conversazionale",
+          "Z1 riscaldamento progressivo",
+          "Defaticamento e mobilità",
+        ),
+      };
+    }
+
     const durationMin = Math.min(maxDurationMin, 40);
     return {
       sport: "running",
@@ -229,7 +330,8 @@ function buildRunningSession(
     };
   }
 
-  const durationMin = Math.min(maxDurationMin, deload ? 45 : 65);
+  const longRunCap = policy.conservativeVolume ? 50 : 65;
+  const durationMin = Math.min(maxDurationMin, deload ? 45 : longRunCap);
   return {
     sport: "running",
     title: deload ? "Lungo Rigenerante Z2 (Scarico)" : "Lungo Aerobico Progressivo",
@@ -249,13 +351,11 @@ function buildRunningSession(
 }
 
 function buildCyclingSession(
-  baseline: Baseline,
   index: number,
   maxDurationMin: number,
   deload: boolean,
+  policy: SessionPolicy,
 ): SessionDraft {
-  const intermediate = baseline.profile.experience !== "beginner";
-
   if (index === 0) {
     const durationMin = Math.min(maxDurationMin, deload ? 35 : 50);
     return {
@@ -276,7 +376,7 @@ function buildCyclingSession(
     };
   }
 
-  if (index === 1 && intermediate && !deload) {
+  if (index === 1 && policy.structured && !deload) {
     const durationMin = Math.min(maxDurationMin, 50);
     return {
       sport: "cycling",
@@ -305,7 +405,8 @@ function buildCyclingSession(
     };
   }
 
-  const durationMin = Math.min(maxDurationMin, deload ? 45 : 70);
+  const longRideCap = policy.conservativeVolume ? 55 : 70;
+  const durationMin = Math.min(maxDurationMin, deload ? 45 : longRideCap);
   return {
     sport: "cycling",
     title: deload ? "Lungo in Bici Rigenerante" : "Lungo in Bici Z2",
@@ -325,13 +426,11 @@ function buildCyclingSession(
 }
 
 function buildSwimmingSession(
-  baseline: Baseline,
   index: number,
   maxDurationMin: number,
   deload: boolean,
+  policy: SessionPolicy,
 ): SessionDraft {
-  const intermediate = baseline.profile.experience !== "beginner";
-
   if (index === 0) {
     const durationMin = Math.min(maxDurationMin, deload ? 35 : 45);
     return {
@@ -352,7 +451,7 @@ function buildSwimmingSession(
     };
   }
 
-  if (index === 1 && intermediate && !deload) {
+  if (index === 1 && policy.structured && !deload) {
     const durationMin = Math.min(maxDurationMin, 50);
     return {
       sport: "swimming",
@@ -404,8 +503,10 @@ function buildStrengthSession(
   index: number,
   maxDurationMin: number,
   deload: boolean,
+  policy: SessionPolicy,
 ): SessionDraft {
-  const durationMin = Math.min(maxDurationMin, deload ? 35 : 50);
+  const workCap = policy.conservativeVolume ? 40 : 50;
+  const durationMin = Math.min(maxDurationMin, deload ? 35 : workCap);
   const warmupMin = Math.max(5, Math.round(durationMin * 0.2));
   const cooldownMin = Math.max(5, Math.round(durationMin * 0.2));
   const workMin = Math.max(5, durationMin - warmupMin - cooldownMin);
@@ -416,7 +517,7 @@ function buildStrengthSession(
     title: `Forza Funzionale ${variant}`,
     type: "full_body_strength",
     durationMin,
-    rpe: deload ? 5 : 7,
+    rpe: deload ? 5 : policy.conservativeVolume ? 6 : 7,
     location: "gym",
     blocks: [
       {
@@ -498,19 +599,51 @@ function buildDraft(
   index: number,
   maxDurationMin: number,
   deload: boolean,
+  weekIndex: number,
+  forcedRecovery: boolean,
 ): SessionDraft {
   const kneePain = isKneePain(baseline);
   const sport = chooseSport(baseline, index, kneePain);
+  const policy = sessionPolicy(baseline, weekIndex, forcedRecovery);
 
+  const draft = buildSportDraft(baseline, sport, index, maxDurationMin, deload, policy);
+
+  if (policy.forcedRecovery) {
+    return {
+      ...draft,
+      notes:
+        "Recupero post-gara: nessun lavoro intenso, volume ridotto. Serve a smaltire la fatica prima di tornare a caricare. Segna RPE, dolore e sonno a fine seduta.",
+    };
+  }
+
+  if (policy.calibration) {
+    return {
+      ...draft,
+      notes:
+        "Settimana di calibrazione: intensità volutamente bassa (RPE 4-5). Serve a misurare come rispondi prima di prescrivere carico. Segna RPE, dolore e durata reale a fine seduta.",
+    };
+  }
+
+  return draft;
+}
+
+function buildSportDraft(
+  baseline: Baseline,
+  sport: Sport,
+  index: number,
+  maxDurationMin: number,
+  deload: boolean,
+  policy: SessionPolicy,
+): SessionDraft {
   switch (sport) {
     case "running":
-      return buildRunningSession(baseline, index, maxDurationMin, deload);
+      return buildRunningSession(baseline, index, maxDurationMin, deload, policy);
     case "cycling":
-      return buildCyclingSession(baseline, index, maxDurationMin, deload);
+      return buildCyclingSession(index, maxDurationMin, deload, policy);
     case "swimming":
-      return buildSwimmingSession(baseline, index, maxDurationMin, deload);
+      return buildSwimmingSession(index, maxDurationMin, deload, policy);
     case "strength":
-      return buildStrengthSession(index, maxDurationMin, deload);
+      return buildStrengthSession(index, maxDurationMin, deload, policy);
     default:
       return buildMobilitySession(maxDurationMin, deload);
   }
@@ -601,6 +734,33 @@ export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions
     ];
   }
 
+  const calibration = baseline.profile.capacity.source === "calibration";
+  if (calibration) {
+    const first = phases[0];
+    if (first) {
+      first.focus = `Settimana 1 di calibrazione a bassa intensità per misurare la capacità reale. ${first.focus}`;
+    }
+  }
+
+  // A race or very long effort in the recent past is a hard guard, not a
+  // suggestion: the first weeks become recovery regardless of the tier.
+  const postRace = options?.recentContext?.postRaceRecovery ?? null;
+  const recoveryWindow =
+    postRace?.active && postRace.weeks > 0
+      ? {
+          weeks: postRace.weeks,
+          reason: postRace.reason ?? "Recupero post-gara",
+          untilDate: postRace.untilDate,
+        }
+      : null;
+
+  if (recoveryWindow) {
+    const first = phases[0];
+    if (first) {
+      first.focus = `Recupero post-gara (${recoveryWindow.reason}): nessun carico per ${recoveryWindow.weeks} settimana/e. ${first.focus}`;
+    }
+  }
+
   const macroPlan: MacroPlan = {
     id: `macro_${baseline.userId}_${Date.now()}`,
     goalDescription: baseline.goals.primary.description,
@@ -608,9 +768,20 @@ export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions
     endDate,
     totalWeeks,
     phases,
-    rationale: `Macrociclo generato deterministicamente per ${baseline.profile.experience} con ${baseline.availability.days.length} sessioni settimanali disponibili. Obiettivo primario: ${baseline.goals.primary.description}. Vincoli medici e infortuni integrati.`,
-    assumptions: [`Aderenza prevista: >= 80%`, `Intensità calcolata su RPE e zone HR Garmin`],
-    flags: kneePain ? ["caution_knee_pain", "low_impact_priority"] : [],
+    rationale: `Macrociclo generato deterministicamente per livello ${experienceTierLabel(baseline.profile.experienceTier)} con ${baseline.availability.days.length} sessioni settimanali disponibili. Obiettivo primario: ${baseline.goals.primary.description}. Vincoli medici e infortuni integrati.`,
+    assumptions: [
+      `Aderenza prevista: >= 80%`,
+      `Intensità calcolata su RPE e zone HR Garmin`,
+      ...(calibration
+        ? ["Capacità attuale non ancora misurata: la settimana 1 fa da test di capacità."]
+        : []),
+    ],
+    flags: [
+      ...(kneePain ? ["caution_knee_pain", "low_impact_priority"] : []),
+      ...(calibration ? ["calibration_week_1"] : []),
+      ...(recoveryWindow ? ["post_race_recovery"] : []),
+    ],
+    recoveryWindow,
   };
 
   const issues = validateMacroPlan(macroPlan);
@@ -646,6 +817,8 @@ export function generateMicroPlan(
     .map((day) => ({ ...day, offset: offsetForWeekday(weekStartDate, day.day) }))
     .sort((a, b) => a.offset - b.offset || DAY_JS_INDEX[a.day] - DAY_JS_INDEX[b.day]);
 
+  const forcedRecovery = (macroPlan.recoveryWindow?.weeks ?? 0) >= weekIndex;
+
   const sessions: PlannedSession[] = [];
 
   for (let idx = 0; idx < availableDays.length; idx += 1) {
@@ -653,7 +826,14 @@ export function generateMicroPlan(
     if (!avail) continue;
 
     const sessionDate = addDays(weekStartDate, avail.offset);
-    const draft = buildDraft(baseline, idx, avail.maxDurationMin, deload);
+    const draft = buildDraft(
+      baseline,
+      idx,
+      avail.maxDurationMin,
+      deload,
+      weekIndex,
+      forcedRecovery,
+    );
     const blocks = fitBlocksToDuration(draft.blocks, draft.durationMin);
 
     const alternatives: SessionAlternative[] = [
@@ -708,6 +888,7 @@ export function generateMicroPlan(
       successCriteria: `Completare la durata target mantenendo lo sforzo percepito RPE ${draft.rpe}/10.`,
       alternatives,
       contraindications,
+      notes: draft.notes,
       status: "planned",
     };
 

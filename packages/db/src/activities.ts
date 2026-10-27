@@ -32,6 +32,24 @@ export async function getRecentActivities(db: Db, userId: string, limit = 10): P
     .toArray();
 }
 
+/**
+ * Activities used to estimate current capacity. Sorted newest first and
+ * bounded: capacity only looks at the last ~3 months plus the consistency
+ * streak, so a large limit is enough without a date index.
+ */
+export async function getActivitiesForCapacity(
+  db: Db,
+  userId: string,
+  limit = 400,
+): Promise<Activity[]> {
+  return db
+    .collection<Activity>(COLLECTIONS.activities)
+    .find({ userId })
+    .sort({ start: -1 })
+    .limit(limit)
+    .toArray();
+}
+
 export async function getActivityByExternalId(
   db: Db,
   userId: string,

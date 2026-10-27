@@ -1,7 +1,9 @@
 export * from "./fixtures/personas";
 export * from "./rules/activity-comparison";
+export * from "./rules/capacity";
 export * from "./rules/daily-adjustment";
 export * from "./rules/dates";
+export * from "./rules/experience";
 export * from "./rules/feasibility";
 export * from "./rules/load";
 export * from "./rules/plan-generator";
@@ -13,12 +15,14 @@ export {
   type ReadinessInput,
   type ReadinessResult,
 } from "./rules/readiness";
+export * from "./rules/recent-context";
 export * from "./rules/safety";
 export * from "./rules/validator";
 export * from "./rules/weekly-review";
 export * from "./schemas/activity";
 export * from "./schemas/activity-analysis";
 export * from "./schemas/anamnesis";
+export * from "./schemas/athletic";
 export * from "./schemas/availability";
 export * from "./schemas/baseline";
 export * from "./schemas/checkin";

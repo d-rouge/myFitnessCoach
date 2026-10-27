@@ -13,6 +13,7 @@ function mongoWithBaseline(baseline: Baseline): MongoService {
           sort: () => ({
             limit: () => ({
               next: async () => (query.userId === baseline.userId ? baseline : null),
+              toArray: async () => [],
             }),
           }),
         }),
@@ -31,6 +32,7 @@ describe("PlanService", () => {
             sort: () => ({
               limit: () => ({
                 next: async () => null,
+                toArray: async () => [],
               }),
             }),
           }),
@@ -51,6 +53,7 @@ describe("PlanService", () => {
             sort: () => ({
               limit: () => ({
                 next: async () => null,
+                toArray: async () => [],
               }),
             }),
           }),
@@ -81,6 +84,7 @@ describe("PlanService", () => {
             sort: () => ({
               limit: () => ({
                 next: async () => null,
+                toArray: async () => [],
               }),
             }),
           }),
@@ -123,6 +127,8 @@ describe("PlanService", () => {
               limit: () => ({
                 next: async () =>
                   memoryDocs[name]?.find((doc) => doc.userId === query.userId) ?? null,
+                toArray: async () =>
+                  memoryDocs[name]?.filter((doc) => doc.userId === query.userId) ?? [],
               }),
             }),
           }),

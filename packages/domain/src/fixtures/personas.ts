@@ -11,7 +11,18 @@ export const beginnerPersona: Baseline = {
     sex: "male",
     heightCm: 178,
     weightKg: 78,
-    experience: "beginner",
+    experienceTier: "novice",
+    history: {
+      sports: [{ sport: "running", level: "none", yearsRegular: 0, detrainingMonths: 0 }],
+    },
+    capacity: {
+      activeWeeks: 8,
+      weeklySessions: 3,
+      longestRecentSessionMin: 40,
+      recent5kSec: null,
+      source: "manual",
+      asOf: null,
+    },
     sports: ["running", "strength"],
     timezone: "Europe/Rome",
     tone: "direct",
@@ -95,7 +106,18 @@ export const intermediatePersona: Baseline = {
     sex: "female",
     heightCm: 168,
     weightKg: 60,
-    experience: "intermediate",
+    experienceTier: "trained",
+    history: {
+      sports: [{ sport: "running", level: "amateur", yearsRegular: 4, detrainingMonths: 0 }],
+    },
+    capacity: {
+      activeWeeks: 60,
+      weeklySessions: 5,
+      longestRecentSessionMin: 90,
+      recent5kSec: 1500,
+      source: "manual",
+      asOf: null,
+    },
     sports: ["running", "strength", "cycling"],
     timezone: "Europe/Rome",
     tone: "analytical",
@@ -197,7 +219,18 @@ export const kneePainPersona: Baseline = {
     sex: "male",
     heightCm: 182,
     weightKg: 84,
-    experience: "intermediate",
+    experienceTier: "trained",
+    history: {
+      sports: [{ sport: "running", level: "amateur", yearsRegular: 3, detrainingMonths: 6 }],
+    },
+    capacity: {
+      activeWeeks: 10,
+      weeklySessions: 3,
+      longestRecentSessionMin: 50,
+      recent5kSec: null,
+      source: "manual",
+      asOf: null,
+    },
     sports: ["cycling", "swimming", "strength", "running"],
     timezone: "Europe/Rome",
     tone: "direct",
@@ -283,4 +316,94 @@ export const kneePainPersona: Baseline = {
   },
   summary:
     "Luca, 42 anni, gestione attiva di tendinopatia rotulea destra (dolore 5/10). Focus su bici, nuoto e isometrie.",
+};
+
+/**
+ * The case a single "experience" enum cannot represent: twelve years of
+ * competitive running, two years completely off, three weeks back. The tier is
+ * `returning`, so the plan keeps the volume capped and defers intensity even
+ * though the athlete's background is far above a beginner's.
+ */
+export const returningPersona: Baseline = {
+  id: "baseline_returning_sara",
+  userId: "user_sara_04",
+  version: 1,
+  validFrom: "2026-10-26T00:00:00.000Z",
+  supersededAt: null,
+  profile: {
+    birthDate: "1990-03-11",
+    sex: "female",
+    heightCm: 170,
+    weightKg: 62,
+    experienceTier: "returning",
+    history: {
+      sports: [{ sport: "running", level: "competitive", yearsRegular: 12, detrainingMonths: 24 }],
+    },
+    capacity: {
+      activeWeeks: 3,
+      weeklySessions: 2,
+      longestRecentSessionMin: 35,
+      recent5kSec: null,
+      source: "manual",
+      asOf: null,
+    },
+    sports: ["running", "strength"],
+    timezone: "Europe/Rome",
+    tone: "supportive",
+    units: "metric",
+  },
+  anamnesis: {
+    conditions: [],
+    medications: [],
+    injuries: [],
+    redFlags: [],
+    parqCleared: true,
+    freeText:
+      "Ex mezzofondista (800m) a livello agonistico fino a due anni fa, poi stop totale. Ho ripreso da tre settimane con due uscite facili.",
+  },
+  goals: {
+    primary: {
+      type: "performance",
+      sport: "running",
+      description: "Tornare sotto i 50 minuti sui 10k dopo due anni di stop",
+      targetDate: "2027-02-15",
+      metric: "10k_time_sec",
+      targetValue: 3000,
+      targetUnit: "seconds",
+      priority: "primary",
+    },
+    secondary: [
+      {
+        type: "strength",
+        description: "Ricostruire forza di base e prevenzione infortuni",
+        priority: "secondary",
+      },
+    ],
+  },
+  availability: {
+    days: [
+      { day: "mon", windows: [{ start: "07:00", end: "08:00" }], maxDurationMin: 60 },
+      { day: "thu", windows: [{ start: "07:00", end: "08:00" }], maxDurationMin: 60 },
+      { day: "sat", windows: [{ start: "09:00", end: "10:15" }], maxDurationMin: 75 },
+      { day: "sun", windows: [{ start: "09:00", end: "10:00" }], maxDurationMin: 60 },
+    ],
+    blackouts: [],
+  },
+  equipment: {
+    items: ["treadmill", "dumbbells", "resistance_band", "foam_roller"],
+    gymAccess: false,
+    poolAccess: false,
+    notes: "Tapis roulant e manubri a casa",
+  },
+  preferences: {
+    dislikedExercises: [],
+    dislikedSports: [],
+    preferredTrainingTime: "morning",
+    tone: "supportive",
+    units: "metric",
+    audioCues: true,
+    reminderMinutesBefore: 30,
+  },
+  summary:
+    "Sara, 36 anni, ex agonista 800m ferma da 2 anni e ripartita da 3 settimane. Rientro: base nelle prime 2 settimane, intensità dalla terza, volume ridotto fino alla quarta.",
 };

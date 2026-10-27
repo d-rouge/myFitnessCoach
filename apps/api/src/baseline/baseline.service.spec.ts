@@ -34,7 +34,7 @@ describe("BaselineService", () => {
     const input: FiveKProjectionInput = {
       current5kSec: 1800, // 30:00
       weeks: 12,
-      experience: "beginner",
+      tier: "novice",
       weeklyVolumeKm: 25,
       adherence: 0.85,
     };

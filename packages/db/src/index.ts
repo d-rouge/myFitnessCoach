@@ -1,5 +1,6 @@
 export {
   countActivities,
+  getActivitiesForCapacity,
   getActivityByExternalId,
   getRecentActivities,
   upsertActivities,

@@ -1,13 +1,23 @@
-import { getBaselineHistory, getCurrentBaseline, saveBaseline } from "@health-trainer/db";
+import {
+  getActivitiesForCapacity,
+  getBaselineHistory,
+  getCurrentBaseline,
+  saveBaseline,
+} from "@health-trainer/db";
 import {
   AnamnesisSchema,
   assessSafety,
   type Baseline,
   BaselineSchema,
+  type CapacityEstimate,
+  estimateCapacityFromActivities,
   type FiveKProjection,
   type FiveKProjectionInput,
+  primarySportOf,
   project5k,
   type SafetyAssessment,
+  toCapacityActivity,
+  withDerivedExperienceTier,
 } from "@health-trainer/domain";
 import {
   BadRequestException,
@@ -41,12 +51,32 @@ export class BaselineService {
 
   async getCurrent(userId: string): Promise<Baseline | null> {
     const db = await this.db();
-    return getCurrentBaseline(db, userId);
+    const baseline = await getCurrentBaseline(db, userId);
+    return baseline ? withDerivedExperienceTier(baseline) : null;
   }
 
   async getHistory(userId: string): Promise<Baseline[]> {
     const db = await this.db();
-    return getBaselineHistory(db, userId);
+    const baselines = await getBaselineHistory(db, userId);
+    return baselines.map((baseline) => withDerivedExperienceTier(baseline));
+  }
+
+  /**
+   * Current capacity estimated from imported activities. Returns `available:
+   * false` instead of throwing: the UI uses it to decide between showing the
+   * measured numbers and asking a single question / starting with a
+   * calibration week.
+   */
+  async estimateCapacity(userId: string): Promise<CapacityEstimate> {
+    const db = await this.db();
+    const [activities, baseline] = await Promise.all([
+      getActivitiesForCapacity(db, userId),
+      getCurrentBaseline(db, userId),
+    ]);
+    return estimateCapacityFromActivities(activities.map(toCapacityActivity), {
+      now: new Date().toISOString(),
+      sport: baseline ? primarySportOf(baseline) : "running",
+    });
   }
 
   async save(userId: string, input: unknown): Promise<Baseline> {
@@ -58,10 +88,29 @@ export class BaselineService {
       throw new BadRequestException(`Dati baseline non validi: ${details}`);
     }
 
-    const data = {
+    const db = await this.db();
+    let profile = parsed.data.profile;
+
+    // `garmin` is an intent, not a payload: measured values are recomputed
+    // here so the client can never ship stale or invented capacity.
+    if (profile.capacity.source === "garmin") {
+      const estimate = await this.estimateCapacity(userId);
+      if (!estimate.available) {
+        throw new BadRequestException(
+          "Nessuna attività importata trovata: inserisci la capacità manualmente o lascia la settimana di calibrazione.",
+        );
+      }
+      profile = { ...profile, capacity: estimate.capacity };
+    }
+
+    // The tier is derived, never trusted from the client: this is the single
+    // place where current capacity (starting load) and past history
+    // (progression speed) are combined.
+    const data = withDerivedExperienceTier({
       ...parsed.data,
+      profile,
       userId,
-    };
+    });
 
     // Safety is always evaluated on save so the risk is recorded in logs and
     // surfaced by plan generation. Saving is allowed: the athlete must be able
@@ -77,7 +126,6 @@ export class BaselineService {
       );
     }
 
-    const db = await this.db();
     this.logger.log(`Salvataggio baseline per utente ${userId}`);
     return saveBaseline(db, data);
   }

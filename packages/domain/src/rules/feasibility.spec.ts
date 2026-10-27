@@ -13,7 +13,7 @@ describe("feasibility", () => {
       current5kSec: 24 * 60,
       target5kSec: 20 * 60,
       weeks: 12,
-      experience: "intermediate",
+      tier: "trained",
       weeklyVolumeKm: 35,
       adherence: 0.8,
     });
@@ -27,7 +27,7 @@ describe("feasibility", () => {
       current5kSec: 21 * 60 + 30,
       target5kSec: 20 * 60,
       weeks: 12,
-      experience: "intermediate",
+      tier: "trained",
       weeklyVolumeKm: 45,
       adherence: 0.9,
     });
@@ -41,14 +41,14 @@ describe("feasibility", () => {
     const high = project5k({
       current5kSec: 1500,
       weeks: 12,
-      experience: "beginner",
+      tier: "novice",
       weeklyVolumeKm: 30,
       adherence: 0.9,
     });
     const low = project5k({
       current5kSec: 1500,
       weeks: 12,
-      experience: "beginner",
+      tier: "novice",
       weeklyVolumeKm: 30,
       adherence: 0.4,
     });
