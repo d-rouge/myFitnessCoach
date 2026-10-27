@@ -1,3 +1,4 @@
+import type { Env } from "@health-trainer/config";
 import type { Db } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
@@ -76,7 +77,8 @@ describe("AiService", () => {
       getDb: vi.fn().mockResolvedValue(mockDb as Db),
     } as unknown as MongoService;
 
-    service = new AiService(mockMongo);
+    const env = { NODE_ENV: "test" } as unknown as Env;
+    service = new AiService(env, mockMongo);
   });
 
   it("generates structured coach advice for athlete's session", async () => {

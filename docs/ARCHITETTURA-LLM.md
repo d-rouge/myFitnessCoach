@@ -37,9 +37,9 @@ pezzi produce piani che nessun chatbot può produrre.
 | Validazione | deterministica, `rules/validator.ts` (il generatore valida il proprio output e lancia se viola) |
 | Contesto recente | calcolato, `rules/recent-context.ts` (gara/sforzo lungo, ACWR, gap) |
 | Capacità e tier | calcolati, `rules/capacity.ts` e `rules/experience.ts` |
-| LLM | **stub**: `DeterministicCoachProvider`, nessuna chiamata a un modello. `/api/health` risponde `llm: missing` |
+| LLM | **DeepSeek cablato**: `DeepSeekProvider` (JSON mode, thinking, errori `retryable`). `LLM_MODEL=deepseek-v4-pro`, `LLM_MODEL_FAST=deepseek-flash`. Senza chiave resta `DeterministicCoachProvider` |
 | Memoria dei piani | solo i documenti salvati: nessuna sintesi usata nelle generazioni successive |
-| `ai_runs` | salva metadati (provider, modello, token, latenza), **non** il payload né il verdetto |
+| `ai_runs` | salva metadati e i fallimenti (`success: false`), **non** il payload né il verdetto |
 
 Conseguenza: oggi il piano è corretto rispetto ai vincoli ma rigido, e la
 conoscenza metodologica vive nelle regole scritte a mano. Il documento
@@ -336,8 +336,10 @@ verificabile. Migliora anche il piano a regole, che resta in uso.
 
 ### Fase C — Provider e loop
 
-1. `LlmProvider` HTTP reale (OpenAI-compatibile copre OpenAI, OpenRouter,
-   Ollama; Anthropic e Google con adattatore dedicato).
+1. ~~`LlmProvider` HTTP reale~~ **fatto il 27 ottobre 2026**: `DeepSeekProvider`
+   nativo (formato OpenAI, JSON mode, thinking selezionabile, timeout, errori
+   `retryable`). Gli altri provider restano senza client e cadono sul
+   deterministico.
 2. `PlanProposer` e `PlanCritic` come interfacce; implementazione LLM;
    `RulePlanProposer` come fallback.
 3. Referee in codice (§3, D3) + loop con max 2 revisioni.
@@ -378,7 +380,7 @@ verificabile. Migliora anche il piano a regole, che resta in uso.
 
 | Decisione | Stato | Default |
 |---|---|---|
-| Provider e modello per Proposer e Critic | **aperta** — richiede chiavi in `.env` | due provider diversi |
+| Provider e modello per Proposer e Critic | **decisa in parte**: DeepSeek, `deepseek-v4-pro` per la proposta e `deepseek-flash` per il coach. Se il Critic debba usare un modello/provider diverso è ancora aperto | due provider diversi, per decorrelare gli errori |
 | Ampiezza della libreria dei metodi iniziale | aperta | 3-4 metodi che l'utente conosce |
 | Quando l'LLM diventa default e le regole fallback | aperta | dopo Fase E, con evidenza |
 | Persistenza del payload in `ai_runs` vs collezione dedicata | aperta | campo `payload` con limite di dimensione |

@@ -572,13 +572,69 @@ health-trainer-backup-v1.zip
 
 ### 9.1 Provider
 
-| Provider | Uso | Note |
+| Provider | Stato | Note |
 |---|---|---|
-| OpenAI | BYOK | structured outputs |
-| Anthropic | BYOK | tool use/JSON |
-| Google | BYOK | Gemini |
-| OpenRouter | BYOK | multi-modello |
-| Ollama | locale | privacy, no costi |
+| **DeepSeek (nativo)** | **cablato** | base `https://api.deepseek.com`, formato OpenAI, JSON output |
+| OpenAI | previsto | structured outputs |
+| Anthropic | previsto | tool use/JSON |
+| Google | previsto | Gemini |
+| OpenRouter | previsto | multi-modello |
+| Ollama | previsto | privacy, no costi |
+
+Oggi solo DeepSeek ha un client: `LLM_PROVIDER` con un valore diverso resta sul
+provider deterministico invece di fallire a runtime.
+
+### 9.1.1 DeepSeek
+
+Verificato sulla documentazione ufficiale il 27 ottobre 2026.
+
+| Voce | Valore |
+|---|---|
+| Base URL (formato OpenAI) | `https://api.deepseek.com` |
+| Modello ragionamento | `deepseek-v4-pro` (`LLM_MODEL`) |
+| Modello veloce | `deepseek-flash` (`LLM_MODEL_FAST`) |
+| Contesto | 1M token; output massimo 384K |
+| JSON output | `response_format: { type: "json_object" }` |
+| Thinking mode | `thinking: { type: "enabled" \| "disabled" }`, default enabled |
+
+Uso nel progetto:
+
+| Scopo | Modello | Thinking | Perché |
+|---|---|---|---|
+| `coach` (consiglio giornaliero) | `deepseek-flash` | no | task breve e frequente: conta la latenza |
+| `planning` (macro, micro, critica) | `deepseek-v4-pro` | sì | ragionamento sul metodo e sull'envelope |
+
+Vincoli della JSON mode, entrambi gestiti dal client:
+
+1. la parola "json" deve comparire nel prompt (il provider la aggiunge se manca);
+2. va mostrato un esempio del formato atteso (fatto nei prompt del coach);
+3. `max_tokens` va dimensionato, altrimenti il JSON si tronca.
+
+In thinking mode `temperature` viene ignorata dall'API: il provider **non la
+invia**, per non dare l'illusione di controllare la variabilità. L'API può anche
+restituire `content` vuoto in JSON mode: è trattato come guasto transitorio.
+
+Errori mappati su `LlmProviderError` con flag `retryable`, che il futuro loop
+Proposer/Critic userà per decidere se riprovare o passare al fallback:
+
+| HTTP | Significato | `retryable` |
+|---|---|---|
+| 401 / 403 | chiave non valida | no |
+| 402 | credito esaurito | no |
+| 429 | rate limit | sì |
+| 5xx | guasto lato provider | sì |
+| risposta vuota / JSON invalido / fuori schema | guasto transitorio | sì |
+
+La chiave non appare mai nei messaggi d'errore né nei log; i fallimenti vengono
+registrati in `ai_runs` con `success: false` e il messaggio troncato a 500
+caratteri.
+
+Verifica manuale, senza stampare la chiave:
+
+```bash
+npm run spike:deepseek          # solo flash, pochi token
+npm run spike:deepseek -- --all # flash + v4-pro con thinking
+```
 
 ### 9.2 Regole
 

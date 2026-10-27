@@ -54,10 +54,15 @@ export const EnvSchema = z
 
     LLM_PROVIDER: z.preprocess(
       emptyToUndefined,
-      z.enum(["openai", "anthropic", "google", "openrouter", "ollama"]).optional(),
+      z.enum(["openai", "anthropic", "google", "openrouter", "deepseek", "ollama"]).optional(),
     ),
     LLM_API_KEY: optionalString,
+    /** Modello per pianificazione e critica (deepseek-v4-pro). */
     LLM_MODEL: optionalString,
+    /** Modello per narrazione e task brevi (deepseek-flash). */
+    LLM_MODEL_FAST: optionalString,
+    LLM_BASE_URL: optionalString,
+    LLM_TIMEOUT_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
 
     FEATURE_GARMIN: booleanWithDefault("true"),
     FEATURE_YAZIO: booleanWithDefault("false"),

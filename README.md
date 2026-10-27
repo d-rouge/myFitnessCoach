@@ -15,11 +15,11 @@ Componenti presenti:
 - **L1–L3 Piani & Esecuzione:** Generatore deterministico goal/sport/durata (`generateMacroPlan`, `generateMicroPlan`), safety gate che blocca la generazione su red flag/PAR-Q, board settimanale e card "Oggi" con date nel timezone dell'atleta.
 - **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` con sessione adattata persistita (durata, RPE, blocchi, note), attività manuale e upload FIT con validazione firma/dimensione.
 - **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
-- **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`. **Nessun modello è collegato**: `/api/health` risponde `llm: missing` e il piano è generato da regole. Il disegno di destinazione è in [`docs/ARCHITETTURA-LLM.md`](docs/ARCHITETTURA-LLM.md).
+- **AI Coach:** `coach-advice-v2`, audit `ai_runs`. Collegamento **DeepSeek nativo** (V4 Pro per pianificazione, V4.1 Flash per il coach) attivabile con `LLM_PROVIDER=deepseek` + `LLM_API_KEY`; senza chiave resta il provider deterministico. Il piano è ancora generato da regole: il disegno di destinazione è in [`docs/ARCHITETTURA-LLM.md`](docs/ARCHITETTURA-LLM.md).
 - **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
 - **Auth:** registrazione e login con email + password (scrypt) oppure Google, dev login opt-in, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
 
-198 test unitari e 13 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
+217 test unitari e 13 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
 temporaneo), typecheck e lint puliti, build verificata. **Non verificato:** login Google
 con credenziali reali, export Hevy con chiave reale, import `.FIT` su Garmin Connect,
 sync automatico, uso reale di 14 giorni.
@@ -84,7 +84,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (198 test)
+npm test                 # unit + contract test (217 test)
 npm run test:e2e         # e2e multi-utente su MongoDB reale (`*_e2e`, poi pulito)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
@@ -237,7 +237,7 @@ isolati, PATCH ed export FIT cross-utente respinti con 404, check-in e backup se
 - **Web:** React + Vite + Tailwind
 - **DB:** MongoDB locale `127.0.0.1:27017`
 - **Android:** Expo/React Native + SQLite locale (fase 3)
-- **AI:** adapter multi-provider (BYOK / managed / Ollama)
+- **AI:** adapter multi-provider (BYOK / managed / Ollama) — oggi cablato solo DeepSeek nativo
 
 ## Struttura
 

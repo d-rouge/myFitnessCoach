@@ -23,6 +23,7 @@ export interface HealthReport {
     llm: {
       status: CheckStatus;
       provider?: string;
+      model?: string | null;
     };
   };
 }
@@ -65,6 +66,8 @@ export function buildHealthReport(input: HealthReportInput): HealthReport {
       llm: {
         status: llmConfigured ? "configured" : "missing",
         provider: env.LLM_PROVIDER,
+        // Modello usato dal coach; quello di pianificazione è `LLM_MODEL`.
+        model: llmConfigured ? (env.LLM_MODEL_FAST ?? env.LLM_MODEL ?? null) : null,
       },
     },
   };

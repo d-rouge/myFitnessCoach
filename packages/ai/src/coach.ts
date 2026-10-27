@@ -23,12 +23,24 @@ export interface CoachAdviceInput {
   injuryAlerts?: string[];
 }
 
-export const COACH_PROMPT_VERSION = "coach-advice-v1";
+export const COACH_PROMPT_VERSION = "coach-advice-v2";
 
 export const COACH_SYSTEM_PROMPT = `Sei un preparatore atletico scientifico e pragmatico per la piattaforma health-trainer.
 Analizzi il piano di allenamento della giornata, il check-in mattutino e i marker di readiness.
 Fornisci all'atleta un consiglio chiaro, azionabile ed empatico su come affrontare l'allenamento di oggi.
 Rispetta rigidamente i vincoli di sicurezza: se c'è dolore a un'articolazione o readiness critica, prescrivi prudenza o scarico.`;
+
+/**
+ * Istruzione per il percorso LLM. Deve contenere la parola "json" e un esempio
+ * del formato atteso: sono i due requisiti della JSON mode di DeepSeek.
+ */
+export const COACH_USER_INSTRUCTION = `Analizza i dati dell'atleta e produci il consiglio per la sessione di oggi.
+Rispondi con un unico oggetto JSON valido, senza testo fuori dal JSON.
+Chiavi richieste: headline, readinessSummary, workoutFocus, encouragement (stringhe),
+tips (array di stringhe), caution (stringa opzionale, solo se serve prudenza).
+Non formulare diagnosi mediche. Con dolore riferito, riduci il carico e suggerisci di fermarsi.`;
+
+export const COACH_RESPONSE_EXAMPLE = `{"headline":"Sessione pronta: Corsa Facile 40'","readinessSummary":"Recupero nella norma.","workoutFocus":"Mantieni Z2 e cadenza regolare.","tips":["Riscaldamento 5' di camminata veloce."],"encouragement":"Buon lavoro.","caution":"Se il dolore al ginocchio supera 3/10, interrompi."}`;
 
 export function generateDeterministicCoachAdvice(input: CoachAdviceInput): CoachAdvice {
   const {
@@ -54,9 +66,12 @@ export function generateDeterministicCoachAdvice(input: CoachAdviceInput): Coach
   const tips: string[] = [];
   let caution: string | undefined;
 
-  // Sport-specific tips
-  switch (session.type) {
-    case "run":
+  // Suggerimenti per sport.
+  // Si usa `sport`, non `type`: `type` è una stringa libera che il generatore
+  // valorizza con valori come "aerobic_base"/"long_run", quindi il vecchio
+  // switch su "run"/"cycle" non scattava quasi mai e lasciava `tips` vuoto.
+  switch (session.sport) {
+    case "running":
       tips.push("Riscaldati con 5' di camminata veloce e mobilità delle anche.");
       tips.push(
         "Mantieni una cadenza fluida (170-180 spm) e busto leggermente inclinato in avanti.",
@@ -66,15 +81,14 @@ export function generateDeterministicCoachAdvice(input: CoachAdviceInput): Coach
       tips.push("Esegui 1-2 serie di riscaldamento progressivo prima dei carichi di lavoro.");
       tips.push("Controlla la fase eccentrica e respira costantemente durante ogni ripetizione.");
       break;
-    case "cycle":
+    case "cycling":
       tips.push("Mantieni una cadenza agile (85-95 rpm) per preservare le ginocchia.");
       tips.push("Idratati a piccoli sorsi ogni 15-20 minuti.");
       break;
-    case "swim":
+    case "swimming":
       tips.push("Cura l'allungamento in scivolamento e il rollio del corpo ad ogni bracciata.");
       break;
     case "mobility":
-    case "recovery":
       tips.push(
         "Concentrati sulla respirazione diaframmatica profonda e non forzare gli angoli di movimento.",
       );

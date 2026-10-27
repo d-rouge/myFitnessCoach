@@ -144,12 +144,13 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (198 test)
+npm test                      # unit/contract test (217 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
 npm run spike:garmin          # spike Garmin (aggiungi -- --write per salvare il report)
 npm run spike:yazio           # spike Yazio (credenziali in secrets/yazio.json o .env)
+npm run spike:deepseek        # verifica DeepSeek (--all per provare pro + flash)
 npm run analyze:fit           # scarica l'ultima attività Garmin, parsa il FIT e stampa il brief
 npm run export:workout        # genera file dist/workouts/5x800m-intervals.fit
 ```
@@ -331,12 +332,13 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 198 test verdi (api 63, domain 85, integrations 40, ai 3, config 5, db 2) + 13 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
+- **Test attuali:** 217 test verdi (api 70, ai 15, domain 85, integrations 40, config 5, db 2) + 13 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **Modello atleta (v2):** `profile.experience` è stato rimosso. Al suo posto `profile.history` (cosa hai fatto), `profile.capacity` (cosa sai fare ora) e `profile.experienceTier` **derivato server-side** per lo sport dell'obiettivo primario. Regole in `packages/domain/src/rules/experience.ts`. Dettagli e confine con l'LLM in `docs/MODELLO-ATLETA.md`.
 - **Capacità misurata:** `profile.capacity.source` è `garmin | manual | calibration`. Con `garmin` i numeri vengono ricalcolati dal server dalle attività importate (mai dal client) al salvataggio, in lettura (`GET /baseline`) e alla generazione del piano; senza attività la baseline viene rifiutata con 400. La regola è una sola: `apps/api/src/baseline/measured-capacity.ts`. Con `calibration` la settimana 1 è un test a RPE 4-5 e la capacità viene ri-stimata appena esistono dati.
 - **Giorno dell'atleta:** i contatori ("giorni fa", finestra 28 giorni, streak) usano il fuso della baseline, non UTC. Con `toISOString()` dopo le 22:00 italiane si sbaglia di un giorno. `buildRecentContext()` e `estimateCapacityFromActivities()` accettano `timezone`.
 - **Contesto recente:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produce fatti strutturati (ultima gara/sforzo lungo, giorni di recupero residui, rapporto acuto/cronico, gap). La finestra di recupero finisce in `macroPlan.recoveryWindow` e forza settimane di recupero deterministicamente: l'LLM può spiegarla, non ignorarla.
-- **LLM: non ancora collegato.** Oggi esiste solo `DeterministicCoachProvider` (`packages/ai/src/coach.ts`): nessuna chiamata a un modello, `/api/health` risponde `llm: missing`. La generazione del piano è interamente deterministica. Il disegno di destinazione — dossier atleta, Proposer, Critic, Referee, memoria — è in `docs/ARCHITETTURA-LLM.md`; finché non è implementato, **non descrivere il piano come generato da un LLM**.
+- **LLM: DeepSeek cablato, provider parziale.** `LLM_PROVIDER=deepseek` + `LLM_API_KEY` attivano `DeepSeekProvider` (`packages/ai/src/providers/deepseek.ts`); senza chiave si resta su `DeterministicCoachProvider`. Due modelli: `LLM_MODEL=deepseek-v4-pro` per pianificazione/critica (thinking attivo), `LLM_MODEL_FAST=deepseek-flash` per il coach (senza thinking). Gli altri provider dell'enum **non** hanno un client: restano deterministici. La generazione del piano è ancora interamente deterministica e il coach non consuma `RecentContext`: **non descrivere il piano come generato da un LLM** finché la pipeline di `docs/ARCHITETTURA-LLM.md` non è implementata.
+- **Errori LLM:** `LlmProviderError` espone `status` e `retryable` (401/402 non ritentabili, 429/5xx/risposta vuota ritentabili). La chiave non compare mai nei messaggi né nei log; i fallimenti finiscono in `ai_runs` con `success: false`.
 - **Scarico post-gara: costante provvisoria, riconosciuta sbagliata.** `RECOVERY_RULES` usa 21 giorni per chiunque e `sessionPolicy()` applica la stessa policy a tutti gli sport, quindi nella finestra anche la palestra viene limitata a RPE 6. È corretto per un principiante e troppo conservativo per un amatore avanzato; inoltre lo scarico è per modalità (impatto sì/no, upper body ok, eccentriche pesanti no), non globale. Va sostituito dall'envelope proposto dal Proposer e verificato dal Referee (`docs/ARCHITETTURA-LLM.md` §5).
 - **Un solo macro-piano attivo:** rigenerare chiama `supersedeMacroPlans()`, che cancella il piano precedente e i suoi micro-piani. Senza, due piani con la stessa `startDate` rendono `getCurrentMacroPlan` ambiguo.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.

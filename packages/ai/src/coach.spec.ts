@@ -83,4 +83,23 @@ describe("DeterministicCoachProvider", () => {
     expect(response.data.headline).toContain("Corsa Facile 40'");
     expect(response.usage.outputTokens).toBeGreaterThan(0);
   });
+
+  it("suggerisce qualcosa anche per i tipi di sessione generati dal piano", () => {
+    // `type` è una stringa libera: il generatore usa "aerobic_base", "long_run",
+    // "intervals". I suggerimenti devono dipendere dallo sport, non dal tipo.
+    const generated: PlannedSession = {
+      ...sampleRunSession,
+      type: "aerobic_base",
+      title: "Corsa Facile & Mobilità",
+    };
+
+    const advice = generateDeterministicCoachAdvice({
+      athleteName: "Dario",
+      tone: "direct",
+      session: generated,
+      readinessBand: "optimal",
+    });
+
+    expect(advice.tips.length).toBeGreaterThan(0);
+  });
 });

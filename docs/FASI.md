@@ -157,7 +157,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > La revisione del 27 ottobre 2026 ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato
 > 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
 > due P2 rinviati (AI coach F1-18, scheduler/credenziali F1-19) e l'uso reale.
-> I test unitari (198) e l'e2e multi-utente su MongoDB reale (13 verifiche) sono verdi.
+> I test unitari (217) e l'e2e multi-utente su MongoDB reale (13 verifiche) sono verdi.
 > Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
@@ -179,7 +179,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > (21 giorni, palestra inclusa) ed è sbagliato per atleti esperti e per gli sport
 > non d'impatto.
 
-**Test:** 198 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
+**Test:** 217 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
 `health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 85 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
@@ -192,7 +192,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, password locali hashate con scrypt in `auth_credentials` (mai nel documento `users`), backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`, che rimuove anche le credenziali). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0; account locali F1-24.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 198 test unitari, 13 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 217 test unitari, 13 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
 build API e web complete. **Non coperto:** login Google con credenziali reali (la
 registrazione Google richiede client OAuth e allowlist), export Hevy con chiave reale,
@@ -275,6 +275,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Deterministic Coach Provider offline-first per esecuzione affidabile senza chiavi terze parti.
 - [x] Audit log `ai_runs` con token, latenza, modello e costo USD. _(Solo metadati: manca il payload di proposta e verdetto.)_
 - [x] Endpoint `POST /api/ai/coach-advice` e widget AI Coach nella dashboard.
+- [x] **Collegamento DeepSeek nativo** (27 ottobre 2026): `DeepSeekProvider` con JSON mode, thinking selezionabile, mappatura errori `retryable`, timeout; `deepseek-v4-pro` per pianificazione e `deepseek-flash` per il coach; smoke test `npm run spike:deepseek`. Senza chiave resta il provider deterministico.
 
 #### 1.9 Sicurezza
 
@@ -290,7 +291,7 @@ Ordine vincolante: ogni passo presuppone il precedente.
 
 - [ ] **A. Dossier atleta** (`F1-25`) — `buildAthleteDossier()` deterministico, `GET /api/athlete/dossier`, test sugli scenari reali (maratona 2 giorni fa, rientro dopo 2 anni, ginocchio, zero dati). Nessuna chiave API richiesta.
 - [ ] **B. Schema e provenance** (`F1-26`) — `trainingModel`, `envelope` per modalità, `review`, `generatedBy`; `ai_runs` con il payload; migrazione compatibile dei piani esistenti.
-- [ ] **C. Provider e loop** (`F1-27`) — provider HTTP reale, `PlanProposer`, `PlanCritic`, Referee in codice (solo aritmetica), max 2 revisioni, fallback dichiarato al generatore a regole.
+- [~] **C. Provider e loop** (`F1-27`) — **provider DeepSeek fatto** (JSON mode, thinking, errori ritentabili, timeout, smoke test). Restano `PlanProposer`, `PlanCritic`, Referee in codice, max 2 revisioni, fallback dichiarato.
 - [ ] **D. Valutazione avversariale** (`F1-28`) — `npm run eval:plans` con piani deliberatamente sbagliati che il Critic deve respingere; misurare i falsi negativi prima di ogni altra metrica.
 - [ ] **E. Confronto e memoria** (`F1-29`) — piano LLM e piano a regole affiancati per 2-3 settimane; poi `Reviewer` e `Daily Adjuster` che usano la memoria dei piani.
 - [ ] **Sostituire l'envelope a costante** (`F1-30`) — rimuovere i 21 giorni globali da `RECOVERY_RULES`, introdurre i vincoli per modalità (impatto, upper body, eccentriche pesanti, mobilità). Va fatto prima di dare un envelope al Proposer, altrimenti gli si passa un vincolo sbagliato.
