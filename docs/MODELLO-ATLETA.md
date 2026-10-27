@@ -51,6 +51,11 @@ Questa è la parte **misurabile**, e ha la precedenza su tutto:
 Con `garmin` e nessuna attività importata la baseline viene **rifiutata**
 (`400`), invece di salvare zeri silenziosi.
 
+Le baseline salvate prima della v2 (campo `experience`) vengono normalizzate in
+lettura con `source: "calibration"`: i vecchi numeri non sono considerati
+affidabili, quindi la prima generazione li ri-stima dalle attività e, se non ce
+ne sono, usa la settimana di test.
+
 ### 3. `profile.experienceTier` — derivato, mai chiesto
 
 ```ts

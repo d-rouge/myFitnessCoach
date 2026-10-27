@@ -142,7 +142,7 @@ const LEGACY_CAPACITY: Record<LegacyExperience, CurrentCapacity> = {
     weeklySessions: 0,
     longestRecentSessionMin: 0,
     recent5kSec: null,
-    source: "manual",
+    source: "calibration",
     asOf: null,
   },
   intermediate: {
@@ -150,7 +150,7 @@ const LEGACY_CAPACITY: Record<LegacyExperience, CurrentCapacity> = {
     weeklySessions: 3,
     longestRecentSessionMin: 45,
     recent5kSec: null,
-    source: "manual",
+    source: "calibration",
     asOf: null,
   },
   advanced: {
@@ -158,7 +158,7 @@ const LEGACY_CAPACITY: Record<LegacyExperience, CurrentCapacity> = {
     weeklySessions: 4,
     longestRecentSessionMin: 70,
     recent5kSec: null,
-    source: "manual",
+    source: "calibration",
     asOf: null,
   },
 };

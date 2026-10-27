@@ -144,5 +144,8 @@ describe("experience helpers", () => {
     expect(legacy.history.sports[0]).toMatchObject({ sport: "running", yearsRegular: 2 });
     expect(legacy.capacity.activeWeeks).toBe(12);
     expect(legacy.experienceTier).toBe("trained");
+    // Old numbers are not trusted: the next generation re-estimates from Garmin
+    // and falls back to a calibration week if there is nothing to measure.
+    expect(legacy.capacity.source).toBe("calibration");
   });
 });
