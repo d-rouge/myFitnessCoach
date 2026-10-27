@@ -2,14 +2,19 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 1 completata (Web MVP personale completo) — implementati tutti i componenti del loop:
-- **L0 Onboarding & Baseline:** Wizard 6 step interattivo (`OnboardingWizard.tsx`) con red flags, obiettivi e persistenza Mongo (`athlete_baselines`).
-- **L1–L3 Piani & Esecuzione:** Generatore deterministico macro/micro ciclo multisport (`generateMacroPlan`, `generateMicroPlan`), safety critic per infortuni, board settimanale e card "Oggi" con varianti espresse (15/30 min/cyclette).
-- **Feedback & Adattamento:** Morning check-in rapido (`MorningCheckinCard.tsx`), motore di adattamento dinamico real-time (`computeDailyAdjustment`), tracciamento attività manuale (`/api/activities/manual`) e upload FIT con confronto pianificato vs effettivo (`compareSessionWithActivity`).
-- **L4 Review Settimanale:** Motore deterministico (`computeWeeklyReview`), calcolo aderenza, carico ed eventi dolore, verdetto del coach (continua, progredisci +10%, scarico -30%) e avanzamento al microciclo successivo (`WeeklyReviewCard.tsx`).
-- **AI Coach:** Provider deterministico offline-first (`DeterministicCoachProvider`), prompt versionato (`coach-advice-v1`), tracciamento esecuzioni in `ai_runs` e widget AI Coach.
-- **Export & Portabilità:** Export FIT dinamico per qualsiasi sessione pianificata, export routine palestra Hevy Pro, backup completo JSON e cancellazione totale dati utente (GDPR wipe).
-105 test verdi, typecheck pulito (9 workspace), lint Biome pulito, build di produzione verificata.
+**Stato:** Fase 1 implementata ma **non rilasciabile** — revisione del 27 ottobre 2026 con
+5 problemi bloccanti, 7 gravi e 7 medi ([`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md)).
+Il loop è rotto da namespace utente incompatibili e l'autenticazione è aperta per default.
+Componenti presenti:
+- **L0 Onboarding & Baseline:** Wizard 6 step (`OnboardingWizard.tsx`) con obiettivi e persistenza Mongo (`athlete_baselines`).
+- **L1–L3 Piani & Esecuzione:** Generatore deterministico macro/micro ciclo (`generateMacroPlan`, `generateMicroPlan`), safety critic per il ginocchio, board settimanale e card "Oggi".
+- **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` (non persistito), attività manuale e upload FIT (rotto con file reali).
+- **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
+- **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`.
+- **Export & Portabilità:** FIT dinamico (mapping da correggere), Hevy (payload hardcoded), backup/restore/wipe (non completi).
+
+105 test unitari verdi, typecheck e lint puliti, build verificata. **Nessun test e2e** con
+Mongo reale né verifica multi-utente.
 
 ## Documenti
 
@@ -18,6 +23,7 @@ Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, 
 | [`AGENT.md`](AGENT.md) | Guida per un agente: invarianti, mappa del repo, comandi, cosa non fare |
 | [`docs/PIANO.md`](docs/PIANO.md) | Prodotto, modello dati, architettura, pipeline AI, sicurezza |
 | [`docs/FASI.md`](docs/FASI.md) | Fasi, task, criteri di accettazione, stato corrente |
+| [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md) | Problemi aperti della Fase 1, evidenze e piano di fix in parallelo |
 | [`docs/INTEGRAZIONI.md`](docs/INTEGRAZIONI.md) | Garmin, Yazio, Zepp, Hevy, Health Connect, Drive, LLM |
 | [`docs/FIT.md`](docs/FIT.md) | Parsing binario, normalizzazione, ActivityAnalysis e brief compatto per LLM |
 | [`docs/spikes/`](docs/spikes/) | Template e risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy) |

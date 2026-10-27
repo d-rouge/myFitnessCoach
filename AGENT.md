@@ -2,7 +2,7 @@
 
 Guida operativa per un agente che interviene su **health-trainer**. Leggere questo file prima di modificare qualsiasi cosa.
 
-**Aggiornato:** 26 ottobre 2026 (Fase 0 completata).
+**Aggiornato:** 27 ottobre 2026 (revisione Fase 1).
 
 ---
 
@@ -46,7 +46,7 @@ Il loop:
 
 L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del piano e la spiegazione delle scelte.
 
-**Stato attuale (26 ottobre 2026):** Fase 0 completata. Scaffold, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale, generatore workout `.FIT` (`garmin-export.md`), modulo `auth` (Google OAuth allowlist, dev login, `/api/me`, collezione `users`), modulo `export` e 5 spike documentati. Pronti per la **Fase 1 — Web MVP personale**.
+**Stato attuale (27 ottobre 2026):** Fase 0 completata. La Fase 1 è **implementata ma non rilasciabile**: la revisione ha trovato 5 bloccanti, 7 problemi gravi e 7 medi. Il loop principale è rotto da namespace utente incompatibili (`personal` vs `user_marco`) e l'autenticazione è aperta per default. Dettaglio in [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
 **Non assumere** che un path o una feature esista solo perché è nel piano: verifica nel repository.
 
@@ -57,9 +57,10 @@ L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del pian
 1. `AGENT.md` (questo file)
 2. `docs/PIANO.md` — prodotto, architettura, dominio, AI, sicurezza
 3. `docs/FASI.md` — fase corrente, task, criteri di accettazione
-4. `docs/INTEGRAZIONI.md` — Garmin, Yazio, Zepp, Hevy, Health Connect, Drive
-5. `docs/spikes/` — risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy)
-6. `README.md` — avvio rapido
+4. `docs/REVIEW-FASE-1.md` — problemi aperti della Fase 1 e piano di fix
+5. `docs/INTEGRAZIONI.md` — Garmin, Yazio, Zepp, Hevy, Health Connect, Drive
+6. `docs/spikes/` — risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy)
+7. `README.md` — avvio rapido
 
 Se un documento contraddice un altro, **vince `PIANO.md`** per l'architettura e `FASI.md` per la priorità. Segnala la contraddizione e aggiorna i documenti.
 
@@ -83,6 +84,7 @@ scripts/
 docs/
   PIANO.md
   FASI.md
+  REVIEW-FASE-1.md          problemi aperti Fase 1 + piano di fix
   INTEGRAZIONI.md
   FIT.md
   spikes/                   risultati reali (template + registro)
@@ -111,9 +113,13 @@ packages/
 
 Leggere `docs/FASI.md`. La **Fase 0 — Spike e fondamenta** è completata.
 
-Tutti gli spike hanno prodotto un verdetto documentato in `docs/spikes/` (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`).
+La **Fase 1 — Web MVP personale** è implementata nelle feature ma **non è chiusa**:
+prima di aggiungere funzionalità vanno risolti i problemi P0/P1 di
+[`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md). In particolare: autenticazione unica,
+versioning baseline, validazione input, semantica review/check-in, export e safety.
 
-**Prossimo passo:** avvio della **Fase 1 — Web MVP personale** (onboarding wizard, feasibility check, generazione macro/micro, check-in e review).
+**Prossimo passo:** chiudere i bloccanti della Fase 1 seguendo le onde di lavoro del
+documento di revisione, poi il test d'uso reale di 14 giorni.
 
 ---
 
@@ -126,7 +132,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (65 test)
+npm test                      # unit/contract test (105 test, nessun e2e)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
 npm run spike:garmin          # spike Garmin (aggiungi -- --write per salvare il report)
