@@ -87,4 +87,28 @@ describe("ExportController Hevy validation", () => {
       NotFoundException,
     );
   });
+
+  it("forwards the UI-supplied Hevy key to the API", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+      ok: true,
+      json: async () => ({ routine: { id: "routine_1" } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await controller.exportToHevy(user, {
+        sessionId: "sess_strength",
+        apiKey: "user-supplied-key",
+      });
+
+      expect(result.success).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const init = fetchMock.mock.calls[0]?.[1];
+      if (!init) throw new Error("fetch non è stata chiamata con un init");
+      expect((init.headers as Record<string, string>)["api-key"]).toBe("user-supplied-key");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

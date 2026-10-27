@@ -90,6 +90,19 @@ export function validatePlannedSession(
     });
   }
 
+  const plannedMinutes = session.blocks.reduce(
+    (total, block) =>
+      total + block.repeat * block.steps.reduce((sum, step) => sum + (step.durationMin ?? 0), 0),
+    0,
+  );
+  if (plannedMinutes > session.durationMin) {
+    issues.push({
+      code: "session_blocks_overflow",
+      message: `Blocks plan ${plannedMinutes} min but the session lasts ${session.durationMin} min.`,
+      severity: "error",
+    });
+  }
+
   const normalized = new Set(restrictions.map((item) => item.toLowerCase()));
   for (const contraindication of session.contraindications) {
     if (normalized.has(contraindication.toLowerCase())) {

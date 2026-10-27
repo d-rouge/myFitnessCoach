@@ -59,9 +59,11 @@ describe("AuthService", () => {
   it("detects whether Google auth is configured", () => {
     const unconfigured = new AuthService(createMockEnv({ GOOGLE_CLIENT_ID: undefined }), mockMongo);
     expect(unconfigured.isGoogleAuthConfigured()).toBe(false);
+    expect(unconfigured.getGoogleClientId()).toBeNull();
 
     const configured = new AuthService(createMockEnv(), mockMongo);
     expect(configured.isGoogleAuthConfigured()).toBe(true);
+    expect(configured.getGoogleClientId()).toBe("client-id-123");
   });
 
   it("performs devLogin and creates verifiable session token", async () => {

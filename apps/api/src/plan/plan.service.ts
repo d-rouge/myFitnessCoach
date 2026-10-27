@@ -8,6 +8,8 @@ import {
   updatePlannedSession,
 } from "@health-trainer/db";
 import {
+  assessSafety,
+  type Baseline,
   generateMacroPlan,
   generateMicroPlan,
   type MacroPlan,
@@ -15,6 +17,7 @@ import {
   type PlannedSession,
   PlannedSessionSchema,
   type SessionAlternative,
+  todayLocalDate,
 } from "@health-trainer/domain";
 import {
   BadRequestException,
@@ -23,6 +26,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { getUserTimeZone } from "../common/user-timezone.js";
 import { MongoService } from "../database/mongo.service.js";
 
 @Injectable()
@@ -43,6 +47,26 @@ export class PlanService {
     return new BadRequestException(error instanceof Error ? error.message : String(error));
   }
 
+  /**
+   * Safety gate for plan generation. Absolute red flags and a missing PAR-Q
+   * clearance stop the generator before any plan is written.
+   */
+  private assertSafeToPlan(baseline: Baseline): void {
+    const safety = assessSafety({ anamnesis: baseline.anamnesis });
+
+    if (safety.severity === "block") {
+      throw new BadRequestException(
+        `Generazione del piano bloccata per motivi di sicurezza: ${safety.reasons.join("; ")}. Consulta un medico prima di procedere.`,
+      );
+    }
+
+    if (safety.requiresMedicalClearance) {
+      throw new BadRequestException(
+        "Idoneità medica richiesta: completa il PAR-Q o ottieni il nullaosta medico prima di generare il piano.",
+      );
+    }
+  }
+
   async getMacroPlan(userId: string): Promise<MacroPlan | null> {
     const db = await this.db();
     return getCurrentMacroPlan(db, userId);
@@ -59,6 +83,8 @@ export class PlanService {
         "Nessuna baseline attiva trovata. Completa prima l'onboarding per generare il piano.",
       );
     }
+
+    this.assertSafeToPlan(baseline);
 
     let macroPlan: MacroPlan;
     let microPlan: MicroPlan;
@@ -101,6 +127,8 @@ export class PlanService {
       );
     }
 
+    this.assertSafeToPlan(baseline);
+
     let microPlan: MicroPlan;
     try {
       microPlan = generateMicroPlan(baseline, macroPlan, weekIndex);
@@ -116,18 +144,21 @@ export class PlanService {
 
   async getTodaySession(userId: string): Promise<{
     today: string;
+    timeZone: string;
     session: PlannedSession | null;
     alternatives: SessionAlternative[];
     microPlanId?: string;
     isRestDay: boolean;
   }> {
     const db = await this.db();
-    const today = new Date().toISOString().slice(0, 10);
+    const timeZone = await getUserTimeZone(db, userId);
+    const today = todayLocalDate(timeZone);
 
     const microPlan = await getCurrentMicroPlan(db, userId);
     if (!microPlan) {
       return {
         today,
+        timeZone,
         session: null,
         alternatives: [],
         isRestDay: true,
@@ -138,6 +169,7 @@ export class PlanService {
 
     return {
       today,
+      timeZone,
       session,
       alternatives: session?.alternatives ?? [],
       microPlanId: microPlan.id,

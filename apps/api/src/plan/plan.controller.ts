@@ -1,5 +1,14 @@
 import type { User } from "@health-trainer/domain";
-import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
 import {
@@ -20,7 +29,11 @@ export class PlanController {
 
   @Get("macro")
   async getMacro(@CurrentUser() user: User) {
-    return this.planService.getMacroPlan(user.id);
+    const macroPlan = await this.planService.getMacroPlan(user.id);
+    if (!macroPlan) {
+      throw new NotFoundException("Nessun macro-piano attivo trovato.");
+    }
+    return macroPlan;
   }
 
   @Post("macro/generate")
@@ -36,7 +49,11 @@ export class PlanController {
     @CurrentUser() user: User,
     @Query(new ZodValidationPipe(MicroQuerySchema)) query: MicroQueryInput,
   ) {
-    return this.planService.getMicroPlan(user.id, query.weekIndex);
+    const microPlan = await this.planService.getMicroPlan(user.id, query.weekIndex);
+    if (!microPlan) {
+      throw new NotFoundException("Nessun micro-piano attivo trovato.");
+    }
+    return microPlan;
   }
 
   @Post("micro/generate")

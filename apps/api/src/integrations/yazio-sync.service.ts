@@ -11,10 +11,12 @@ import {
   upsertNutrition,
 } from "@health-trainer/db";
 import {
+  addDaysIso,
   type DailyMetrics,
   DailyMetricsSchema,
   type NutritionDaily,
   NutritionDailySchema,
+  todayLocalDate,
 } from "@health-trainer/domain";
 import {
   mapYazioDailyNutrients,
@@ -24,6 +26,7 @@ import {
   mapYazioWeight,
 } from "@health-trainer/integrations";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { getUserTimeZone } from "../common/user-timezone.js";
 import { PERSONAL_USER_ID } from "../config/constants.js";
 import { MongoService } from "../database/mongo.service.js";
 import { YazioService } from "./yazio.service.js";
@@ -64,26 +67,16 @@ export interface YazioOverview {
 
 type SafeResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-const isoDay = (date: Date): string => date.toISOString().slice(0, 10);
+const todayIso = (timeZone: string): string => todayLocalDate(timeZone);
 
-const todayIso = (): string => isoDay(new Date());
-
-const daysAgoIso = (days: number): string => {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return isoDay(date);
-};
+const daysAgoIso = (days: number, timeZone: string): string =>
+  addDaysIso(todayLocalDate(timeZone), -days);
 
 const eachDate = (from: string, to: string): string[] => {
   const dates: string[] = [];
-  const current = new Date(`${from}T00:00:00Z`);
-  const end = new Date(`${to}T00:00:00Z`);
-
-  while (current <= end) {
-    dates.push(isoDay(current));
-    current.setUTCDate(current.getUTCDate() + 1);
+  for (let current = from; current <= to; current = addDaysIso(current, 1)) {
+    dates.push(current);
   }
-
   return dates;
 };
 
@@ -160,8 +153,9 @@ export class YazioSyncService {
     const db = await this.db();
     const userId = PERSONAL_USER_ID;
     const provider = YAZIO_PROVIDER;
-    const to = todayIso();
-    const from = daysAgoIso(syncDays - 1);
+    const timeZone = await getUserTimeZone(db, userId);
+    const to = todayIso(timeZone);
+    const from = daysAgoIso(syncDays - 1, timeZone);
     const fetchedAt = new Date().toISOString();
     const errors: string[] = [];
 

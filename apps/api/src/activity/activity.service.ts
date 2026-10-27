@@ -10,6 +10,7 @@ import {
   type PlannedSession,
   type SessionComparisonResult,
   type Sport,
+  todayLocalDate,
 } from "@health-trainer/domain";
 import { extractFitActivity, parseFitFile } from "@health-trainer/integrations";
 import {
@@ -18,6 +19,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { getUserTimeZone } from "../common/user-timezone.js";
 import { MongoService } from "../database/mongo.service.js";
 
 export interface ManualActivityInput {
@@ -63,7 +65,8 @@ export class ActivityService {
     }
 
     const db = await this.db();
-    const todayStr = input.date || new Date().toISOString().slice(0, 10);
+    const timeZone = await getUserTimeZone(db, userId);
+    const todayStr = input.date || todayLocalDate(timeZone);
     const microPlan = await getCurrentMicroPlan(db, userId);
 
     let session: PlannedSession | undefined;
@@ -146,6 +149,7 @@ export class ActivityService {
 
     const microPlan = await getCurrentMicroPlan(db, userId);
     const session = microPlan?.sessions.find((s) => s.status !== "completed");
+    const timeZone = await getUserTimeZone(db, userId);
 
     const activity: Activity = {
       userId,
@@ -153,7 +157,7 @@ export class ActivityService {
       externalId,
       sport: analysis.sport,
       start: analysis.summary.startTime || `${analysis.date}T10:00:00.000Z`,
-      localDate: analysis.date || new Date().toISOString().slice(0, 10),
+      localDate: analysis.date || todayLocalDate(timeZone),
       durationSec: analysis.summary.durationSec,
       distanceM: analysis.summary.distanceM,
       avgHr: analysis.summary.avgHr,

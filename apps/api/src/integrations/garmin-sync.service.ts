@@ -13,7 +13,12 @@ import {
   upsertActivityAnalysis,
   upsertDailyMetrics,
 } from "@health-trainer/db";
-import type { ActivityAnalysis, DailyMetrics } from "@health-trainer/domain";
+import {
+  type ActivityAnalysis,
+  addDaysIso,
+  type DailyMetrics,
+  todayLocalDate,
+} from "@health-trainer/domain";
 import {
   buildGarminDailyMetrics,
   type DatedGarminRaw,
@@ -21,6 +26,7 @@ import {
   parseGarminActivityZip,
 } from "@health-trainer/integrations";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { getUserTimeZone } from "../common/user-timezone.js";
 import { GARMIN_PROVIDER, PERSONAL_USER_ID } from "../config/constants.js";
 import { MongoService } from "../database/mongo.service.js";
 import { GarminService } from "./garmin.service.js";
@@ -68,26 +74,16 @@ export interface GarminOverview {
 
 type SafeResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-const isoDay = (date: Date): string => date.toISOString().slice(0, 10);
+const todayIso = (timeZone: string): string => todayLocalDate(timeZone);
 
-const todayIso = (): string => isoDay(new Date());
-
-const daysAgoIso = (days: number): string => {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return isoDay(date);
-};
+const daysAgoIso = (days: number, timeZone: string): string =>
+  addDaysIso(todayLocalDate(timeZone), -days);
 
 const eachDate = (from: string, to: string): string[] => {
   const dates: string[] = [];
-  const current = new Date(`${from}T00:00:00Z`);
-  const end = new Date(`${to}T00:00:00Z`);
-
-  while (current <= end) {
-    dates.push(isoDay(current));
-    current.setUTCDate(current.getUTCDate() + 1);
+  for (let current = from; current <= to; current = addDaysIso(current, 1)) {
+    dates.push(current);
   }
-
   return dates;
 };
 
@@ -151,8 +147,9 @@ export class GarminSyncService {
     const db = await this.db();
     const userId = PERSONAL_USER_ID;
     const provider = GARMIN_PROVIDER;
-    const to = todayIso();
-    const from = daysAgoIso(syncDays - 1);
+    const timeZone = await getUserTimeZone(db, userId);
+    const to = todayIso(timeZone);
+    const from = daysAgoIso(syncDays - 1, timeZone);
     const fetchedAt = new Date().toISOString();
     const errors: string[] = [];
 
@@ -170,7 +167,7 @@ export class GarminSyncService {
         client.searchActivities({ start: 0, limit: 100, startDate: from, endDate: to }),
         client.getDailySummaries(from, to),
         client.getBodyBattery(from, to),
-        client.getWeightMeasurements(daysAgoIso(Math.max(syncDays, 30)), to),
+        client.getWeightMeasurements(daysAgoIso(Math.max(syncDays, 30), timeZone), to),
       ]);
 
       const activities = mapGarminActivities(activitiesRaw, {

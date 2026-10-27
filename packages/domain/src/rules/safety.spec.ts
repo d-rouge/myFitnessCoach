@@ -59,6 +59,37 @@ describe("safety", () => {
     expect(result.severity).toBe("caution");
   });
 
+  it("requests medical clearance when PAR-Q is not passed", () => {
+    const result = assessSafety({
+      anamnesis: {
+        conditions: [],
+        medications: [],
+        injuries: [],
+        redFlags: [],
+        parqCleared: false,
+      },
+    });
+
+    expect(result.severity).toBe("caution");
+    expect(result.requiresMedicalClearance).toBe(true);
+    expect(result.reasons.join(" ")).toMatch(/PAR-Q/i);
+  });
+
+  it("requires medical clearance for absolute red flags", () => {
+    const result = assessSafety({
+      anamnesis: {
+        conditions: [],
+        medications: [],
+        injuries: [],
+        redFlags: ["dolore toracico"],
+        parqCleared: true,
+      },
+    });
+
+    expect(result.severity).toBe("block");
+    expect(result.requiresMedicalClearance).toBe(true);
+  });
+
   it("filters contraindicated sessions", () => {
     const result = filterContraindicatedSessions([baseSession], ["knee_pain_acute"]);
 

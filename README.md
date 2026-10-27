@@ -2,24 +2,27 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 1 implementata e **Onda 1 chiusa**. WS-0 (autenticazione JWT unica,
-config sicura, validazione Zod, upload FIT) e Onda 1 (baseline/versioning, semantica
-review/check-in, export FIT/Hevy, backup/restore/wipe) sono completati e verificati a
-runtime. Restano i P1 di Onda 2 (safety F1-11, generatore F1-12), i P2 (timezone, UI
-auth/Hevy, AI coach, scheduler) e l'e2e con Mongo reale
+**Stato:** Fase 1 **funzionalmente completa** e **Onda 2 chiusa**. WS-0 (autenticazione
+JWT unica, config sicura, validazione Zod, upload FIT), Onda 1 (baseline/versioning,
+review/check-in, export FIT/Hevy, backup/restore/wipe) e Onda 2 (safety, generatore
+goal/sport/durata, timezone, login Google/logout e chiave Hevy in UI, e2e multi-utente)
+sono completati e verificati a runtime. Restano rinviati due P2 (AI coach allineato ai
+tipi reali, scheduler/credenziali cifrate) e la validazione d'uso reale di 14 giorni
 ([`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md)).
 
 Componenti presenti:
-- **L0 Onboarding & Baseline:** Wizard 6 step (`OnboardingWizard.tsx`) con obiettivi e persistenza Mongo (`athlete_baselines`).
-- **L1–L3 Piani & Esecuzione:** Generatore deterministico macro/micro ciclo (`generateMacroPlan`, `generateMicroPlan`), safety critic per il ginocchio, board settimanale e card "Oggi".
+- **L0 Onboarding & Baseline:** Wizard 6 step (`OnboardingWizard.tsx`) con obiettivi, red flag/infortuni e persistenza Mongo (`athlete_baselines`).
+- **L1–L3 Piani & Esecuzione:** Generatore deterministico goal/sport/durata (`generateMacroPlan`, `generateMicroPlan`), safety gate che blocca la generazione su red flag/PAR-Q, board settimanale e card "Oggi" con date nel timezone dell'atleta.
 - **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` con sessione adattata persistita (durata, RPE, blocchi, note), attività manuale e upload FIT con validazione firma/dimensione.
 - **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
 - **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`.
 - **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
+- **Auth UI:** login Google (Google Identity Services) o dev login, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
 
-130 test unitari verdi, typecheck e lint puliti, build verificata. **Nessun test e2e** con
-Mongo reale né verifica multi-utente: le verifiche di Onda 1 sono state fatte a runtime
-su un database temporaneo (poi eliminato).
+148 test unitari e 9 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
+temporaneo), typecheck e lint puliti, build verificata. **Non verificato:** login Google
+con credenziali reali, export Hevy con chiave reale, import `.FIT` su Garmin Connect,
+sync automatico, uso reale di 14 giorni.
 
 ## Documenti
 
@@ -79,7 +82,8 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (130 test)
+npm test                 # unit + contract test (148 test)
+npm run test:e2e         # e2e multi-utente su MongoDB reale (`*_e2e`, poi pulito)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
 npm run spike:garmin     # spike Garmin Personal API
@@ -179,6 +183,25 @@ L'API include il modulo `auth` con:
 - `JWT_SECRET` obbligatorio e di almeno 32 caratteri fuori da `NODE_ENV=test`: senza
   di esso l'API non parte.
 - Persistenza automatica del profilo in MongoDB (`users`).
+- `GET /api/auth/status` espone `googleClientId` (se configurato) e
+  `devLoginEnabled`: la web app mostra il bottone Google Identity Services e nasconde il
+  dev login quando disabilitato. Il logout è esplicito e impedisce il dev auto-login.
+- La chiave API Hevy può essere inserita dalla board della sessione di forza: resta nel
+  `localStorage` del browser e viene inviata solo con l'export (fallback server
+  `HEVY_API_KEY`).
+
+## Test end-to-end
+
+```bash
+npm run test:e2e
+```
+
+Avvia l'API su una porta dedicata con `ENABLE_DEV_ENDPOINTS=false`, firma due JWT e
+verifica contro MongoDB reale: 401 senza token, identità distinte, baseline/piani
+isolati, PATCH ed export FIT cross-utente respinti con 404, check-in e backup separati,
+404 per piani assenti. Usa `E2E_MONGODB_URI` (default
+`mongodb://127.0.0.1:27017/health_trainer_e2e`), rifiuta database che non terminano con
+`_e2e` e li elimina a fine corsa.
 
 ## Stack
 
@@ -206,7 +229,7 @@ docs            piano, fasi, integrazioni, spike
 ## Integrazioni iniziali
 
 - Garmin Personal API (pull: attività, sonno, HRV, peso)
-- Yazio (API non ufficiale v15: nutrizione, peso)
+- Yazio (API non ufficiale v22: nutrizione, peso)
 - Zepp (peso, opzionale)
 - Hevy (export routine palestra)
 - Garmin `.FIT` (export workout corsa/bici/nuoto)

@@ -17,6 +17,7 @@
     "dev:web": "npm run dev -w @health-trainer/web",
     "test": "npm run build:packages && npm run test --workspaces --if-present",
     "test:watch": "npm run test:watch --workspaces --if-present",
+    "test:e2e": "npm run build:packages && npm run build -w @health-trainer/api && tsx scripts/e2e-api.ts",
     "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present && npm run typecheck:scripts",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
     "lint": "biome check .",

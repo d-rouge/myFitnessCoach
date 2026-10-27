@@ -10,7 +10,7 @@ import {
   getCurrentMicroPlan,
   getRecentCheckins,
 } from "@health-trainer/db";
-import type { PlannedSession } from "@health-trainer/domain";
+import { type PlannedSession, resolveTimeZone, todayLocalDate } from "@health-trainer/domain";
 import {
   BadRequestException,
   Injectable,
@@ -59,7 +59,7 @@ export class AiService {
 
     // Check recent checkin
     const recentCheckins = await getRecentCheckins(db, userId, 2);
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayLocalDate(resolveTimeZone(baseline?.profile.timezone));
     const todayCheckin = recentCheckins.find((c) => c.date === todayStr);
 
     const athleteName = baseline?.userId ? `Atleta` : "Atleta";

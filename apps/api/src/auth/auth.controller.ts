@@ -25,6 +25,7 @@ export class AuthController {
   getStatus() {
     return {
       googleConfigured: this.auth.isGoogleAuthConfigured(),
+      googleClientId: this.auth.getGoogleClientId(),
       allowedEmailsCount: this.auth.getAllowedEmails().length,
       devLoginEnabled: this.auth.devLoginEnabled(),
     };

@@ -1,7 +1,25 @@
-import { beginnerPersona } from "@health-trainer/domain";
-import { describe, expect, it } from "vitest";
+import { type Baseline, beginnerPersona } from "@health-trainer/domain";
+import { describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
 import { PlanService } from "./plan.service.js";
+
+function mongoWithBaseline(baseline: Baseline): MongoService {
+  return {
+    getDb: async () => ({
+      collection: () => ({
+        findOne: async (query: { userId?: string }) =>
+          query.userId === baseline.userId ? baseline : null,
+        find: (query: { userId?: string }) => ({
+          sort: () => ({
+            limit: () => ({
+              next: async () => (query.userId === baseline.userId ? baseline : null),
+            }),
+          }),
+        }),
+      }),
+    }),
+  } as unknown as MongoService;
+}
 
 describe("PlanService", () => {
   it("throws BadRequestException when generating plan without baseline", async () => {
@@ -28,6 +46,7 @@ describe("PlanService", () => {
     const mockMongo = {
       getDb: async () => ({
         collection: () => ({
+          findOne: async () => null,
           find: () => ({
             sort: () => ({
               limit: () => ({
@@ -45,6 +64,41 @@ describe("PlanService", () => {
     expect(today.isRestDay).toBe(true);
     expect(today.session).toBeNull();
     expect(today.alternatives).toHaveLength(0);
+  });
+
+  it("computes today in the athlete timezone, not in UTC", async () => {
+    const baseline: Baseline = {
+      ...beginnerPersona,
+      profile: { ...beginnerPersona.profile, timezone: "Europe/Rome" },
+    };
+
+    const mockMongo = {
+      getDb: async () => ({
+        collection: (name: string) => ({
+          findOne: async (query: { userId?: string }) =>
+            name === "athlete_baselines" && query.userId === baseline.userId ? baseline : null,
+          find: () => ({
+            sort: () => ({
+              limit: () => ({
+                next: async () => null,
+              }),
+            }),
+          }),
+        }),
+      }),
+    } as unknown as MongoService;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-27T23:30:00Z"));
+    try {
+      const service = new PlanService(mockMongo);
+      const today = await service.getTodaySession(baseline.userId);
+
+      expect(today.timeZone).toBe("Europe/Rome");
+      expect(today.today).toBe("2026-10-28");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("generates macro plan and week 1 micro plan when baseline exists", async () => {
@@ -91,5 +145,36 @@ describe("PlanService", () => {
     expect(result.microPlan.sessions.length).toBe(beginnerPersona.availability.days.length);
     expect(memoryDocs.athlete_macro_plans.length).toBeGreaterThan(0);
     expect(memoryDocs.athlete_micro_plans.length).toBeGreaterThan(0);
+  });
+
+  it("blocks plan generation when absolute red flags are declared", async () => {
+    const unsafe: Baseline = {
+      ...beginnerPersona,
+      anamnesis: {
+        ...beginnerPersona.anamnesis,
+        redFlags: ["dolore toracico"],
+        parqCleared: true,
+      },
+    };
+
+    const service = new PlanService(mongoWithBaseline(unsafe));
+
+    await expect(service.generateMacroPlan(unsafe.userId)).rejects.toThrow(/sicurezza/i);
+    await expect(service.generateMacroPlan(unsafe.userId)).rejects.toThrow(/dolore toracico/i);
+  });
+
+  it("blocks plan generation when PAR-Q clearance is missing", async () => {
+    const unclear: Baseline = {
+      ...beginnerPersona,
+      anamnesis: {
+        ...beginnerPersona.anamnesis,
+        redFlags: [],
+        parqCleared: false,
+      },
+    };
+
+    const service = new PlanService(mongoWithBaseline(unclear));
+
+    await expect(service.generateMacroPlan(unclear.userId)).rejects.toThrow(/PAR-Q/i);
   });
 });

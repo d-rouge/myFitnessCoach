@@ -28,21 +28,21 @@
 | Area | Stato |
 |---|---|
 | Monorepo npm workspaces | fatto |
-| Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator) | fatto, 20 test |
-| Client Garmin Personal + mapper + test di contratto | fatto, 11 test |
+| Dominio Zod + regole (readiness, load, feasibility, progression, safety, validator, date/timezone) | fatto, 56 test |
+| Client Garmin Personal + mapper + test di contratto | fatto, 40 test nel pacchetto integrations |
 | Spike Garmin con chiave reale | fatto (6 attività, daily metrics, Body Battery, RHR, SpO₂, `.FIT`); peso 0 |
 | Sync Garmin persistente (attività + metriche) | fatto (3 attività, 7 giorni, idempotente) |
 | Yazio client v22 + mapper + sync + UI | fatto; **test reale OK** (7 giorni, peso); supporto refresh token per Google |
 | FIT parser + ActivityAnalysis + brief LLM | fatto (FIT reale: 17.492 record → brief ~2 KB) |
 | Garmin workout `.FIT` export | fatto (encoder con `@garmin/fitsdk`, test validati con Decoder ufficiale, script e endpoint download) |
-| Modulo Auth Google / Dev e `/api/me` | fatto (NestJS `AuthModule`, allowlist email, sessione JWT, collezione `users` Mongo) |
+| Modulo Auth Google / Dev e `/api/me` | fatto (NestJS `AuthModule`, allowlist email, sessione JWT, collezione `users` Mongo, login Google/dev e logout nella UI) |
 | Spike documentati con verdetto | fatto (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`) |
 | API NestJS `health` + Garmin/Yazio `sync`/`overview` + `export` + `auth` | fatto |
 | Web React/Vite con dati Garmin + nutrizione Yazio + export FIT + profilo atleta | fatto |
-| Test totali | 65 verdi |
+| Test totali | 148 unitari + 9 verifiche e2e su MongoDB reale |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
-| Prossimi passi | Fase 1 — Onboarding wizard, feasibility check e primo loop di coaching |
+| Prossimi passi | Fase 1 funzionalmente completa; validazione d'uso di 14 giorni, poi F1-18/F1-19 o Fase 2 |
 
 **Cosa resta valido dalla v0.1** (è il cuore del progetto):
 

@@ -1,4 +1,9 @@
-import type { Checkin, DailyAdjustmentResult } from "@health-trainer/domain";
+import {
+  type Checkin,
+  type DailyAdjustmentResult,
+  resolveTimeZone,
+  todayLocalDate,
+} from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -35,7 +40,11 @@ async function submitCheckin(data: Checkin): Promise<{
   }>;
 }
 
-export function MorningCheckinCard() {
+interface MorningCheckinCardProps {
+  timeZone?: string | null;
+}
+
+export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
   const queryClient = useQueryClient();
   const todayCheckin = useQuery({
     queryKey: ["today-checkin"],
@@ -65,7 +74,9 @@ export function MorningCheckinCard() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const today = new Date().toISOString().slice(0, 10);
+    // Prefer the date computed by the API in the athlete's timezone; fall back
+    // to the same timezone client-side if the query has not resolved yet.
+    const today = todayCheckin.data?.date ?? todayLocalDate(resolveTimeZone(timeZone));
     mutation.mutate({
       date: today,
       type: "morning",

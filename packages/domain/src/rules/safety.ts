@@ -7,6 +7,8 @@ export type SafetySeverity = "ok" | "caution" | "block";
 export interface SafetyAssessment {
   severity: SafetySeverity;
   reasons: string[];
+  /** True when a medical clearance must be obtained before training/planning. */
+  requiresMedicalClearance: boolean;
 }
 
 const ABSOLUTE_RED_FLAGS = [
@@ -31,10 +33,12 @@ export function assessSafety(input: {
 }): SafetyAssessment {
   const reasons: string[] = [];
   let severity: SafetySeverity = "ok";
+  let requiresMedicalClearance = false;
 
   const escalate = (next: SafetySeverity) => {
     const order: Record<SafetySeverity, number> = { ok: 0, caution: 1, block: 2 };
     if (order[next] > order[severity]) severity = next;
+    if (next === "block") requiresMedicalClearance = true;
   };
 
   const anamnesis = input.anamnesis;
@@ -61,6 +65,15 @@ export function assessSafety(input: {
         reasons.push(`Dolore ${injury.painLevel}/10: ${injury.area}`);
       }
     }
+
+    // PAR-Q not passed/declared: training may start only after medical clearance.
+    if (anamnesis.parqCleared === false) {
+      requiresMedicalClearance = true;
+      escalate("caution");
+      reasons.push(
+        "PAR-Q non superato o non compilato: richiedere idoneità medica prima di iniziare.",
+      );
+    }
   }
 
   const checkin = input.checkin;
@@ -83,7 +96,7 @@ export function assessSafety(input: {
     }
   }
 
-  return { severity, reasons };
+  return { severity, reasons, requiresMedicalClearance };
 }
 
 export function filterContraindicatedSessions(

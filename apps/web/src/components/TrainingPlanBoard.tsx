@@ -8,7 +8,7 @@ import type {
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
-import { apiFetch } from "../lib/api";
+import { apiFetch, getHevyApiKey, setHevyApiKey } from "../lib/api";
 import { DownloadButton } from "./DownloadButton";
 import { WeeklyReviewCard } from "./WeeklyReviewCard";
 
@@ -131,11 +131,14 @@ async function uploadFitApi(payload: {
   return res.json() as Promise<{ comparison?: SessionComparisonResult }>;
 }
 
-async function exportHevyApi(sessionId?: string): Promise<{ success: boolean; message: string }> {
+async function exportHevyApi(input: {
+  sessionId?: string;
+  apiKey?: string;
+}): Promise<{ success: boolean; message: string }> {
   const res = await apiFetch("/api/export/workouts/hevy/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify(input),
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
@@ -155,6 +158,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
   const [recordNotes, setRecordNotes] = useState("");
   const [lastComparison, setLastComparison] = useState<SessionComparisonResult | null>(null);
   const [hevyFeedback, setHevyFeedback] = useState<string | null>(null);
+  const [hevyApiKey, setHevyApiKeyState] = useState(() => getHevyApiKey());
 
   const macro = useQuery({ queryKey: ["macro-plan"], queryFn: fetchMacroPlan });
   const micro = useQuery({ queryKey: ["micro-plan"], queryFn: fetchMicroPlan });
@@ -578,6 +582,46 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                   </div>
                 )}
 
+                {today.data.session.sport === "strength" && (
+                  <div className="rounded-2xl border border-purple-400/20 bg-purple-950/10 p-3">
+                    <label
+                      htmlFor="hevy-api-key"
+                      className="block text-[11px] font-semibold uppercase tracking-wider text-purple-200"
+                    >
+                      Chiave API Hevy
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <input
+                        id="hevy-api-key"
+                        type="password"
+                        value={hevyApiKey}
+                        onChange={(event) => setHevyApiKeyState(event.target.value)}
+                        placeholder="Opzionale se HEVY_API_KEY è già sul server"
+                        autoComplete="off"
+                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHevyApiKey(hevyApiKey);
+                          setHevyFeedback(
+                            hevyApiKey.trim()
+                              ? "Chiave Hevy salvata in questo browser."
+                              : "Chiave Hevy rimossa dal browser.",
+                          );
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                      >
+                        Salva chiave
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-4 text-slate-500">
+                      La chiave resta nel browser e viene inviata solo per l&apos;export. Se il
+                      server ha già <code>HEVY_API_KEY</code>, puoi lasciare il campo vuoto.
+                    </p>
+                  </div>
+                )}
+
                 {/* Session Actions & Exports */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
                   <div className="flex flex-wrap items-center gap-2">
@@ -598,7 +642,12 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                     {today.data.session.sport === "strength" && (
                       <button
                         type="button"
-                        onClick={() => exportHevyMutation.mutate(today.data?.session?.id)}
+                        onClick={() =>
+                          exportHevyMutation.mutate({
+                            sessionId: today.data?.session?.id,
+                            apiKey: hevyApiKey.trim() || undefined,
+                          })
+                        }
                         disabled={exportHevyMutation.isPending}
                         className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-3 py-2 text-xs font-semibold text-purple-300 transition hover:bg-purple-400/20 disabled:opacity-50"
                       >

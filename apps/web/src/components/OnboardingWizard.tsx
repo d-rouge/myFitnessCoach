@@ -4,6 +4,7 @@ import {
   type EquipmentItem,
   type Experience,
   type GoalType,
+  type Injury,
   intermediatePersona,
   kneePainPersona,
   type PreferredTrainingTime,
@@ -51,6 +52,23 @@ const EQUIPMENT_OPTIONS: { id: EquipmentItem; label: string }[] = [
   { id: "indoor_bike", label: "Cyclette / Rulli" },
 ];
 
+const RED_FLAGS = [
+  "dolore toracico",
+  "sincope o vertigini",
+  "ipertensione non controllata",
+  "chirurgia recente",
+  "sospetta frattura da stress",
+  "disturbo alimentare attivo",
+  "febbre o infezione in corso",
+];
+
+const INJURY_STATUSES: Array<{ id: Injury["status"]; label: string }> = [
+  { id: "acute", label: "Acuto" },
+  { id: "recovering", label: "In recupero" },
+  { id: "chronic", label: "Cronico" },
+  { id: "resolved", label: "Risolto" },
+];
+
 export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: OnboardingWizardProps) {
   const [step, setStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,6 +83,11 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
       userId: "personal",
     };
   });
+  const [injuryDraft, setInjuryDraft] = useState<{
+    area: string;
+    status: Injury["status"];
+    painLevel: number;
+  }>({ area: "", status: "recovering", painLevel: 3 });
 
   const loadPersona = (persona: Baseline) => {
     setBaseline({
@@ -112,6 +135,38 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
       ...baseline,
       equipment: { ...baseline.equipment, items: next },
     });
+  };
+
+  const handleRedFlagToggle = (flag: string) => {
+    const current = baseline.anamnesis.redFlags;
+    const next = current.includes(flag)
+      ? current.filter((item) => item !== flag)
+      : [...current, flag];
+    setBaseline({
+      ...baseline,
+      anamnesis: { ...baseline.anamnesis, redFlags: next },
+    });
+  };
+
+  const handleAddInjury = () => {
+    const area = injuryDraft.area.trim();
+    if (!area) return;
+    setBaseline({
+      ...baseline,
+      anamnesis: {
+        ...baseline.anamnesis,
+        injuries: [
+          ...baseline.anamnesis.injuries,
+          {
+            area,
+            status: injuryDraft.status,
+            painLevel: injuryDraft.painLevel,
+            restrictions: [],
+          },
+        ],
+      },
+    });
+    setInjuryDraft({ area: "", status: "recovering", painLevel: 3 });
   };
 
   const handleSubmit = async () => {
@@ -360,10 +415,95 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
               </label>
             </div>
 
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <span className="block text-xs font-semibold text-amber-300">
+                Red flag medici (richiedono parere medico)
+              </span>
+              <p className="mt-1 text-xs text-slate-400">
+                Seleziona ciò che ti riguarda: con un red flag attivo il piano non verrà generato.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {RED_FLAGS.map((flag) => {
+                  const active = baseline.anamnesis.redFlags.includes(flag);
+                  return (
+                    <button
+                      key={flag}
+                      type="button"
+                      onClick={() => handleRedFlagToggle(flag)}
+                      className={cn(
+                        "rounded-xl px-3 py-2 text-xs font-medium transition",
+                        active
+                          ? "bg-rose-500 font-bold text-white"
+                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {flag}
+                    </button>
+                  );
+                })}
+              </div>
+              {baseline.anamnesis.redFlags.length > 0 ? (
+                <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+                  Hai dichiarato {baseline.anamnesis.redFlags.length} red flag: la generazione del
+                  piano resterà bloccata finché non avrai un nullaosta medico.
+                </p>
+              ) : null}
+            </div>
+
             <div>
               <span className="block text-xs font-semibold text-slate-300">
                 Infortuni, dolori o risentimenti attivi
               </span>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                <input
+                  type="text"
+                  value={injuryDraft.area}
+                  onChange={(event) => setInjuryDraft({ ...injuryDraft, area: event.target.value })}
+                  placeholder="Zona (es. ginocchio dx)"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
+                />
+                <select
+                  value={injuryDraft.status}
+                  onChange={(event) =>
+                    setInjuryDraft({
+                      ...injuryDraft,
+                      status: event.target.value as Injury["status"],
+                    })
+                  }
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
+                >
+                  {INJURY_STATUSES.map((status) => (
+                    <option key={status.id} value={status.id}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Dolore
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={injuryDraft.painLevel}
+                    onChange={(event) =>
+                      setInjuryDraft({
+                        ...injuryDraft,
+                        painLevel: Math.max(0, Math.min(10, Number(event.target.value) || 0)),
+                      })
+                    }
+                    className="w-12 bg-transparent text-center text-white"
+                  />
+                  /10
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAddInjury}
+                  disabled={injuryDraft.area.trim().length === 0}
+                  className="rounded-xl bg-lime-400 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
+                >
+                  Aggiungi
+                </button>
+              </div>
               {baseline.anamnesis.injuries.length === 0 ? (
                 <p className="mt-2 text-xs text-slate-500">Nessun infortunio dichiarato.</p>
               ) : (

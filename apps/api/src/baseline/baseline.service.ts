@@ -63,6 +63,20 @@ export class BaselineService {
       userId,
     };
 
+    // Safety is always evaluated on save so the risk is recorded in logs and
+    // surfaced by plan generation. Saving is allowed: the athlete must be able
+    // to store red flags/injuries, and blocking here would make them lose data.
+    const safety = assessSafety({ anamnesis: data.anamnesis });
+    if (safety.severity === "block") {
+      this.logger.warn(
+        `Baseline con red flag per utente ${userId}: ${safety.reasons.join("; ")}. La generazione del piano sarà bloccata.`,
+      );
+    } else if (safety.requiresMedicalClearance) {
+      this.logger.warn(
+        `PAR-Q non superato per utente ${userId}: richiesta idoneità medica prima del piano.`,
+      );
+    }
+
     const db = await this.db();
     this.logger.log(`Salvataggio baseline per utente ${userId}`);
     return saveBaseline(db, data);

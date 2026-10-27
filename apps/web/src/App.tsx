@@ -8,10 +8,19 @@ import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { DownloadButton } from "./components/DownloadButton";
+import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { MorningCheckinCard } from "./components/MorningCheckinCard";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { TrainingPlanBoard } from "./components/TrainingPlanBoard";
-import { apiFetch, fetchAuthStatus, fetchMe, loginDev, type SessionUser } from "./lib/api";
+import {
+  apiFetch,
+  fetchAuthStatus,
+  fetchMe,
+  loginDev,
+  loginWithGoogle,
+  logout,
+  type SessionUser,
+} from "./lib/api";
 
 type CheckStatus = "ok" | "error" | "configured" | "missing" | "unchecked";
 type SyncStatus = "never" | "running" | "ok" | "partial" | "error";
@@ -431,6 +440,17 @@ function Dashboard({ user }: { user: SessionUser }) {
               Atleta: {user.name} ({user.email})
             </span>
           ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              queryClient.clear();
+              window.location.reload();
+            }}
+            className="rounded-full bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-white/10 transition hover:bg-white/10 hover:text-white"
+          >
+            Esci
+          </button>
           <span className="rounded-full bg-lime-300/10 px-3 py-1.5 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-300/30">
             Fase 1 · Web MVP
           </span>
@@ -609,7 +629,7 @@ function Dashboard({ user }: { user: SessionUser }) {
       {/* Check-in Mattutino & Adattamento in Tempo Reale (Task 1.4) */}
       {baseline.data ? (
         <section className="mt-8">
-          <MorningCheckinCard />
+          <MorningCheckinCard timeZone={baseline.data.profile.timezone} />
         </section>
       ) : null}
 
@@ -1115,11 +1135,29 @@ function Splash() {
 }
 
 function LoginScreen() {
+  const queryClient = useQueryClient();
   const status = useQuery({ queryKey: ["auth-status"], queryFn: fetchAuthStatus, retry: 1 });
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const googleLogin = useMutation({
+    mutationFn: loginWithGoogle,
+    onSuccess: (user) => {
+      setAuthError(null);
+      queryClient.setQueryData(["me"], user);
+    },
+    onError: (error: Error) => setAuthError(error.message),
+  });
+
   const devLogin = useMutation({
     mutationFn: loginDev,
-    onSuccess: () => window.location.reload(),
+    onSuccess: async () => {
+      setAuthError(null);
+      await queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (error: Error) => setAuthError(error.message),
   });
+
+  const googleReady = Boolean(status.data?.googleConfigured && status.data.googleClientId);
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
@@ -1133,28 +1171,57 @@ function LoginScreen() {
           viene accettata senza credenziali.
         </p>
 
+        {googleReady && status.data?.googleClientId ? (
+          <>
+            <GoogleSignInButton
+              clientId={status.data.googleClientId}
+              onCredential={(idToken) => googleLogin.mutate(idToken)}
+            />
+            {googleLogin.isPending ? (
+              <p className="mt-2 text-center text-xs text-slate-400">Verifico l&apos;account…</p>
+            ) : null}
+          </>
+        ) : null}
+
+        {googleReady && status.data?.devLoginEnabled ? (
+          <div className="mt-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-white/10" />
+            <span className="text-[11px] uppercase tracking-widest text-slate-500">oppure</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+        ) : null}
+
         {status.data?.devLoginEnabled ? (
           <button
             type="button"
             onClick={() => devLogin.mutate()}
-            disabled={devLogin.isPending}
+            disabled={devLogin.isPending || googleLogin.isPending}
             className="mt-6 w-full rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-lime-200 disabled:opacity-60"
           >
             {devLogin.isPending ? "Accesso…" : "Accedi come atleta locale"}
           </button>
-        ) : status.data?.googleConfigured ? (
-          <p className="mt-6 rounded-xl bg-amber-400/10 p-3 text-xs leading-5 text-amber-200 ring-1 ring-amber-400/30">
-            Google OAuth è configurato lato API, ma il flusso di login nella UI non è ancora
-            disponibile. Abilita <code>ENABLE_DEV_ENDPOINTS=true</code> in locale oppure usa
-            l&apos;endpoint <code>/api/auth/google</code>.
-          </p>
-        ) : (
+        ) : null}
+
+        {!googleReady && !status.data?.devLoginEnabled && status.data ? (
           <p className="mt-6 rounded-xl bg-rose-400/10 p-3 text-xs leading-5 text-rose-200 ring-1 ring-rose-400/30">
-            Nessun metodo di login configurato. Imposta <code>GOOGLE_CLIENT_ID</code> e{" "}
-            <code>GOOGLE_ALLOWED_EMAILS</code>, oppure <code>ENABLE_DEV_ENDPOINTS=true</code> per lo
-            sviluppo locale.
+            Nessun metodo di login configurato. Imposta <code>GOOGLE_CLIENT_ID</code>,{" "}
+            <code>GOOGLE_CLIENT_SECRET</code> e <code>GOOGLE_ALLOWED_EMAILS</code>, oppure{" "}
+            <code>ENABLE_DEV_ENDPOINTS=true</code> per lo sviluppo locale.
           </p>
-        )}
+        ) : null}
+
+        {status.data?.googleConfigured && status.data.allowedEmailsCount === 0 ? (
+          <p className="mt-4 rounded-xl bg-amber-400/10 p-3 text-xs leading-5 text-amber-200 ring-1 ring-amber-400/30">
+            Google è configurato ma la allowlist è vuota: nessun account potrà accedere finché non
+            imposti <code>GOOGLE_ALLOWED_EMAILS</code>.
+          </p>
+        ) : null}
+
+        {authError ? (
+          <p className="mt-4 rounded-xl bg-rose-400/10 p-3 text-xs leading-5 text-rose-200 ring-1 ring-rose-400/30">
+            {authError}
+          </p>
+        ) : null}
 
         {status.isError ? (
           <p className="mt-4 text-xs text-rose-300">

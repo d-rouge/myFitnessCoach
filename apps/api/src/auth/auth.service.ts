@@ -47,6 +47,11 @@ export class AuthService {
     return Boolean(this.env.GOOGLE_CLIENT_ID && this.env.GOOGLE_CLIENT_SECRET);
   }
 
+  /** Public OAuth client id, needed by the browser to start Google Sign-In. */
+  getGoogleClientId(): string | null {
+    return this.env.GOOGLE_CLIENT_ID ?? null;
+  }
+
   devLoginEnabled(): boolean {
     return this.env.ENABLE_DEV_ENDPOINTS;
   }

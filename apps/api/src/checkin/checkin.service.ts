@@ -4,6 +4,7 @@ import {
   CheckinSchema,
   computeDailyAdjustment,
   type DailyAdjustmentResult,
+  todayLocalDate,
 } from "@health-trainer/domain";
 import {
   BadRequestException,
@@ -11,6 +12,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { getUserTimeZone } from "../common/user-timezone.js";
 import { MongoService } from "../database/mongo.service.js";
 import { PlanService } from "../plan/plan.service.js";
 
@@ -84,7 +86,8 @@ export class CheckinService {
     postSession: Checkin | null;
   }> {
     const db = await this.db();
-    const today = new Date().toISOString().slice(0, 10);
+    const timeZone = await getUserTimeZone(db, userId);
+    const today = todayLocalDate(timeZone);
 
     const [morning, postSession] = await Promise.all([
       getCheckin(db, userId, today, "morning"),

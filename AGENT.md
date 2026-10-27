@@ -46,7 +46,11 @@ Il loop:
 
 L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del piano e la spiegazione delle scelte.
 
-**Stato attuale (27 ottobre 2026):** Fase 0 completata. La Fase 1 è **implementata ma non rilasciabile**: la revisione ha trovato 5 bloccanti, 7 problemi gravi e 7 medi. Il loop principale è rotto da namespace utente incompatibili (`personal` vs `user_marco`) e l'autenticazione è aperta per default. Dettaglio in [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
+**Stato attuale (27 ottobre 2026):** Fase 0 completata. La Fase 1 è **funzionalmente
+completa** dopo WS-0, Onda 1 e Onda 2: safety, generatore, timezone, auth/Hevy UI ed
+e2e multi-utente sono chiusi. Restano rinviati due P2 (F1-18 AI coach, F1-19 scheduler e
+credenziali cifrate) e la validazione d'uso reale di 14 giorni. Dettaglio in
+[`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
 **Non assumere** che un path o una feature esista solo perché è nel piano: verifica nel repository.
 
@@ -81,6 +85,7 @@ scripts/
   spike-yazio.ts            spike Yazio API v22
   analyze-fit.ts            analizza FIT Garmin e stampa brief
   export-workout-fit.ts     genera file FIT workout
+  e2e-api.ts                e2e multi-utente su MongoDB reale (`*_e2e`)
 docs/
   PIANO.md
   FASI.md
@@ -91,6 +96,7 @@ docs/
 apps/
   api/                      NestJS 12 ESM: health, integrations, auth, export
     src/database/           MongoService (connessione + indici)
+    src/common/             helper condivisi (`getUserTimeZone`)
     src/integrations/       GarminService, GarminSyncService, YazioService, YazioSyncService
     src/auth/               AuthService, AuthController, JWT util
     src/export/             ExportController (download workout .FIT)
@@ -113,14 +119,14 @@ packages/
 
 Leggere `docs/FASI.md`. La **Fase 0 — Spike e fondamenta** è completata.
 
-La **Fase 1 — Web MVP personale** è implementata e Onda 1 è chiusa (baseline,
-review/check-in, export FIT/Hevy, backup/restore). Restano aperti i P1 di Onda 2
-(safety F1-11, generatore F1-12), i P2 (timezone, UI auth/Hevy, AI coach, scheduler) e
-l'e2e con Mongo reale (WS-9). Dettaglio in
+La **Fase 1 — Web MVP personale** è funzionalmente completa: WS-0, Onda 1 e Onda 2
+sono chiuse (auth, baseline, review/check-in, export, backup, safety, generatore,
+timezone, UI auth/Hevy, e2e). Restano rinviati F1-18 (AI coach allineato ai tipi reali)
+e F1-19 (scheduler, credenziali cifrate, storico peso Yazio). Dettaglio in
 [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
-**Prossimo passo:** chiudere Onda 2 seguendo le onde del documento di revisione, poi il
-test d'uso reale di 14 giorni.
+**Prossimo passo:** validazione d'uso reale di 14 giorni, poi scegliere tra F1-18 e
+F1-19 (o l'inizio della Fase 2).
 
 ---
 
@@ -133,7 +139,8 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (130 test, nessun e2e)
+npm test                      # unit/contract test (148 test)
+npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
 npm run spike:garmin          # spike Garmin (aggiungi -- --write per salvare il report)
@@ -144,7 +151,11 @@ npm run export:workout        # genera file dist/workouts/5x800m-intervals.fit
 
 MongoDB è locale su `127.0.0.1:27017` ed è **gestito dall'utente**. Non avviare o fermare servizi di sistema (MongoDB, Redis) senza conferma. Non serve Docker.
 
-Comandi **non ancora presenti** (non inventarli): `test:e2e`, `db:migrate`, `eval`. Verranno aggiunti quando ci sarà il codice corrispondente.
+Comandi **non ancora presenti** (non inventarli): `db:migrate`, `eval`. Verranno aggiunti quando ci sarà il codice corrispondente.
+
+`npm run test:e2e` richiede MongoDB locale, `JWT_SECRET` (≥32 caratteri) in `.env` e la
+build API; usa `E2E_MONGODB_URI` (default `mongodb://127.0.0.1:27017/health_trainer_e2e`),
+rifiuta database che non terminano con `_e2e` e li elimina a fine corsa.
 
 Se un comando non esiste, verifica `package.json`, crea lo script solo se fa parte del task, aggiorna questo file.
 
@@ -241,6 +252,30 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
   idempotente (delete+insert per collezione) e valida le chiavi prima di cancellare.
   `deleteUserData` elimina anche `users` e `ai_runs`.
 
+**Semantica consolidata in Onda 2 (non regredire):**
+
+- **Safety.** `assessSafety` è valutata al salvataggio della baseline (solo log, i dati
+  non si perdono) e **blocca la generazione** con `400` su red flag assoluti o PAR-Q non
+  completato. Un valore PAR-Q mancante equivale a `false` (Zod default) e blocca.
+- **Generatore.** Parte da oggi nel timezone dell'atleta (o da `startDate`), colloca le
+  sessioni alla prossima occorrenza dei giorni configurati, rispetta
+  `goals.primary.sport`/`profile.sports` e scala i blocchi su `durationMin`. I passi
+  derivano da `goal.targetValue`/`targetUnit`, non da costanti.
+- **Timezone.** Un solo helper (`packages/domain/src/rules/dates.ts`): `localDate`,
+  `todayLocalDate`, `resolveTimeZone`, `addDaysIso`. L'API legge il fuso dalla baseline
+  attiva (`getUserTimeZone`, fallback `Europe/Rome`). Mai `toISOString().slice(0, 10)`
+  per il giorno corrente.
+- **Piani assenti.** `GET /api/plan/macro` e `GET /api/plan/micro` rispondono `404`
+  esplicito; la UI tratta il 404 come "nessun piano".
+- **Auth UI.** `/api/auth/status` espone `googleClientId`; il login usa Google Identity
+  Services se configurato, il dev login è visibile solo se abilitato. Il logout imposta
+  `health-trainer.logged-out` e impedisce il dev auto-login finché non si effettua un
+  login esplicito.
+- **Hevy UI.** La chiave può essere inserita nella board: resta in `localStorage`, viene
+  inviata solo con l'export e il server ricade su `HEVY_API_KEY` se assente.
+- **E2E.** `scripts/e2e-api.ts` avvia l'API con dev endpoint disabilitati, firma due JWT
+  e verifica isolamento, export FIT, check-in, backup e 404.
+
 ---
 
 ## 6. Invarianti non negoziabili
@@ -269,7 +304,7 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 65 test verdi (domain 20, config 3, integrations 32, api 10). Build, lint e typecheck verdi.
+- **Test attuali:** 148 test verdi (api 42, domain 56, integrations 40, ai 3, config 5, db 2) + 9 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` e gli spike caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
 - **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.
@@ -379,7 +414,7 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 |---|---|---|
 | Unit | regole, feasibility, validator | `npm test` |
 | Contract | adapter con fixture | `npm test` |
-| E2E | onboarding → piano → check-in → review | previsto (`npm run test:e2e`) |
+| E2E | onboarding → piano → check-in → review, isolamento multi-utente | `npm run test:e2e` |
 | AI eval | 10 personas, schema/sicurezza | previsto (`npm run eval`) |
 | Backup | export → wipe → import | test dedicato |
 | Device | Health Connect, Hevy, Garmin `.FIT` | manuale |

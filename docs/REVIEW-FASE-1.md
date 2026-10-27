@@ -1,6 +1,6 @@
 # Revisione Fase 1 — problemi e piano di fix
 
-**Versione:** 1.2 (WS-0 e Onda 1 applicati)
+**Versione:** 1.3 (WS-0, Onda 1 e Onda 2 applicati)
 **Data:** 27 ottobre 2026
 **Scope:** codice della Fase 1 (`7dacb6e..b2c7b49`)
 **Metodo:** revisione statica + verifica runtime su MongoDB temporaneo (`health_trainer_review`) e API sulla porta 3999
@@ -28,6 +28,10 @@ permissivi e non esiste un test end-to-end con database reale.
 **Verdetto:** Fase 1 **non completata**. I criteri di accettazione in `FASI.md` erano
 dichiarati tutti soddisfatti; la maggior parte non è stata verificata su dati reali.
 
+> **Stato al 27 ottobre 2026:** WS-0, Onda 1 e Onda 2 hanno chiuso tutti i P0/P1 e i P2
+> di safety/timezone/UI. Restano solo F1-18 e F1-19 (rinviati) e la validazione d'uso
+> reale. Vedi §1.1–§1.3.
+
 ### 1.1 Aggiornamento WS-0 (27 ottobre 2026)
 
 Le fondamenta sono state chiuse in **WS-0**: guard JWT globale, `@CurrentUser()`,
@@ -43,7 +47,8 @@ config sicura, validazione Zod e body limit FIT. Stato attuale:
 | Export FIT e Hevy (F1-08, F1-09) | ✅ chiusi (WS-4) |
 | Backup, restore e wipe (F1-10) | ✅ chiusi (WS-5) |
 | `GET /api/review/latest` senza review (F1-14) | ✅ chiuso |
-| Safety, generatore, timezone, UI, scheduler | ❌ aperti (Onda 2) |
+| Safety, generatore, timezone, UI (F1-11, F1-12, F1-13, F1-17) | ✅ chiusi (Onda 2) |
+| AI coach, scheduler | ❌ aperti (F1-18, F1-19, rinviati) |
 
 **Test:** 117 unitari verdi (`api` 32, `domain` 41, `integrations` 36, `ai` 3,
 `config` 5), `lint`, `typecheck` e build API puliti. Il test e2e con Mongo reale
@@ -69,6 +74,29 @@ Onda 1 ha chiuso cinque difetti P1 e i due P2 di review/check-in:
 Conteggio residuo: **0 P0**, **2 P1** (F1-11, F1-12), **4 P2**
 (F1-13, F1-17, F1-18, F1-19) e il disallineamento documentale F1-20, in gran parte
 risolto con questo aggiornamento. L'e2e con Mongo reale resta in WS-9.
+
+### 1.3 Aggiornamento Onda 2 (27 ottobre 2026)
+
+Onda 2 ha chiuso i due P1 rimasti, il P2 timezone e il P2 di UI auth/Hevy, e ha
+introdotto l'e2e multi-utente su MongoDB reale:
+
+| Workstream | Fix | Evidenza runtime |
+|---|---|---|
+| WS-6 | F1-11, F1-12 | baseline principiante → macro dal `2026-10-27` (stesso giorno) con sessioni 27/29/31 e sport `running`; obiettivo bici → tutte le sessioni `cycling`, nessuna corsa; disponibilità 20 min → tutti i blocchi esattamente 20 min; red flag → save 201 ma `POST /api/plan/macro/generate` → `400 ... bloccata per motivi di sicurezza`; PAR-Q `false` → `400 Idoneità medica richiesta...` |
+| WS-7 | F1-13 | baseline con `Pacific/Kiritimati` alle 10:37 UTC → macro start `2026-10-28`, `/api/plan/today` → `today: 2026-10-28`, `/api/checkin/today` → `date: 2026-10-28` (UTC era ancora 27/10) |
+| WS-8 | F1-17 | `/api/auth/status` espone `googleClientId`; login Google via Google Identity Services; logout esplicito non viene annullato dal dev auto-login; chiave Hevy inserita in UI, salvata in `localStorage` e inoltrata nell'header `api-key` (unit test con `fetch` mockato) |
+| WS-9 | e2e | 9 verifiche verdi su `health_trainer_e2e`: 401 senza token, identità JWT distinte, baseline legate all'utente autenticato (userId del body ignorato), piani isolati, PATCH cross-utente 404, export FIT cross-utente 404 e proprio FIT con magic bytes, check-in isolati, backup isolati, piani assenti 404 |
+
+**Test:** 148 unitari verdi (`api` 42, `domain` 56, `integrations` 40, `ai` 3,
+`config` 5, `db` 2) + 9 verifiche e2e (`npm run test:e2e`), `lint`, `typecheck`,
+`typecheck:scripts` e build API/web puliti.
+
+Conteggio residuo: **0 P0**, **0 P1**, **2 P2** (F1-18 AI coach, F1-19 scheduler e
+credenziali cifrate, entrambi rinviati con motivazione). F1-20 è chiuso da questo
+aggiornamento documentale.
+
+**Non verificato:** login Google con credenziali reali, export Hevy con chiave reale,
+import `.FIT` su Garmin Connect, sync automatico, uso reale di 14 giorni.
 
 ---
 
@@ -299,6 +327,11 @@ dev login + restore → baseline v5 recuperata.
 
 #### F1-11 — La safety non blocca nulla
 
+**Stato: ✅ chiuso in WS-6.** `assessSafety` è invocata sia al salvataggio della baseline
+(solo log, per non perdere dati) sia prima della generazione, che viene bloccata con
+`400` su red flag assoluti o PAR-Q non completato. Il wizard permette di inserire red
+flag e infortuni. Verificato a runtime: save 201, generate 400 con messaggio esplicito.
+
 - **Sintomo:** red flag e PAR-Q non impediscono la creazione del piano.
 - **Causa:** `assessSafety` è chiamata solo da `GET /api/baseline/safety`
   (`baseline.service.ts:74`); onboarding e generazione piani non la usano.
@@ -308,6 +341,11 @@ dev login + restore → baseline v5 recuperata.
   richiesta di clearance.
 
 #### F1-12 — Il generatore ignora obiettivo, sport e durata reale
+
+**Stato: ✅ chiuso in WS-6.** Il generatore parte da oggi nel timezone dell'atleta (o
+dalla data richiesta), rispetta `goals.primary.sport` e `profile.sports`, ricava i passi
+da `goal.targetValue`/`targetUnit` e scala i blocchi su `durationMin`. Il validator
+segnala `session_blocks_overflow`.
 
 - **Sintomo:** piano sempre corsa-first, inizio al lunedì successivo, blocchi più lunghi
   della sessione.
@@ -324,6 +362,11 @@ dev login + restore → baseline v5 recuperata.
 ### P2 — Medi
 
 #### F1-13 — Date in UTC invece del timezone utente
+
+**Stato: ✅ chiuso in WS-7.** Helper unico in `packages/domain/src/rules/dates.ts`
+(`localDate`, `todayLocalDate`, `resolveTimeZone`, `addDaysIso`) usato da API, sync,
+generatore e UI; `getUserTimeZone` legge la baseline attiva con fallback `Europe/Rome`.
+Verificato con `Pacific/Kiritimati`: "oggi" locale 28/10 mentre UTC era 27/10.
 
 - **Causa:** `toISOString().slice(0,10)` in API, UI e generatore; `profile.timezone`
   inutilizzato.
@@ -369,6 +412,12 @@ settimana 1. Verificato: `400 Il macrociclo è completo (settimana 4/4)...`.
 
 #### F1-17 — Google login e chiavi non collegati alla UI
 
+**Stato: ✅ chiuso in WS-8.** `/api/auth/status` espone il client ID pubblico, il login
+screen usa Google Identity Services, il dev login è nascosto quando disabilitato, esiste
+il logout e la chiave Hevy è inseribile nella board e inoltrata per export.
+Verificato a runtime lo status (`googleConfigured:false`, `devLoginEnabled:true`) e in
+unit test l'inoltro della chiave; il login Google reale non è stato provato.
+
 - **Causa:** backend `POST /api/auth/google` presente, ma nessun bottone o gestione token;
   nessuna `fetch` invia `Authorization`; manca input per la chiave Hevy.
 - **Fix:** flusso login (Google + dev) con storage token, wrapper `apiFetch`, form chiave
@@ -376,6 +425,8 @@ settimana 1. Verificato: `400 Il macrociclo è completo (settimana 4/4)...`.
 - **Test:** login → chiamate autenticate; logout → endpoint protetti 401.
 
 #### F1-18 — AI coach disallineato dal dominio
+
+**Stato: ❌ aperto, rinviato.** Non è stato toccato in Onda 2.
 
 - **Causa:** `packages/ai/src/coach.ts` distingue `strength`/`interval`, mentre il
   generatore produce `aerobic_base`, `low_impact_endurance`, `intervals`, ecc.
@@ -386,6 +437,8 @@ settimana 1. Verificato: `400 Il macrociclo è completo (settimana 4/4)...`.
 
 #### F1-19 — Scheduler e credenziali
 
+**Stato: ❌ aperto, rinviato.** Non è stato toccato in Onda 2; il sync resta manuale.
+
 - **Causa:** nessuno scheduler (sync solo manuale); credenziali Yazio in file/env,
   non cifrate; peso Yazio limitato all'ultimo valore per data.
 - **Fix (rinviabile a Fase 2):** job schedulato con backoff; cifratura credenziali;
@@ -395,6 +448,10 @@ settimana 1. Verificato: `400 Il macrociclo è completo (settimana 4/4)...`.
 ### Documentazione
 
 #### F1-20 — Documentazione disallineata
+
+**Stato: ✅ chiuso in Onda 2.** `FASI.md`, `AGENT.md` e `README.md` riportano 148 test
+unitari + 9 e2e, lo stato reale di safety/generatore/timezone/auth, i limiti residui e
+collegano questo documento.
 
 - **Causa:** `FASI.md` dichiara completi scheduler, `.TCX`, flusso post-sessione,
   red flag UI, safety per tutti gli infortuni, 14 giorni di uso reale, Hevy valido,
@@ -438,15 +495,15 @@ conflitto sono:
 | ID | Contenuto | File principali | Dipende da | Parallelizzabile subito |
 |---|---|---|---|---|
 | **WS-0** | Fondamenta: guard JWT, `@CurrentUser`, `ValidationPipe`, body limit, config sicura | `auth/*`, `main.ts`, `config/env.ts`, tutti i controller (1 riga) | — | ✅ **fatto** (27 ott 2026) |
-| **WS-1** | Chiusura auth: Google token, allowlist, dev login opt-in, `auth/status` | `auth/*`, `config` | WS-0 | ✅ backend fatto in WS-0; login Google in UI resta in WS-8 |
+| **WS-1** | Chiusura auth: Google token, allowlist, dev login opt-in, `auth/status` | `auth/*`, `config` | WS-0 | ✅ fatto (backend + UI in WS-8) |
 | **WS-2** | Baseline: id server, supersede, indice unique, `getCurrent` | `db/baselines.ts`, `db/indexes.ts`, `baseline.service.ts` | — | **Sì** (solo repository) |
 | **WS-3** | Semantica review/check-in: `adjusted`, progressione reale, finestra settimanale, `advanceWeek` | `domain/rules/weekly-review.ts`, `domain/rules/daily-adjustment.ts`, `review.service.ts`, `checkin.service.ts` | — | **Sì** (dominio + service, no controller) |
 | **WS-4** | Export: FIT sport/target, Hevy reale | `integrations/fit/*`, `integrations/hevy/*`, `export.controller.ts` | — | **Sì** (integrations), controller dopo WS-0 |
 | **WS-5** | Backup/restore/wipe | `db/backup.ts` | — | **Sì** (repository), controller dopo WS-0 |
-| **WS-6** | Safety + generatore piani | `domain/rules/safety.ts`, `domain/rules/plan-generator.ts`, `baseline.service.ts`, `plan.service.ts` | — | **Sì** (dominio), service dopo WS-0 |
-| **WS-7** | Date/timezone | nuovo helper + call site API/UI/domain | WS-2, WS-3, WS-6 (per non riscrivere) | Dopo |
-| **WS-8** | UI: login Google/dev, `apiFetch`, chiave Hevy, stati vuoti | `apps/web/src/**` | WS-0 (contratto API) | Dopo WS-0 |
-| **WS-9** | Test e2e + documentazione | nuovo `apps/api/test/**`, `docs/**` | tutte | **Sì** (docs subito, e2e dopo WS-0) |
+| **WS-6** | Safety + generatore piani | `domain/rules/safety.ts`, `domain/rules/plan-generator.ts`, `baseline.service.ts`, `plan.service.ts` | — | ✅ **fatto** (27 ott 2026) |
+| **WS-7** | Date/timezone | nuovo helper + call site API/UI/domain | WS-2, WS-3, WS-6 (per non riscrivere) | ✅ **fatto** (27 ott 2026) |
+| **WS-8** | UI: login Google/dev, `apiFetch`, chiave Hevy, stati vuoti | `apps/web/src/**` | WS-0 (contratto API) | ✅ **fatto** (27 ott 2026) |
+| **WS-9** | Test e2e + documentazione | `scripts/e2e-api.ts`, `docs/**` | tutte | ✅ **fatto** (27 ott 2026) |
 
 ### 4.3 Onde consigliate
 
@@ -464,16 +521,17 @@ Include `main.ts` (validation + body limit) e `config`.
 Ognuno può girare in un worktree separato con il proprio branch locale; i test di
 dominio/integration non richiedono l'API.
 
-**Onda 2 — tre stream paralleli (dopo il merge dell'Onda 1)**
+**Onda 2 — tre stream paralleli (dopo il merge dell'Onda 1) — ✅ completata il 27 ottobre 2026**
 
 - Stream E: **WS-6** (safety + generatore)
 - Stream F: **WS-8** (UI auth/export)
 - Stream G: **WS-7** (timezone, ultimo perché attraversa tutti i call site)
 
-**Onda 3 — chiusura**
+**Onda 3 — chiusura — ✅ completata il 27 ottobre 2026**
 
 - **WS-9**: e2e con Mongo reale (golden path + due utenti + backup/restore),
-  aggiornamento `FASI.md`/`AGENT.md`/`README.md`.
+  aggiornamento `FASI.md`/`AGENT.md`/`README.md`. Lo script è `scripts/e2e-api.ts`
+  (`npm run test:e2e`), rifiuta DB non `*_e2e` e pulisce il database a fine corsa.
 
 ### 4.4 Cosa NON parallelizzare
 

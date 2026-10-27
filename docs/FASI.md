@@ -153,25 +153,30 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 ### Stato (aggiornato al 27 ottobre 2026)
 
-> ⚠️ **La Fase 1 non è completata.** La revisione del 27 ottobre 2026
-> ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato 5 problemi bloccanti, 7 gravi e
-> 7 medi. Dopo WS-0 e Onda 1 restano aperti safety/generatore (Onda 2) e l'uso reale;
-> i test unitari sono verdi ma non esiste alcun test end-to-end con MongoDB reale.
-> Le checkbox sotto sono state riallineate: quelle non verificate sono di nuovo `[ ]`.
+> ⚠️ **La Fase 1 è funzionalmente completa ma non ancora validata su 14 giorni reali.**
+> La revisione del 27 ottobre 2026 ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato
+> 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
+> due P2 rinviati (AI coach F1-18, scheduler/credenziali F1-19) e l'uso reale.
+> I test unitari (148) e l'e2e multi-utente su MongoDB reale (9 verifiche) sono verdi.
+> Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
 > validazione Zod e body limit FIT sono chiusi (F1-01, F1-02, F1-04, F1-05, F1-14).
 >
 > **Onda 1 (27 ottobre 2026):** chiusi baseline/versioning (F1-03), review e check-in
 > (F1-06, F1-07, F1-15, F1-16), export FIT/Hevy (F1-08, F1-09) e backup/restore/wipe
-> (F1-10). Restano i P1 di Onda 2 (safety F1-11, generatore F1-12) e i P2
-> (timezone F1-13, UI auth/Hevy F1-17, AI coach F1-18, scheduler F1-19), più l'e2e
-> con Mongo reale (WS-9).
+> (F1-10).
+>
+> **Onda 2 (27 ottobre 2026):** chiusi safety (F1-11), generatore (F1-12), timezone
+> (F1-13), UI auth/Hevy (F1-17) e documentazione (F1-20); aggiunto l'e2e multi-utente
+> con Mongo reale (WS-9). Restano rinviati F1-18 (AI coach) e F1-19 (scheduler e
+> credenziali cifrate).
 
-**Implementato ma non verificato end-to-end.** Dettaglio e piano di fix in
+**Test:** 148 unitari + 9 verifiche e2e verdi (`npm run test:e2e`, database
+`health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
-- **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 41 unit test con casi limite e fixture di 3 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio).
-- **1.2 Onboarding:** Wizard interattivo a 6 step (`OnboardingWizard.tsx`) con anamnesi di base, obiettivi, disponibilità, attrezzatura, demo persona selector e persistenza su MongoDB (`athlete_baselines`) + API `/api/baseline`. _(Red flag e infortuni non inseribili dal wizard: F1-11.)_
+- **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 56 unit test con casi limite e fixture di 3 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio).
+- **1.2 Onboarding:** Wizard interattivo a 6 step (`OnboardingWizard.tsx`) con anamnesi di base, red flag e infortuni, obiettivi, disponibilità, attrezzatura, demo persona selector e persistenza su MongoDB (`athlete_baselines`) + API `/api/baseline`. _(WS-6: red flag e infortuni inseribili dal wizard; il salvataggio è permesso, la generazione viene bloccata.)_
 - **1.3 Piano:** Feasibility check 5k con proiezioni realistiche, generatore macrociclo e microciclo deterministico (`generateMacroPlan`, `generateMicroPlan`), safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio), Board multisport e Card "Oggi" con varianti espresse (15 min, 30 min, cyclette).
 - **1.4 Esecuzione e feedback:** Check-in mattutino rapido (`MorningCheckinCard.tsx`), motore di adattamento giornaliero real-time (`computeDailyAdjustment`), inserimento attività manuale (`/api/activities/manual`) e upload file `.FIT` con analisi e confronto automatico pianificato vs effettivo (`compareSessionWithActivity`).
 - **1.5 Integrazioni:** Client Garmin Personal con token cache e sync metriche/attività; Yazio client v22 con sync nutrizione e peso; card stato integrazioni e verifica credenziali.
@@ -180,10 +185,11 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 1):** 130 test, typecheck dei workspace
-e lint Biome passano; build completa. **Non coperto:** nessun test e2e con
-Mongo reale, nessun test multi-utente, nessun import `.FIT` su Garmin Connect, nessun
-export Hevy con chiave reale.
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 148 test unitari, 9 verifiche e2e
+su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
+build API e web complete. **Non coperto:** login Google con credenziali reali, export
+Hevy con chiave reale, import `.FIT` su Garmin Connect, scheduler automatico, uso reale
+di 14 giorni.
 
 ### Obiettivo
 
@@ -196,13 +202,13 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Schemi Zod L0: profilo, anamnesi, obiettivi, disponibilità, attrezzatura, preferenze (`baseline.ts`, `preferences.ts`, etc.).
 - [x] Schemi L1–L4: piano, settimana, sessione, stato giornaliero, review (`plan.ts`, `daily-state.ts`, `review.ts`, `session.ts`).
 - [x] `readiness`, `load`, `progression`, `feasibility`, `safety`, `validator`.
-- [x] Unit test per ogni regola, con casi limite (41 test verdi in `packages/domain`).
+- [x] Unit test per ogni regola, con casi limite (56 test verdi in `packages/domain`).
 - [x] Fixture di 3 personas (Marco principiante 5k, Giulia intermedia mezza+palestra, Luca tendinopatia rotulea).
 
 #### 1.2 Onboarding
 
 - [x] Wizard 6 step, salvabile, mobile-friendly (`OnboardingWizard.tsx`).
-- [ ] Anamnesi strutturata + testo libero + red flag. _(Il modello dati li prevede, ma il wizard non permette di inserire red flag o infortuni oltre al ginocchio: F1-11.)_
+- [x] Anamnesi strutturata + testo libero + red flag. _(WS-6: il wizard permette red flag e infortuni; `assessSafety` li valuta e la generazione viene bloccata.)_
 - [x] Obiettivo primario/secondario + data target.
 - [x] Disponibilità settimanale e durata massima per sessione.
 - [x] Attrezzatura, palestra, piscina, casa con selezione visuale.
@@ -214,7 +220,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Feasibility check con proposta di obiettivo realistico (`project5k` e card feasibility nel web).
 - [x] Generazione macro (fasi, settimane, target) deterministica da Baseline (`generateMacroPlan`).
 - [x] Generazione micro (sessioni, blocchi strutturati, alternative 15/30/basso impatto) da Baseline (`generateMicroPlan`).
-- [x] Validator + safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio). _(Solo ginocchio; `assessSafety` non è invocata prima di salvare o generare: F1-11.)_
+- [x] Validator + safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio). _(WS-6: `assessSafety` blocca la generazione su red flag assoluti o PAR-Q mancante; il critic resta attivo per il ginocchio.)_
 - [x] Diff e "perché" nella UI (focus fase, intensità RPE e criteri di successo).
 - [x] Board settimanale multisport (palestra, corsa, bici, nuoto, mobilità).
 - [x] Card "oggi" + alternative (15/30 min, cyclette/basso impatto) e salvataggio stato completamento (`PATCH /api/plan/sessions/:id`).
@@ -273,7 +279,8 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [ ] Export Hevy crea una routine valida: payload derivato dalla sessione, ma non verificato con chiave reale.
 - [ ] Export `.FIT` importabile in Garmin Connect: decode e target verificati con l'SDK, import su Garmin Connect non ancora provato.
 - [x] Backup esportato e ripristinato su un ambiente pulito: verificato in WS-5 (wipe → restore → baseline v5, doppio restore idempotente).
-- [ ] Nessun piano viola i vincoli di sicurezza: `assessSafety` non è invocata prima della generazione (F1-11).
+- [x] Nessun piano viola i vincoli di sicurezza: WS-6 blocca la generazione su red flag assoluti o PAR-Q mancante; verificato a runtime (save 201, generate 400 con messaggio).
+- [x] Isolamento multi-utente: WS-9 verifica 401 senza token, piani/check-in/backup separati, PATCH ed export FIT cross-utente respinti con 404.
 
 ### Fuori scope (rimandato)
 

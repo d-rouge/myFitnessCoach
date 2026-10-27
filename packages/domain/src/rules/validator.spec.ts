@@ -74,4 +74,17 @@ describe("validator", () => {
 
     expect(issues.map((issue) => issue.code)).toContain("contraindication");
   });
+
+  it("detects blocks longer than the session", () => {
+    const issues = validatePlannedSession({
+      ...validSession,
+      durationMin: 20,
+      blocks: [
+        { repeat: 1, steps: [{ kind: "warmup", durationMin: 15 }] },
+        { repeat: 2, steps: [{ kind: "work", durationMin: 10 }] },
+      ],
+    });
+
+    expect(issues.map((issue) => issue.code)).toContain("session_blocks_overflow");
+  });
 });
