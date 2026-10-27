@@ -1,7 +1,9 @@
 import { LlmProviderError } from "@health-trainer/ai";
 import type { Env } from "@health-trainer/config";
+import { beginnerPersona } from "@health-trainer/domain";
 import type { Db } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AthleteService } from "../athlete/athlete.service.js";
 import type { MongoService } from "../database/mongo.service.js";
 
 const generateMock = vi.hoisted(() => vi.fn());
@@ -28,6 +30,7 @@ const mockMicroPlan = {
   sessions: [
     {
       id: "sess_run_1",
+      date: "2026-10-26",
       dayIndex: 1,
       type: "run",
       sport: "running",
@@ -58,46 +61,34 @@ const validAdvice = {
   encouragement: "Costanza.",
 };
 
+function chain<T>(docs: T[], one: T | null) {
+  return {
+    find: () => ({
+      sort: () => ({
+        toArray: async () => docs,
+        limit: () => ({ toArray: async () => docs, next: async () => one }),
+      }),
+    }),
+    findOne: async () => one,
+  };
+}
+
+const baselineDoc = beginnerPersona;
+
 function serviceWithDb(): InstanceType<typeof AiService> {
   const mockDb = {
     collection: (name: string) => {
-      if (name === "athlete_micro_plans") {
-        return {
-          find: () => ({
-            sort: () => ({
-              limit: () => ({
-                next: async () => mockMicroPlan,
-                toArray: async () => [mockMicroPlan],
-              }),
-            }),
-          }),
-          findOne: async () => mockMicroPlan,
-        };
-      }
-      if (name === "athlete_baselines") {
-        return {
-          findOne: async () => ({
-            profile: { name: "Marco", timezone: "Europe/Rome" },
-            preferences: { tone: "supportive" },
-          }),
-        };
-      }
-      if (name === "checkins") {
-        return {
-          find: () => ({ sort: () => ({ limit: () => ({ toArray: async () => [] }) }) }),
-        };
-      }
-      if (name === "activities") {
-        return {
-          find: () => ({ sort: () => ({ limit: () => ({ toArray: async () => [marathon] }) }) }),
-        };
-      }
+      if (name === "athlete_micro_plans") return chain([mockMicroPlan], mockMicroPlan);
+      if (name === "athlete_macro_plans") return chain([], null);
+      if (name === "athlete_baselines") return chain([], baselineDoc);
+      if (name === "activities") return chain([marathon], marathon);
+      if (name === "checkins") return chain([], null);
       return { insertOne };
     },
   } as unknown as Db;
 
   const mongo = { getDb: async () => mockDb } as unknown as MongoService;
-  return new AiService({ NODE_ENV: "test" } as unknown as Env, mongo);
+  return new AiService({ NODE_ENV: "test" } as unknown as Env, mongo, new AthleteService(mongo));
 }
 
 describe("AiService con provider LLM", () => {
@@ -126,14 +117,16 @@ describe("AiService con provider LLM", () => {
       system: string;
     };
     const payload = JSON.parse(request.user) as {
-      recentContext: {
-        lastLongEffort: { label: string; daysAgo: number } | null;
-        postRaceRecovery: { active: boolean };
-      };
+      dossier: {
+        recentContext: {
+          lastLongEffort: { label: string; daysAgo: number } | null;
+          postRaceRecovery: { active: boolean };
+        };
+      } | null;
     };
 
-    expect(payload.recentContext.postRaceRecovery.active).toBe(true);
-    expect(payload.recentContext.lastLongEffort?.label).toMatch(/maratona/i);
+    expect(payload.dossier?.recentContext.postRaceRecovery.active).toBe(true);
+    expect(payload.dossier?.recentContext.lastLongEffort?.label).toMatch(/maratona/i);
     // La finestra di recupero attiva accende il thinking anche sul coach.
     expect(request.thinking).toBe(true);
     expect(request.system).toMatch(/postRaceRecovery/);

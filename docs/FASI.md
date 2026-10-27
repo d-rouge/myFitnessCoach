@@ -158,7 +158,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
 > un P2 rinviato (scheduler/credenziali F1-19) e l'uso reale. F1-18 (AI coach)
 > è chiuso: il coach consuma `RecentContext` e usa DeepSeek.
-> I test unitari (225) e l'e2e multi-utente su MongoDB reale (13 verifiche) sono verdi.
+> I test unitari (236) e l'e2e multi-utente su MongoDB reale (14 verifiche) sono verdi.
 > Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
@@ -180,7 +180,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > (21 giorni, palestra inclusa) ed è sbagliato per atleti esperti e per gli sport
 > non d'impatto.
 
-**Test:** 225 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
+**Test:** 236 unitari + 14 verifiche e2e verdi (`npm run test:e2e`, database
 `health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 85 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
@@ -193,7 +193,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, password locali hashate con scrypt in `auth_credentials` (mai nel documento `users`), backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`, che rimuove anche le credenziali). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0; account locali F1-24.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 225 test unitari, 13 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 236 test unitari, 14 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
 build API e web complete. **Non coperto:** login Google con credenziali reali (la
 registrazione Google richiede client OAuth e allowlist), export Hevy con chiave reale,
@@ -210,7 +210,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Schemi Zod L0: profilo, anamnesi, obiettivi, disponibilità, attrezzatura, preferenze (`baseline.ts`, `preferences.ts`, etc.).
 - [x] Schemi L1–L4: piano, settimana, sessione, stato giornaliero, review (`plan.ts`, `daily-state.ts`, `review.ts`, `session.ts`).
 - [x] `readiness`, `load`, `progression`, `feasibility`, `safety`, `validator`.
-- [x] Unit test per ogni regola, con casi limite (85 test verdi in `packages/domain`).
+- [x] Unit test per ogni regola, con casi limite (96 test verdi in `packages/domain`).
 - [x] Fixture di 4 personas (Marco principiante 5k, Giulia intermedia mezza+palestra, Luca tendinopatia rotulea, Sara ex agonista ferma da 2 anni).
 
 #### 1.2 Onboarding
@@ -291,7 +291,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 Piano completo e criteri in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md) §11.
 Ordine vincolante: ogni passo presuppone il precedente.
 
-- [ ] **A. Dossier atleta** (`F1-25`) — `buildAthleteDossier()` deterministico, `GET /api/athlete/dossier`, test sugli scenari reali (maratona 2 giorni fa, rientro dopo 2 anni, ginocchio, zero dati). Nessuna chiave API richiesta.
+- [x] **A. Dossier atleta** (`F1-25`) — `buildAthleteDossier()` deterministico, `GET /api/athlete/dossier`, usato da piano e coach tramite `AthleteService.getContext()`. Il dossier dichiara ciò che manca (`warnings`) e un test di copertura impedisce di aggiungere campi alla baseline senza passarlo di qui. _Restano da collegare al generatore a regole età, finestre orarie, orario preferito e obiettivi secondari: il dossier li espone, il generatore non li legge ancora._
 - [ ] **B. Schema e provenance** (`F1-26`) — `trainingModel`, `envelope` per modalità, `review`, `generatedBy`; `ai_runs` con il payload; migrazione compatibile dei piani esistenti.
 - [~] **C. Provider e loop** (`F1-27`) — **provider DeepSeek fatto** (JSON mode, thinking, errori ritentabili, timeout, smoke test). Restano `PlanProposer`, `PlanCritic`, Referee in codice, max 2 revisioni, fallback dichiarato.
 - [ ] **D. Valutazione avversariale** (`F1-28`) — `npm run eval:plans` con piani deliberatamente sbagliati che il Critic deve respingere; misurare i falsi negativi prima di ogni altra metrica.

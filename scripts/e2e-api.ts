@@ -263,6 +263,26 @@ async function main(): Promise<void> {
     assertEqual(microB.id, planB.microPlan.id, "B legge il proprio micro-piano");
     results.push("piani isolati per utente");
 
+    // --- Athlete dossier -----------------------------------------------------
+    const dossierA = await readJson<{
+      version: number;
+      identity: { ageYears: number | null };
+      planMemory: { weekIndex: number | null; totalWeeks: number | null };
+      coverage: { activities: number };
+      warnings: string[];
+    }>(await request("/athlete/dossier", tokenA));
+    assertEqual(dossierA.version, 1, "dossier versionato");
+    assert(dossierA.identity.ageYears !== null, "l'età è calcolata dalla data di nascita");
+    assertEqual(dossierA.planMemory.weekIndex, 1, "il dossier conosce la settimana corrente");
+    assertEqual(dossierA.planMemory.totalWeeks, 8, "il dossier conosce la durata del macrociclo");
+    // Nessuna attività importata: il buco va dichiarato, non nascosto con zeri.
+    assert(
+      dossierA.warnings.includes("no_activities"),
+      "il dossier dichiara l'assenza di attività",
+    );
+    assertEqual(dossierA.coverage.activities, 0, "coverage coerente con le attività presenti");
+    results.push("dossier atleta: contesto compilato, buchi dichiarati, piano ricordato");
+
     const sessionA = planA.microPlan.sessions.find((session) => session.sport === "running");
     assert(sessionA, "la settimana di A deve contenere una sessione di corsa");
 
@@ -359,6 +379,9 @@ async function main(): Promise<void> {
       "baseline con capacità 'garmin' senza attività importate",
     );
     results.push("capacità 'garmin' rifiutata quando non ci sono attività da misurare");
+
+    const emptyDossier = await request("/athlete/dossier", tokenC);
+    assertEqual(emptyDossier.status, 404, "dossier senza baseline → 404");
 
     const emptyBaseline = await request("/baseline", tokenC);
     const emptyMacro = await request("/plan/macro", tokenC);

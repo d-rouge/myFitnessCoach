@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ActivityModule } from "./activity/activity.module.js";
 import { AiModule } from "./ai/ai.module.js";
+import { AthleteModule } from "./athlete/athlete.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BaselineModule } from "./baseline/baseline.module.js";
 import { CheckinModule } from "./checkin/checkin.module.js";
@@ -21,6 +22,7 @@ import { ReviewModule } from "./review/review.module.js";
     ExportModule,
     AuthModule,
     BaselineModule,
+    AthleteModule,
     PlanModule,
     CheckinModule,
     ReviewModule,

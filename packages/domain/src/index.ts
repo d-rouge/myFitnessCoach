@@ -1,5 +1,6 @@
 export * from "./fixtures/personas";
 export * from "./rules/activity-comparison";
+export * from "./rules/athlete-dossier";
 export * from "./rules/capacity";
 export * from "./rules/daily-adjustment";
 export * from "./rules/dates";

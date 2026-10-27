@@ -59,6 +59,7 @@ export {
   getCurrentMacroPlan,
   getCurrentMicroPlan,
   getMicroPlan,
+  getRecentMicroPlans,
   replacePlannedSession,
   type StoredMacroPlan,
   type StoredMicroPlan,

@@ -1,7 +1,12 @@
 import { type Baseline, beginnerPersona } from "@health-trainer/domain";
 import { describe, expect, it, vi } from "vitest";
+import { AthleteService } from "../athlete/athlete.service.js";
 import type { MongoService } from "../database/mongo.service.js";
 import { PlanService } from "./plan.service.js";
+
+function planService(mongo: MongoService): PlanService {
+  return new PlanService(mongo, new AthleteService(mongo));
+}
 
 function mongoWithBaseline(baseline: Baseline): MongoService {
   return {
@@ -11,6 +16,8 @@ function mongoWithBaseline(baseline: Baseline): MongoService {
           query.userId === baseline.userId ? baseline : null,
         find: (query: { userId?: string }) => ({
           sort: () => ({
+            // getCheckinsInRange usa .sort().toArray() senza limit()
+            toArray: async () => [],
             limit: () => ({
               next: async () => (query.userId === baseline.userId ? baseline : null),
               toArray: async () => [],
@@ -30,6 +37,7 @@ describe("PlanService", () => {
           findOne: async () => null,
           find: () => ({
             sort: () => ({
+              toArray: async () => [],
               limit: () => ({
                 next: async () => null,
                 toArray: async () => [],
@@ -40,7 +48,7 @@ describe("PlanService", () => {
       }),
     } as unknown as MongoService;
 
-    const service = new PlanService(mockMongo);
+    const service = planService(mockMongo);
     await expect(service.generateMacroPlan("user_none")).rejects.toThrow(/Nessuna baseline attiva/);
   });
 
@@ -51,6 +59,7 @@ describe("PlanService", () => {
           findOne: async () => null,
           find: () => ({
             sort: () => ({
+              toArray: async () => [],
               limit: () => ({
                 next: async () => null,
                 toArray: async () => [],
@@ -61,7 +70,7 @@ describe("PlanService", () => {
       }),
     } as unknown as MongoService;
 
-    const service = new PlanService(mockMongo);
+    const service = planService(mockMongo);
     const today = await service.getTodaySession("user_1");
 
     expect(today.isRestDay).toBe(true);
@@ -82,6 +91,7 @@ describe("PlanService", () => {
             name === "athlete_baselines" && query.userId === baseline.userId ? baseline : null,
           find: () => ({
             sort: () => ({
+              toArray: async () => [],
               limit: () => ({
                 next: async () => null,
                 toArray: async () => [],
@@ -95,7 +105,7 @@ describe("PlanService", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-27T23:30:00Z"));
     try {
-      const service = new PlanService(mockMongo);
+      const service = planService(mockMongo);
       const today = await service.getTodaySession(baseline.userId);
 
       expect(today.timeZone).toBe("Europe/Rome");
@@ -124,6 +134,7 @@ describe("PlanService", () => {
             memoryDocs[name]?.find((doc) => doc.userId === query.userId) ?? null,
           find: (query: { userId?: string }) => ({
             sort: () => ({
+              toArray: async () => [],
               limit: () => ({
                 next: async () =>
                   memoryDocs[name]?.find((doc) => doc.userId === query.userId) ?? null,
@@ -156,7 +167,7 @@ describe("PlanService", () => {
       }),
     } as unknown as MongoService;
 
-    const service = new PlanService(mockMongo);
+    const service = planService(mockMongo);
     const result = await service.generateMacroPlan(beginnerPersona.userId, {
       startDate: "2026-11-02",
       totalWeeks: 8,
@@ -188,7 +199,7 @@ describe("PlanService", () => {
       },
     };
 
-    const service = new PlanService(mongoWithBaseline(unsafe));
+    const service = planService(mongoWithBaseline(unsafe));
 
     await expect(service.generateMacroPlan(unsafe.userId)).rejects.toThrow(/sicurezza/i);
     await expect(service.generateMacroPlan(unsafe.userId)).rejects.toThrow(/dolore toracico/i);
@@ -204,7 +215,7 @@ describe("PlanService", () => {
       },
     };
 
-    const service = new PlanService(mongoWithBaseline(unclear));
+    const service = planService(mongoWithBaseline(unclear));
 
     await expect(service.generateMacroPlan(unclear.userId)).rejects.toThrow(/PAR-Q/i);
   });
@@ -248,6 +259,7 @@ describe("PlanService", () => {
             name === "athlete_baselines" && query.userId === userId ? legacy : null,
           find: (query: { userId?: string }) => ({
             sort: () => ({
+              toArray: async () => [],
               limit: () => ({
                 next: async () => null,
                 toArray: async () =>
@@ -261,7 +273,7 @@ describe("PlanService", () => {
       }),
     } as unknown as MongoService;
 
-    const service = new PlanService(mockMongo);
+    const service = planService(mockMongo);
     const result = await service.generateMacroPlan(userId, { startDate: "2026-10-27" });
 
     // The dictionary created by `experience: "beginner"` is not trusted: the

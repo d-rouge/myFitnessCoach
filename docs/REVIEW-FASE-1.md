@@ -143,8 +143,8 @@ da Google, mantenendo Google come metodo alternativo:
 | Integrazioni | Garmin/Yazio sync, analyze e overview usano l'`userId` del token; rimosso `PERSONAL_USER_ID` hardcoded |
 | Wipe | `DELETE /api/export/me` elimina anche `auth_credentials` |
 
-**Test:** 225 unitari verdi (`api` 73, `domain` 85, `integrations` 40, `ai` 20,
-`config` 5, `db` 2) + 13 verifiche e2e, `lint`, `typecheck`, `typecheck:scripts` e build
+**Test:** 225 unitari verdi (`api` 73, `domain` 96, `integrations` 40, `ai` 20,
+`config` 5, `db` 2) + 14 verifiche e2e, `lint`, `typecheck`, `typecheck:scripts` e build
 API/web puliti. L'e2e verifica registrazione, login corretto, password errata (401),
 email duplicata (409), assenza di materiale password nella risposta e baseline iniziale
 404 per il nuovo account.

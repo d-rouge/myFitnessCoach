@@ -14,18 +14,11 @@ import {
 import type { Env } from "@health-trainer/config";
 import {
   COLLECTIONS,
-  getActivitiesForCapacity,
   getCurrentBaseline,
   getCurrentMicroPlan,
   getRecentCheckins,
 } from "@health-trainer/db";
-import {
-  buildRecentContext,
-  type PlannedSession,
-  resolveTimeZone,
-  toCapacityActivity,
-  todayLocalDate,
-} from "@health-trainer/domain";
+import { type PlannedSession, resolveTimeZone, todayLocalDate } from "@health-trainer/domain";
 import {
   BadRequestException,
   Inject,
@@ -34,6 +27,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { AthleteService } from "../athlete/athlete.service.js";
 import { APP_ENV } from "../config/env.module.js";
 import { MongoService } from "../database/mongo.service.js";
 import { createLlmProvider, llmSettings } from "./llm.provider.js";
@@ -47,6 +41,7 @@ export class AiService {
   constructor(
     @Inject(APP_ENV) private readonly env: Env,
     private readonly mongo: MongoService,
+    private readonly athlete: AthleteService,
   ) {
     this.provider = createLlmProvider(env, "coach");
     // Modello statico; il thinking dipende dal contesto e viene risolto per
@@ -119,13 +114,10 @@ export class AiService {
     const todayStr = todayLocalDate(timezone);
     const todayCheckin = recentCheckins.find((c) => c.date === todayStr);
 
-    // Contesto recente: senza questo il coach non sa che due giorni fa c'è
-    // stata una maratona e può solo ripetere la nota della seduta.
-    const activities = await getActivitiesForCapacity(db, userId);
-    const recentContext = buildRecentContext(activities.map(toCapacityActivity), {
-      now: new Date().toISOString(),
-      timezone,
-    });
+    // Contesto compilato una volta sola e condiviso con la generazione del
+    // piano: niente secondo percorso che può divergere.
+    const context = await this.athlete.getContext(userId);
+    const dossier = context?.dossier ?? null;
 
     const athleteName = baseline?.userId ? `Atleta` : "Atleta";
     const tone = baseline?.profile?.tone || "supportive";
@@ -147,16 +139,25 @@ export class AiService {
       checkin: todayCheckin ?? null,
       readinessBand,
       injuryAlerts,
-      recentContext: {
-        lastActivityDate: recentContext.lastActivityDate,
-        daysSinceLastActivity: recentContext.daysSinceLastActivity,
-        lastLongEffort: recentContext.lastLongEffort,
-        postRaceRecovery: recentContext.postRaceRecovery,
-        load7dMin: recentContext.load7dMin,
-        load28dMin: recentContext.load28dMin,
-        acuteChronicRatio: recentContext.acuteChronicRatio,
-        flags: recentContext.flags,
-      },
+      dossier: dossier
+        ? {
+            identity: dossier.identity,
+            goals: dossier.goals,
+            capacity: dossier.capacity,
+            recentContext: dossier.recentContext,
+            individualResponse: dossier.individualResponse,
+            planMemory: dossier.planMemory,
+            constraints: {
+              conditions: dossier.constraints.conditions,
+              medications: dossier.constraints.medications,
+              injuries: dossier.constraints.injuries,
+              redFlags: dossier.constraints.redFlags,
+              parqCleared: dossier.constraints.parqCleared,
+            },
+            preferences: dossier.preferences,
+            warnings: dossier.warnings,
+          }
+        : null,
     };
 
     // Il thinking costa latenza: si accende solo quando c'è qualcosa da
@@ -165,8 +166,9 @@ export class AiService {
       painReported ||
         injuryAlerts.length > 0 ||
         readinessBand === "impaired" ||
-        recentContext.postRaceRecovery.active ||
-        recentContext.flags.includes("load_spike"),
+        (dossier?.recentContext.postRaceRecovery.active ?? false) ||
+        (dossier?.recentContext.flags.includes("load_spike") ?? false) ||
+        (dossier?.individualResponse.recurringPainAreas.length ?? 0) > 0,
     );
 
     // Istruzioni e formato nel system prompt; nel user solo il payload JSON.

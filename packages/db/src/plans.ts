@@ -72,6 +72,26 @@ export async function getCurrentMacroPlan(db: Db, userId: string): Promise<Macro
   return plan as MacroPlan;
 }
 
+/**
+ * Ultime settimane pianificate, dalla più recente. Serve al dossier per
+ * ricostruire aderenza e storico, non solo la settimana corrente.
+ */
+export async function getRecentMicroPlans(db: Db, userId: string, limit = 6): Promise<MicroPlan[]> {
+  const collection = db.collection<StoredMicroPlan>(COLLECTIONS.microPlans);
+  const docs = await collection.find({ userId }).sort({ startDate: -1 }).limit(limit).toArray();
+
+  return docs.map((doc) => {
+    const {
+      _id: _,
+      userId: _u,
+      createdAt: _c,
+      updatedAt: _up,
+      ...plan
+    } = doc as unknown as StoredMicroPlan & { _id: unknown };
+    return plan as MicroPlan;
+  });
+}
+
 export async function saveMicroPlan(db: Db, userId: string, plan: MicroPlan): Promise<void> {
   const collection = db.collection<StoredMicroPlan>(COLLECTIONS.microPlans);
   const now = new Date().toISOString();

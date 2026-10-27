@@ -1,6 +1,4 @@
 import {
-  getActivitiesForCapacity,
-  getCurrentBaseline,
   getCurrentMacroPlan,
   getCurrentMicroPlan,
   replacePlannedSession,
@@ -12,18 +10,14 @@ import {
 import {
   assessSafety,
   type Baseline,
-  buildRecentContext,
   generateMacroPlan,
   generateMicroPlan,
   type MacroPlan,
   type MicroPlan,
   type PlannedSession,
   PlannedSessionSchema,
-  type RecentContext,
   type SessionAlternative,
-  toCapacityActivity,
   todayLocalDate,
-  withDerivedExperienceTier,
 } from "@health-trainer/domain";
 import {
   BadRequestException,
@@ -32,8 +26,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import type { Db } from "mongodb";
-import { withMeasuredCapacity } from "../baseline/measured-capacity.js";
+import { AthleteService } from "../athlete/athlete.service.js";
 import { getUserTimeZone } from "../common/user-timezone.js";
 import { MongoService } from "../database/mongo.service.js";
 
@@ -41,7 +34,10 @@ import { MongoService } from "../database/mongo.service.js";
 export class PlanService {
   private readonly logger = new Logger(PlanService.name);
 
-  constructor(private readonly mongo: MongoService) {}
+  constructor(
+    private readonly mongo: MongoService,
+    private readonly athlete: AthleteService,
+  ) {}
 
   private async db() {
     return this.mongo.getDb().catch((error: unknown) => {
@@ -49,36 +45,6 @@ export class PlanService {
         `MongoDB non raggiungibile: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
-  }
-
-  /**
-   * Reads the stored baseline together with the imported activities.
-   *
-   * Two things are refreshed here, never at onboarding time only: the current
-   * capacity (so a `garmin` baseline always plans on fresh data) and the
-   * recent context (race/long effort, load spike). The context is passed both
-   * to the deterministic guard and to the future LLM layer as base data.
-   */
-  private async enrichBaseline(
-    db: Db,
-    stored: Baseline,
-  ): Promise<{ baseline: Baseline; recentContext: RecentContext }> {
-    // Documents saved before the v2 model have no `capacity`/`history`.
-    // Normalize first: the provenance lookup below would read `undefined`.
-    const normalized = withDerivedExperienceTier(stored);
-    const activities = await getActivitiesForCapacity(db, normalized.userId);
-    const now = new Date().toISOString();
-    const recentContext = buildRecentContext(activities, {
-      now,
-      timezone: normalized.profile.timezone,
-    });
-
-    // Same rule the API uses on read: `garmin` and `calibration` are measured
-    // from the activities, `manual` is left alone.
-    return {
-      baseline: withMeasuredCapacity(normalized, activities.map(toCapacityActivity), now),
-      recentContext,
-    };
   }
 
   private badRequestFrom(error: unknown): BadRequestException {
@@ -115,13 +81,14 @@ export class PlanService {
     options?: { startDate?: string; totalWeeks?: number },
   ): Promise<{ macroPlan: MacroPlan; microPlan: MicroPlan }> {
     const db = await this.db();
-    const stored = await getCurrentBaseline(db, userId);
-    if (!stored) {
+    const context = await this.athlete.getContext(userId);
+    if (!context) {
       throw new BadRequestException(
         "Nessuna baseline attiva trovata. Completa prima l'onboarding per generare il piano.",
       );
     }
-    const { baseline, recentContext } = await this.enrichBaseline(db, stored);
+    const { baseline } = context;
+    const { recentContext } = context.dossier;
 
     this.assertSafeToPlan(baseline);
 
@@ -157,11 +124,11 @@ export class PlanService {
 
   async generateMicroPlan(userId: string, weekIndex: number): Promise<MicroPlan> {
     const db = await this.db();
-    const stored = await getCurrentBaseline(db, userId);
-    if (!stored) {
+    const context = await this.athlete.getContext(userId);
+    if (!context) {
       throw new BadRequestException("Nessuna baseline attiva trovata.");
     }
-    const { baseline } = await this.enrichBaseline(db, stored);
+    const { baseline } = context;
 
     const macroPlan = await getCurrentMacroPlan(db, userId);
     if (!macroPlan) {

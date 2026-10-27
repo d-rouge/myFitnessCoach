@@ -314,15 +314,15 @@ numero medio di revisioni, costo per piano, tempo per piano.
 
 ## 11. Passi per procedere
 
-### Fase A — Dossier (nessuna chiave API)
+### Fase A — Dossier (nessuna chiave API) — **fatta il 27 ottobre 2026**
 
-1. `packages/domain/src/rules/athlete-dossier.ts`: compilatore puro
-   `buildAthleteDossier({ baseline, activities, checkins, plans, now })`.
-2. Test su scenari reali (maratona 2 giorni fa, rientro, ginocchio, zero dati).
-3. Esposizione `GET /api/athlete/dossier` con `available: false` esplicito se i
-   dati mancano (mai zeri silenziosi).
-4. Criterio di accettazione: stesso input → stesso dossier; nessun campo
-   derivato da LLM; dimensioni entro i limiti di §6.
+1. ~~`buildAthleteDossier()`~~ in `packages/domain/src/rules/athlete-dossier.ts`.
+2. ~~Test~~ su aderenza, scarto RPE, dolore ricorrente, memoria del piano,
+   determinismo e copertura dei campi.
+3. ~~`GET /api/athlete/dossier`~~, con `404` quando manca la baseline e
+   `warnings` espliciti per i blocchi non misurabili.
+4. Un solo percorso: `AthleteService.getContext()` alimenta piano e coach.
+   `planMemory.method` è ancora `null`: dipende da `trainingModel` (Fase B).
 
 **Perché per prima:** è il differenziatore, non richiede provider, ed è
 verificabile. Migliora anche il piano a regole, che resta in uso.
