@@ -284,11 +284,15 @@ async function main(): Promise<void> {
       { sub: userC.id, email: userC.email, name: userC.name, roles: userC.roles },
       jwtSecret,
     );
+    const emptyBaseline = await request("/baseline", tokenC);
     const emptyMacro = await request("/plan/macro", tokenC);
     const emptyMicro = await request("/plan/micro", tokenC);
+    const emptyBody = await emptyBaseline.text();
+    assertEqual(emptyBaseline.status, 404, "baseline assente → 404");
+    assert(emptyBody.length > 0, "la baseline assente non deve rispondere 200 con body vuoto");
     assertEqual(emptyMacro.status, 404, "macro-piano assente → 404");
     assertEqual(emptyMicro.status, 404, "micro-piano assente → 404");
-    results.push("piani assenti rispondono 404 (niente 200 vuoto)");
+    results.push("baseline e piani assenti rispondono 404 (niente 200 vuoto)");
 
     console.log(`\nE2E OK — ${results.length} verifiche contro MongoDB reale (${dbName}):`);
     for (const result of results) console.log(`  ✓ ${result}`);

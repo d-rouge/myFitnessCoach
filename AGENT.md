@@ -139,7 +139,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (148 test)
+npm test                      # unit/contract test (150 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -174,7 +174,7 @@ POST /api/auth/logout
 
 Protetti (JWT)
 GET  /api/me
-GET  /api/baseline
+GET  /api/baseline               (404 se non esiste)
 POST /api/baseline
 GET  /api/baseline/history
 GET  /api/baseline/personas
@@ -265,8 +265,9 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
   `todayLocalDate`, `resolveTimeZone`, `addDaysIso`. L'API legge il fuso dalla baseline
   attiva (`getUserTimeZone`, fallback `Europe/Rome`). Mai `toISOString().slice(0, 10)`
   per il giorno corrente.
-- **Piani assenti.** `GET /api/plan/macro` e `GET /api/plan/micro` rispondono `404`
-  esplicito; la UI tratta il 404 come "nessun piano".
+- **Risorse assenti.** `GET /api/baseline`, `GET /api/plan/macro` e `GET /api/plan/micro`
+  rispondono `404` esplicito; la UI tratta il 404 come "nessun dato". Mai `200` con body
+  vuoto: Nest non serializza `null` e il client andrebbe in errore di parsing.
 - **Auth UI.** `/api/auth/status` espone `googleClientId`; il login usa Google Identity
   Services se configurato, il dev login è visibile solo se abilitato. Il logout imposta
   `health-trainer.logged-out` e impedisce il dev auto-login finché non si effettua un
@@ -274,7 +275,7 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **Hevy UI.** La chiave può essere inserita nella board: resta in `localStorage`, viene
   inviata solo con l'export e il server ricade su `HEVY_API_KEY` se assente.
 - **E2E.** `scripts/e2e-api.ts` avvia l'API con dev endpoint disabilitati, firma due JWT
-  e verifica isolamento, export FIT, check-in, backup e 404.
+  e verifica isolamento, export FIT, check-in, backup e 404 per baseline/piani assenti.
 
 ---
 
@@ -304,12 +305,14 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 148 test verdi (api 42, domain 56, integrations 40, ai 3, config 5, db 2) + 9 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
+- **Test attuali:** 150 test verdi (api 44, domain 56, integrations 40, ai 3, config 5, db 2) + 9 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
-- **Env:** `apps/api/src/main.ts` e gli spike caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
+- **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
+  `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
 - **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
-- **Env:** `apps/api/src/main.ts` e gli spike caricano `.env` con `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
+- **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
+  `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
 - **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.
 
 ---

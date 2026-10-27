@@ -47,6 +47,7 @@ config sicura, validazione Zod e body limit FIT. Stato attuale:
 | Export FIT e Hevy (F1-08, F1-09) | ✅ chiusi (WS-4) |
 | Backup, restore e wipe (F1-10) | ✅ chiusi (WS-5) |
 | `GET /api/review/latest` senza review (F1-14) | ✅ chiuso |
+| `GET /api/baseline` senza baseline (F1-21) | ✅ chiuso (verifica runtime) |
 | Safety, generatore, timezone, UI (F1-11, F1-12, F1-13, F1-17) | ✅ chiusi (Onda 2) |
 | AI coach, scheduler | ❌ aperti (F1-18, F1-19, rinviati) |
 
@@ -87,16 +88,26 @@ introdotto l'e2e multi-utente su MongoDB reale:
 | WS-8 | F1-17 | `/api/auth/status` espone `googleClientId`; login Google via Google Identity Services; logout esplicito non viene annullato dal dev auto-login; chiave Hevy inserita in UI, salvata in `localStorage` e inoltrata nell'header `api-key` (unit test con `fetch` mockato) |
 | WS-9 | e2e | 9 verifiche verdi su `health_trainer_e2e`: 401 senza token, identità JWT distinte, baseline legate all'utente autenticato (userId del body ignorato), piani isolati, PATCH cross-utente 404, export FIT cross-utente 404 e proprio FIT con magic bytes, check-in isolati, backup isolati, piani assenti 404 |
 
-**Test:** 148 unitari verdi (`api` 42, `domain` 56, `integrations` 40, `ai` 3,
+**Test:** 150 unitari verdi (`api` 44, `domain` 56, `integrations` 40, `ai` 3,
 `config` 5, `db` 2) + 9 verifiche e2e (`npm run test:e2e`), `lint`, `typecheck`,
 `typecheck:scripts` e build API/web puliti.
 
 Conteggio residuo: **0 P0**, **0 P1**, **2 P2** (F1-18 AI coach, F1-19 scheduler e
 credenziali cifrate, entrambi rinviati con motivazione). F1-20 è chiuso da questo
-aggiornamento documentale.
+aggiornamento documentale; **F1-21** è stato trovato e chiuso durante la verifica
+runtime del 27 ottobre 2026.
 
 **Non verificato:** login Google con credenziali reali, export Hevy con chiave reale,
 import `.FIT` su Garmin Connect, sync automatico, uso reale di 14 giorni.
+
+#### F1-21 — `GET /api/baseline` risponde 200 con body vuoto
+
+**Stato: ✅ chiuso durante la verifica runtime.** Senza baseline il controller
+restituiva `null`, che Nest serializza come `200` senza body. La UI chiama
+`response.json()` e andava in errore; con il refetch globale ogni 10 s il wizard
+onboarding veniva smontato e rimontato. Ora il controller risponde `404` con messaggio
+esplicito (la UI lo interpreta già come “nessuna baseline”). Aggiunti unit test del
+controller e verifica e2e su baseline e piani assenti.
 
 ---
 

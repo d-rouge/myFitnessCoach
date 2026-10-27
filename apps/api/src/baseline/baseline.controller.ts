@@ -4,7 +4,7 @@ import {
   intermediatePersona,
   kneePainPersona,
 } from "@health-trainer/domain";
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, NotFoundException, Post } from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { BaselineService } from "./baseline.service.js";
 
@@ -14,7 +14,13 @@ export class BaselineController {
 
   @Get()
   async getCurrent(@CurrentUser() user: { id: string }) {
-    return this.baselineService.getCurrent(user.id);
+    const baseline = await this.baselineService.getCurrent(user.id);
+    if (!baseline) {
+      // Nest serializes null as an empty 200, which breaks clients expecting
+      // JSON. Absence is explicit: the UI treats 404 as "no baseline yet".
+      throw new NotFoundException("Nessuna baseline attiva trovata.");
+    }
+    return baseline;
   }
 
   @Post()

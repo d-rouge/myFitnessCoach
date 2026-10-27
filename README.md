@@ -19,7 +19,7 @@ Componenti presenti:
 - **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
 - **Auth UI:** login Google (Google Identity Services) o dev login, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
 
-148 test unitari e 9 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
+150 test unitari e 9 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
 temporaneo), typecheck e lint puliti, build verificata. **Non verificato:** login Google
 con credenziali reali, export Hevy con chiave reale, import `.FIT` su Garmin Connect,
 sync automatico, uso reale di 14 giorni.
@@ -82,7 +82,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (148 test)
+npm test                 # unit + contract test (150 test)
 npm run test:e2e         # e2e multi-utente su MongoDB reale (`*_e2e`, poi pulito)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
@@ -199,7 +199,7 @@ npm run test:e2e
 Avvia l'API su una porta dedicata con `ENABLE_DEV_ENDPOINTS=false`, firma due JWT e
 verifica contro MongoDB reale: 401 senza token, identità distinte, baseline/piani
 isolati, PATCH ed export FIT cross-utente respinti con 404, check-in e backup separati,
-404 per piani assenti. Usa `E2E_MONGODB_URI` (default
+404 per baseline e piani assenti (mai 200 con body vuoto). Usa `E2E_MONGODB_URI` (default
 `mongodb://127.0.0.1:27017/health_trainer_e2e`), rifiuta database che non terminano con
 `_e2e` e li elimina a fine corsa.
 

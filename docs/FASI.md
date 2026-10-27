@@ -185,7 +185,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 148 test unitari, 9 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 150 test unitari, 9 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
 build API e web complete. **Non coperto:** login Google con credenziali reali, export
 Hevy con chiave reale, import `.FIT` su Garmin Connect, scheduler automatico, uso reale
@@ -213,7 +213,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Disponibilità settimanale e durata massima per sessione.
 - [x] Attrezzatura, palestra, piscina, casa con selezione visuale.
 - [x] Foto opzionali (upload, EXIF strip, storage privato - rimandato alla fase mobile).
-- [x] Riepilogo baseline modificabile con persistenza Mongo (`athlete_baselines`) e modulo API `/api/baseline`.
+- [x] Riepilogo baseline modificabile con persistenza Mongo (`athlete_baselines`) e modulo API `/api/baseline`. _(Senza baseline `GET /api/baseline` risponde 404, mai 200 con body vuoto: F1-21.)_
 
 #### 1.3 Piano
 
@@ -281,6 +281,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Backup esportato e ripristinato su un ambiente pulito: verificato in WS-5 (wipe → restore → baseline v5, doppio restore idempotente).
 - [x] Nessun piano viola i vincoli di sicurezza: WS-6 blocca la generazione su red flag assoluti o PAR-Q mancante; verificato a runtime (save 201, generate 400 con messaggio).
 - [x] Isolamento multi-utente: WS-9 verifica 401 senza token, piani/check-in/backup separati, PATCH ed export FIT cross-utente respinti con 404.
+- [x] Risorse assenti senza body ambiguo: baseline, macro e micro rispondono 404, mai 200 con body vuoto (F1-14, F1-21).
 
 ### Fuori scope (rimandato)
 
