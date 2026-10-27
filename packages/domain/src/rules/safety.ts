@@ -11,20 +11,74 @@ export interface SafetyAssessment {
   requiresMedicalClearance: boolean;
 }
 
+/**
+ * Condizioni che richiedono un parere medico prima di allenare. Sono
+ * riconosciute in inglese (id canonici) e in italiano (etichette del wizard):
+ * il wizard salva testo leggibile, la sicurezza deve comunque capirlo.
+ */
 const ABSOLUTE_RED_FLAGS = [
   "chest pain",
   "chest_pain",
+  "dolore toracico",
   "syncope",
+  "sincope",
   "uncontrolled hypertension",
   "uncontrolled_hypertension",
+  "ipertensione non controllata",
   "recent surgery",
   "recent_surgery",
+  "chirurgia recente",
   "suspected stress fracture",
   "stress_fracture",
+  "frattura da stress",
   "active eating disorder",
   "eating_disorder",
+  "disturbo alimentare",
   "fever",
+  "febbre",
   "infection",
+  "infezione",
+];
+
+/**
+ * Condizioni croniche che consentono l'allenamento ma richiedono prudenza e
+ * una nota esplicita. Non bloccano: alzano la severità a `caution`.
+ */
+const CAUTION_CONDITIONS = [
+  "asma",
+  "diabete",
+  "ipertensione controllata",
+  "cardiopatia stabile",
+  "aritmia",
+  "gravidanza",
+  "post parto",
+  "anemia",
+  "ipotiroidismo",
+  "ipertiroidismo",
+  "colesterolo alto",
+  "emicrania",
+  "reflusso",
+  "ernia",
+];
+
+/** Farmaci che modificano la risposta all'esercizio. */
+const MEDICATION_NOTES: Array<{ matches: string[]; note: string }> = [
+  {
+    matches: ["betabloccante", "beta-bloccante", "beta bloccante"],
+    note: "Beta-bloccanti: la frequenza cardiaca è attenuata, usare RPE invece del battito.",
+  },
+  {
+    matches: ["diuretico"],
+    note: "Diuretici: rischio di disidratazione, cura l'idratazione e gli elettroliti.",
+  },
+  {
+    matches: ["anticoagulante", "warfarin", "doac"],
+    note: "Anticoagulanti: evitare sport di contatto e cadute.",
+  },
+  {
+    matches: ["insulina", "ipoglicemizzante", "metformina"],
+    note: "Terapia ipoglicemizzante: attenzione all'ipoglicemia durante e dopo la seduta.",
+  },
 ];
 
 export function assessSafety(input: {
@@ -53,6 +107,21 @@ export function assessSafety(input: {
       if (ABSOLUTE_RED_FLAGS.some((flag) => normalized.includes(flag))) {
         escalate("block");
         reasons.push(`Condizione che richiede parere medico: ${condition}`);
+        continue;
+      }
+      if (CAUTION_CONDITIONS.some((entry) => normalized.includes(entry))) {
+        escalate("caution");
+        reasons.push(`Condizione cronica da considerare: ${condition}`);
+      }
+    }
+
+    for (const medication of anamnesis.medications) {
+      const normalized = medication.toLowerCase();
+      for (const entry of MEDICATION_NOTES) {
+        if (entry.matches.some((match) => normalized.includes(match))) {
+          escalate("caution");
+          reasons.push(entry.note);
+        }
       }
     }
 

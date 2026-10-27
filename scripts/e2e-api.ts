@@ -452,7 +452,34 @@ async function main(): Promise<void> {
       404,
       "un piano bloccato non deve essere scritto",
     );
-    results.push("gate di sicurezza: PAR-Q mancante e red flag assoluto bloccano la generazione");
+    const conditionSaved = await request("/baseline", tokenD, {
+      method: "POST",
+      body: JSON.stringify({
+        ...beginnerPersona,
+        anamnesis: {
+          ...beginnerPersona.anamnesis,
+          parqCleared: true,
+          redFlags: [],
+          conditions: ["ipertensione non controllata"],
+        },
+      }),
+    });
+    assertEqual(conditionSaved.status, 201, "baseline con patologia non controllata salvata");
+
+    const conditionBlocked = await request("/plan/macro/generate", tokenD, {
+      method: "POST",
+      body: JSON.stringify({ startDate: "2026-11-02" }),
+    });
+    assertEqual(conditionBlocked.status, 400, "generazione bloccata da patologia non controllata");
+    const conditionMessage = (await conditionBlocked.text()).toLowerCase();
+    assert(
+      conditionMessage.includes("ipertensione non controllata"),
+      "il blocco deve riportare la patologia dichiarata",
+    );
+
+    results.push(
+      "gate di sicurezza: PAR-Q mancante, red flag assoluto e patologia non controllata bloccano la generazione",
+    );
 
     console.log(`\nE2E OK — ${results.length} verifiche contro MongoDB reale (${dbName}):`);
     for (const result of results) console.log(`  ✓ ${result}`);

@@ -223,7 +223,7 @@ Contenuto minimo perché il modello sia "sul pezzo". I token sono indicativi.
 | `capacity` | settimane attive, sedute/sett., uscita più lunga, 5k stimato, fonte e data | 150 |
 | `recent_context` | ultima gara/sforzo lungo, giorni trascorsi, carico 7/28 gg, ACWR, gap | 200–300 |
 | `individual_response` | RPE prescritto vs riportato (4 settimane), aderenza reale, dolore ricorrente | 200–300 |
-| `constraints` | giorni e finestre reali, attrezzatura, infortuni, red flag, PAR-Q | 150–250 |
+| `constraints` | giorni e finestre reali, attrezzatura, infortuni, **patologie e farmaci**, red flag, PAR-Q | 150–250 |
 | `method_memory` | metodo in corso, fase del macrociclo, cosa ha funzionato e cosa no | 300–500 |
 | `plan_history` | ultime 4–6 settimane: prescritto sintetico vs completato | 400–700 |
 | `trend` | aggregati 7/28 giorni (sonno, RHR, HRV, peso, nutrizione) | 300–500 |

@@ -1,5 +1,6 @@
 import {
   type AthleticHistory,
+  assessSafety,
   type Baseline,
   beginnerPersona,
   type CapacityEstimate,
@@ -70,6 +71,28 @@ const RED_FLAGS = [
   "febbre o infezione in corso",
 ];
 
+/**
+ * Patologie selezionabili. Le voci che richiedono un parere medico usano le
+ * stesse parole riconosciute da `assessSafety`, così il blocco scatta davvero.
+ */
+const CONDITIONS = [
+  "ipertensione controllata",
+  "ipertensione non controllata",
+  "cardiopatia stabile",
+  "aritmia",
+  "asma",
+  "diabete",
+  "ipotiroidismo",
+  "ipertiroidismo",
+  "anemia",
+  "colesterolo alto",
+  "ernia",
+  "reflusso",
+  "emicrania",
+  "gravidanza",
+  "post parto",
+];
+
 const TRAINING_LEVELS: Array<{ id: TrainingLevel; label: string }> = [
   { id: "none", label: "Nessuna pratica strutturata" },
   { id: "amateur", label: "Amatoriale regolare" },
@@ -121,6 +144,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
     painLevel: number;
   }>({ area: "", status: "recovering", painLevel: 3 });
 
+  const [medicationDraft, setMedicationDraft] = useState("");
   const [capacityEstimate, setCapacityEstimate] = useState<CapacityEstimate | null>(null);
   const [estimateError, setEstimateError] = useState<string | null>(null);
 
@@ -182,6 +206,9 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
       },
     }));
   };
+
+  // Valutazione live: l'atleta vede subito se ciò che dichiara blocca il piano.
+  const safety = assessSafety({ anamnesis: baseline.anamnesis });
 
   const derivedTier = deriveExperienceTier({
     history: baseline.profile.history,
@@ -251,6 +278,34 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
       ...baseline,
       anamnesis: { ...baseline.anamnesis, redFlags: next },
     });
+  };
+
+  const handleConditionToggle = (condition: string) => {
+    const current = baseline.anamnesis.conditions;
+    const next = current.includes(condition)
+      ? current.filter((item) => item !== condition)
+      : [...current, condition];
+    setBaseline({
+      ...baseline,
+      anamnesis: { ...baseline.anamnesis, conditions: next },
+    });
+  };
+
+  const handleAddMedication = () => {
+    const medication = medicationDraft.trim();
+    if (!medication) return;
+    if (baseline.anamnesis.medications.includes(medication)) {
+      setMedicationDraft("");
+      return;
+    }
+    setBaseline({
+      ...baseline,
+      anamnesis: {
+        ...baseline.anamnesis,
+        medications: [...baseline.anamnesis.medications, medication],
+      },
+    });
+    setMedicationDraft("");
   };
 
   const handleAddInjury = () => {
@@ -773,6 +828,132 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                 </p>
               ) : null}
             </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <span className="block text-xs font-semibold text-slate-300">Patologie note</span>
+              <p className="mt-1 text-xs text-slate-400">
+                Serve a modulare intensità e recupero. Una patologia non controllata richiede un
+                nullaosta medico.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {CONDITIONS.map((condition) => {
+                  const active = baseline.anamnesis.conditions.includes(condition);
+                  return (
+                    <button
+                      key={condition}
+                      type="button"
+                      onClick={() => handleConditionToggle(condition)}
+                      className={cn(
+                        "rounded-xl px-3 py-2 text-xs font-medium transition",
+                        active
+                          ? "bg-amber-400 font-bold text-slate-950"
+                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {condition}
+                    </button>
+                  );
+                })}
+              </div>
+              {baseline.anamnesis.conditions.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-500">Nessuna patologia dichiarata.</p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <span className="block text-xs font-semibold text-slate-300">Farmaci assunti</span>
+              <p className="mt-1 text-xs text-slate-400">
+                Alcuni farmaci cambiano la risposta all&apos;esercizio (beta-bloccanti, diuretici,
+                anticoagulanti, terapia per il diabete).
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={medicationDraft}
+                  onChange={(event) => setMedicationDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleAddMedication();
+                    }
+                  }}
+                  placeholder="Es. betabloccante"
+                  className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddMedication}
+                  disabled={medicationDraft.trim().length === 0}
+                  className="rounded-xl bg-lime-400 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
+                >
+                  Aggiungi
+                </button>
+              </div>
+              {baseline.anamnesis.medications.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-500">Nessun farmaco dichiarato.</p>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {baseline.anamnesis.medications.map((medication) => (
+                    <span
+                      key={medication}
+                      className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200"
+                    >
+                      {medication}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBaseline({
+                            ...baseline,
+                            anamnesis: {
+                              ...baseline.anamnesis,
+                              medications: baseline.anamnesis.medications.filter(
+                                (item) => item !== medication,
+                              ),
+                            },
+                          })
+                        }
+                        className="text-rose-400 hover:text-rose-300"
+                        aria-label={`Rimuovi ${medication}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {safety.severity !== "ok" ? (
+              <div
+                className={cn(
+                  "rounded-2xl border p-4",
+                  safety.severity === "block"
+                    ? "border-rose-500/40 bg-rose-500/10"
+                    : "border-amber-400/40 bg-amber-400/10",
+                )}
+              >
+                <p
+                  className={cn(
+                    "text-xs font-bold",
+                    safety.severity === "block" ? "text-rose-200" : "text-amber-200",
+                  )}
+                >
+                  {safety.severity === "block"
+                    ? "Generazione del piano bloccata"
+                    : "Allenamento possibile con cautela"}
+                </p>
+                <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-slate-200">
+                  {safety.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+                {safety.requiresMedicalClearance ? (
+                  <p className="mt-2 text-xs text-slate-300">
+                    Serve un nullaosta medico prima di generare il piano.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div>
               <span className="block text-xs font-semibold text-slate-300">

@@ -19,7 +19,7 @@ Componenti presenti:
 - **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
 - **Auth:** registrazione e login con email + password (scrypt) oppure Google, dev login opt-in, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
 
-236 test unitari e 14 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
+239 test unitari e 14 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
 temporaneo), typecheck e lint puliti, build verificata. **Non verificato:** login Google
 con credenziali reali, export Hevy con chiave reale, import `.FIT` su Garmin Connect,
 sync automatico, uso reale di 14 giorni.
@@ -84,7 +84,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (236 test)
+npm test                 # unit + contract test (239 test)
 npm run test:e2e         # e2e multi-utente su MongoDB reale (`*_e2e`, poi pulito)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict

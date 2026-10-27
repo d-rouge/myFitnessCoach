@@ -96,4 +96,49 @@ describe("safety", () => {
     expect(result.allowed).toHaveLength(0);
     expect(result.blocked).toHaveLength(1);
   });
+
+  it("riconosce le condizioni scritte in italiano come il wizard", () => {
+    const result = assessSafety({
+      anamnesis: {
+        conditions: ["ipertensione non controllata"],
+        medications: [],
+        injuries: [],
+        redFlags: [],
+        parqCleared: true,
+      },
+    });
+
+    expect(result.severity).toBe("block");
+    expect(result.reasons.join(" ")).toMatch(/ipertensione non controllata/i);
+  });
+
+  it("tratta una condizione cronica come cautela, non come blocco", () => {
+    const result = assessSafety({
+      anamnesis: {
+        conditions: ["asma"],
+        medications: [],
+        injuries: [],
+        redFlags: [],
+        parqCleared: true,
+      },
+    });
+
+    expect(result.severity).toBe("caution");
+    expect(result.requiresMedicalClearance).toBe(false);
+  });
+
+  it("avverte quando un farmaco cambia la risposta all'esercizio", () => {
+    const result = assessSafety({
+      anamnesis: {
+        conditions: [],
+        medications: ["betabloccante"],
+        injuries: [],
+        redFlags: [],
+        parqCleared: true,
+      },
+    });
+
+    expect(result.severity).toBe("caution");
+    expect(result.reasons.join(" ")).toMatch(/RPE/);
+  });
 });
