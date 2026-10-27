@@ -100,6 +100,29 @@ const TRAINING_LEVELS: Array<{ id: TrainingLevel; label: string }> = [
   { id: "elite", label: "Alto livello / nazionale" },
 ];
 
+/**
+ * Bozza locale dell'onboarding.
+ *
+ * `sessionStorage` e non `localStorage`: contiene dati sanitari e non deve
+ * sopravvivere alla chiusura della scheda. Serve a non perdere il lavoro se si
+ * cambia tab, si ricarica la pagina o si esce dal wizard.
+ */
+const DRAFT_KEY = "health-trainer:baseline-draft:v1";
+
+function readDraft(): Baseline | null {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Baseline;
+    if (!parsed?.profile || !parsed.anamnesis || !parsed.goals || !parsed.availability) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 function format5k(seconds: number | null): string {
   if (!seconds) return "—";
   const minutes = Math.floor(seconds / 60);
@@ -132,17 +155,36 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
   // Form state
   const [baseline, setBaseline] = useState<Baseline>(() => {
     if (initialBaseline) return initialBaseline;
-    return {
-      ...beginnerPersona,
-      id: `baseline_${Date.now()}`,
-      userId: "personal",
-    };
+    // Riprende una bozza interrotta invece di ripartire da zero.
+    return (
+      readDraft() ?? {
+        ...beginnerPersona,
+        id: `baseline_${Date.now()}`,
+        userId: "personal",
+      }
+    );
   });
+  const [draftRestored] = useState<boolean>(() => !initialBaseline && readDraft() !== null);
+  // Istantanea del profilo iniziale: "sporco" = diverso da com'era.
+  const [initialSnapshot] = useState(() => JSON.stringify(baseline));
+  const dirty = JSON.stringify(baseline) !== initialSnapshot;
+  // In modifica il profilo esiste già: salvarlo da qualsiasi step è sicuro.
+  const isEditing = Boolean(initialBaseline);
   const [injuryDraft, setInjuryDraft] = useState<{
     area: string;
     status: Injury["status"];
     painLevel: number;
   }>({ area: "", status: "recovering", painLevel: 3 });
+
+  useEffect(() => {
+    // La bozza serve al primo onboarding; in modifica si salva sul server.
+    if (isEditing) return;
+    try {
+      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(baseline));
+    } catch {
+      // storage pieno o disabilitato: non bloccare il form
+    }
+  }, [baseline, isEditing]);
 
   const [medicationDraft, setMedicationDraft] = useState("");
   const [capacityEstimate, setCapacityEstimate] = useState<CapacityEstimate | null>(null);
@@ -346,6 +388,11 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
       }
 
       const saved = (await res.json()) as Baseline;
+      try {
+        window.sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // niente da fare: la bozza scade con la scheda
+      }
       onSaved(saved);
     } catch (err) {
       setError((err as Error).message);
@@ -1347,8 +1394,18 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         )}
       </div>
 
+      {draftRestored && !isEditing ? (
+        <p className="mt-4 rounded-xl border border-sky-400/30 bg-sky-400/10 p-3 text-xs text-sky-200">
+          Bozza ripristinata: avevi lasciato l&apos;onboarding a metà. Puoi riprenderlo da dove eri.
+        </p>
+      ) : null}
+
       {/* Navigation Buttons */}
-      <div className="mt-8 flex items-center justify-between border-t border-white/10 pt-4">
+      {/*
+        Barra sempre visibile mentre si compila: con sei step e form lunghi il
+        pulsante di salvataggio non deve dipendere dallo scroll.
+      */}
+      <div className="sticky bottom-0 z-10 -mx-6 mt-8 flex items-center justify-between gap-3 rounded-b-3xl border-t border-white/10 bg-slate-900/95 px-6 py-3 backdrop-blur sm:-mx-8 sm:px-8">
         {step > 1 ? (
           <button
             type="button"
@@ -1360,7 +1417,12 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         ) : onCancel ? (
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              if (dirty && !window.confirm("Hai modifiche non salvate. Uscire comunque?")) {
+                return;
+              }
+              onCancel?.();
+            }}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-400 hover:bg-white/10"
           >
             Annulla
@@ -1369,24 +1431,43 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
           <div />
         )}
 
-        {step < 6 ? (
-          <button
-            type="button"
-            onClick={() => setStep((s) => Math.min(6, s + 1))}
-            className="rounded-xl bg-lime-400 px-5 py-2 text-xs font-bold text-slate-950 transition hover:bg-lime-300"
-          >
-            Avanti
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="rounded-xl bg-lime-400 px-6 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 disabled:opacity-50"
-          >
-            {isSubmitting ? "Salvataggio…" : "Salva Baseline L0"}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {dirty ? (
+            <span className="mr-1 text-[11px] font-medium text-amber-300">
+              Modifiche non salvate
+            </span>
+          ) : null}
+
+          {isEditing && step < 6 ? (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="rounded-xl border border-lime-400/40 bg-lime-400/10 px-4 py-2 text-xs font-bold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-50"
+            >
+              {isSubmitting ? "Salvataggio…" : "Salva modifiche"}
+            </button>
+          ) : null}
+
+          {step < 6 ? (
+            <button
+              type="button"
+              onClick={() => setStep((s) => Math.min(6, s + 1))}
+              className="rounded-xl bg-lime-400 px-5 py-2 text-xs font-bold text-slate-950 transition hover:bg-lime-300"
+            >
+              Avanti
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="rounded-xl bg-lime-400 px-6 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 disabled:opacity-50"
+            >
+              {isSubmitting ? "Salvataggio…" : isEditing ? "Salva modifiche" : "Salva Baseline L0"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
