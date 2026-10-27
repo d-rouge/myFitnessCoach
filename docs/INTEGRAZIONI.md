@@ -601,8 +601,24 @@ Uso nel progetto:
 
 | Scopo | Modello | Thinking | Perché |
 |---|---|---|---|
-| `coach` (consiglio giornaliero) | `deepseek-flash` | no | task breve e frequente: conta la latenza |
-| `planning` (macro, micro, critica) | `deepseek-v4-pro` | sì | ragionamento sul metodo e sull'envelope |
+| `coach`, contesto semplice | `deepseek-flash` | no | task breve e frequente: conta la latenza |
+| `coach`, contesto delicato | `deepseek-flash` | sì (auto) | dolore, readiness bassa, finestra post-gara, carico in salita |
+| `planning` (macro, micro, critica) | `deepseek-v4-pro` | sempre | ragionamento sul metodo e sull'envelope |
+
+`LLM_THINKING=auto` (default) implementa la terza riga; `on`/`off` forzano il
+comportamento. Il thinking non è un interruttore di qualità generico: si accende
+quando c'è qualcosa da giudicare.
+
+**Misure reali** (27 ottobre 2026, prompt coach completo):
+
+| Configurazione | Latenza | Token in / out |
+|---|---|---|
+| flash, no thinking | 2,3–2,8 s | 433 / ~200 |
+| flash, thinking | 3,6 s | 101 / 496 (303 di reasoning) |
+| v4-pro, thinking | 6,2 s | 509 / 387 |
+
+Per una card richiesta con un click 2-3 s sono accettabili, 6 s no: per questo il
+coach resta su flash e il thinking si accende solo sui casi delicati.
 
 Vincoli della JSON mode, entrambi gestiti dal client:
 
@@ -611,8 +627,16 @@ Vincoli della JSON mode, entrambi gestiti dal client:
 3. `max_tokens` va dimensionato, altrimenti il JSON si tronca.
 
 In thinking mode `temperature` viene ignorata dall'API: il provider **non la
-invia**, per non dare l'illusione di controllare la variabilità. L'API può anche
-restituire `content` vuoto in JSON mode: è trattato come guasto transitorio.
+invia**, per non dare l'illusione di controllare la variabilità.
+
+Due difetti reali incontrati durante le prime chiamate, entrambi gestiti:
+
+1. **`content` vuoto** in JSON mode: comportamento documentato e intermittente.
+   Il provider riprova una volta (attesa 300 ms) prima di restituire un errore
+   ritentabile che riporta `finish_reason`.
+2. **JSON incapsulato in un blocco markdown** nonostante `response_format`.
+   `extractJson()` recupera l'oggetto (blocco ```` ```json ````, testo
+   introduttivo, oppure JSON puro).
 
 Errori mappati su `LlmProviderError` con flag `retryable`, che il futuro loop
 Proposer/Critic userà per decidere se riprovare o passare al fallback:

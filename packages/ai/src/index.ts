@@ -50,6 +50,7 @@ export interface LlmProvider {
 }
 
 export {
+  COACH_CONTEXT_RULES,
   COACH_PROMPT_VERSION,
   COACH_RESPONSE_EXAMPLE,
   COACH_SYSTEM_PROMPT,

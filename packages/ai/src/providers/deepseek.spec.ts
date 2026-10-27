@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { LlmProviderError } from "../errors.js";
-import { DEEPSEEK_BASE_URL, DEEPSEEK_MODELS, DeepSeekProvider } from "./deepseek.js";
+import { DEEPSEEK_BASE_URL, DEEPSEEK_MODELS, DeepSeekProvider, extractJson } from "./deepseek.js";
 
 const AdviceSchema = z.object({
   headline: z.string(),
@@ -164,6 +164,34 @@ describe("DeepSeekProvider", () => {
     expect(error.message).toMatch(/vuota/i);
   });
 
+  it("riprova una volta quando la JSON mode restituisce contenuto vuoto", async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls += 1;
+      return calls === 1 ? completion(null) : completion(JSON.stringify(validAnswer));
+    }) as unknown as typeof fetch;
+
+    const response = await providerWith(fetchImpl).generate(baseRequest);
+
+    expect(calls).toBe(2);
+    expect(response.data).toEqual(validAnswer);
+  });
+
+  it("dopo due risposte vuote riporta finish_reason e resta ritentabile", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        choices: [{ message: { content: "" }, finish_reason: "stop" }],
+      }),
+    ) as unknown as typeof fetch;
+
+    const error = (await providerWith(fetchImpl)
+      .generate(baseRequest)
+      .catch((err: unknown) => err)) as LlmProviderError;
+
+    expect(error.retryable).toBe(true);
+    expect(error.message).toMatch(/finish_reason: stop/);
+  });
+
   it("rifiuta un JSON malformato e lo segnala come ritentabile", async () => {
     const fetchImpl = vi.fn(async () => completion("{non json")) as unknown as typeof fetch;
 
@@ -221,5 +249,18 @@ describe("DeepSeekProvider", () => {
       .catch((err: unknown) => err)) as LlmProviderError;
 
     expect(error.message).not.toContain("test-key-not-a-secret");
+  });
+
+  it.each([
+    ["blocco markdown", `\`\`\`json\n${JSON.stringify(validAnswer)}\n\`\`\``],
+    ["testo prima del JSON", `Ecco il consiglio: ${JSON.stringify(validAnswer)}`],
+    ["JSON puro", JSON.stringify(validAnswer)],
+  ])("accetta il JSON anche se arrivato come %s", async (_label, content) => {
+    const fetchImpl = vi.fn(async () => completion(content)) as unknown as typeof fetch;
+
+    const response = await providerWith(fetchImpl).generate(baseRequest);
+
+    expect(response.data).toEqual(validAnswer);
+    expect(extractJson(content)).toBe(JSON.stringify(validAnswer));
   });
 });

@@ -18,18 +18,40 @@ export interface LlmSettings {
   thinking: boolean;
 }
 
+export interface LlmContextHints {
+  /**
+   * Contesto che richiede giudizio: dolore riferito, readiness bassa, finestra
+   * post-gara, carico in salita. Con `LLM_THINKING=auto` attiva il thinking
+   * anche sul coach.
+   */
+  hardContext?: boolean;
+}
+
 /**
  * Traduce la configurazione in una scelta concreta di modello.
  * Le variabili restano opzionali: se mancano si usano i default DeepSeek, così
  * cambiare modello è una modifica di `.env`, non di codice.
  */
-export function llmSettings(env: Env, purpose: LlmPurpose): LlmSettings {
-  const pro = env.LLM_MODEL ?? DEEPSEEK_MODELS.pro;
-  const flash = env.LLM_MODEL_FAST ?? DEEPSEEK_MODELS.flash;
+export function llmSettings(
+  env: Env,
+  purpose: LlmPurpose,
+  hints: LlmContextHints = {},
+): LlmSettings {
+  const model =
+    purpose === "planning"
+      ? (env.LLM_MODEL ?? DEEPSEEK_MODELS.pro)
+      : (env.LLM_MODEL_FAST ?? DEEPSEEK_MODELS.flash);
+  const mode = env.LLM_THINKING ?? "auto";
 
-  return purpose === "planning"
-    ? { model: pro, thinking: true }
-    : { model: flash, thinking: false };
+  const thinking =
+    mode === "on"
+      ? true
+      : mode === "off"
+        ? false
+        : // auto: sempre per pianificare/criticare, solo se serve per il coach.
+          purpose === "planning" || Boolean(hints.hardContext);
+
+  return { model, thinking };
 }
 
 export function isLlmConfigured(env: Env): boolean {

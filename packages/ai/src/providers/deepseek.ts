@@ -54,6 +54,33 @@ interface ChatCompletionResponse {
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_TOKENS = 4096;
+/** Tentativi aggiuntivi quando la JSON mode restituisce contenuto vuoto. */
+const EMPTY_CONTENT_RETRIES = 1;
+const EMPTY_CONTENT_RETRY_DELAY_MS = 300;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Estrae l'oggetto JSON dalla risposta.
+ *
+ * Nonostante `response_format: json_object`, i modelli a volte incapsulano il
+ * risultato in un blocco markdown o aggiungono una frase prima. Recuperare il
+ * JSON evita un errore che non dipende dai dati ma solo dalla formattazione.
+ */
+export function extractJson(raw: string): string {
+  const trimmed = raw.trim();
+
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]?.trim()) return fenced[1].trim();
+
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return trimmed;
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start !== -1 && end > start) return trimmed.slice(start, end + 1);
+
+  return trimmed;
+}
 
 /** JSON mode richiede la parola "json" nel prompt: la aggiungiamo se manca. */
 function ensureJsonMentioned(system: string): string {
@@ -110,6 +137,71 @@ export class DeepSeekProvider implements LlmProvider {
       if (request.temperature !== undefined) body.temperature = request.temperature;
     }
 
+    // La JSON mode di DeepSeek può restituire `content` vuoto in modo
+    // intermittente (comportamento documentato). Un secondo tentativo risolve
+    // quasi sempre e costa poco: meglio di un 503 all'utente.
+    let lastFinishReason: string | undefined;
+    for (let attempt = 0; ; attempt += 1) {
+      const { response, payload } = await this.post(body);
+
+      if (!response.ok) {
+        throw this.errorFromStatus(response.status, payload);
+      }
+
+      const choice = payload.choices?.[0];
+      lastFinishReason = choice?.finish_reason;
+      const content = choice?.message?.content?.trim() ?? "";
+
+      if (content.length === 0) {
+        if (attempt < EMPTY_CONTENT_RETRIES) {
+          await sleep(EMPTY_CONTENT_RETRY_DELAY_MS);
+          continue;
+        }
+        throw new LlmProviderError(
+          "deepseek",
+          `DeepSeek ha restituito una risposta vuota (JSON mode, finish_reason: ${lastFinishReason ?? "n/a"}): riprova`,
+          { retryable: true },
+        );
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(extractJson(content));
+      } catch (error) {
+        throw new LlmProviderError("deepseek", "La risposta DeepSeek non è JSON valido", {
+          retryable: true,
+          cause: error,
+        });
+      }
+
+      const validated = request.schema.safeParse(parsed);
+      if (!validated.success) {
+        const details = validated.error.issues
+          .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+          .join("; ");
+        throw new LlmProviderError("deepseek", `Risposta fuori schema: ${details}`, {
+          retryable: true,
+        });
+      }
+
+      return {
+        data: validated.data,
+        provider: this.id,
+        model: payload.model ?? model,
+        usage: {
+          inputTokens: payload.usage?.prompt_tokens,
+          outputTokens: payload.usage?.completion_tokens,
+        },
+        // I prezzi DeepSeek variano tra peak e off-peak: il costo lo calcola il
+        // chiamante, non il provider.
+        latencyMs: Date.now() - started,
+      };
+    }
+  }
+
+  private async post(
+    body: Record<string, unknown>,
+  ): Promise<{ response: Response; payload: ChatCompletionResponse }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -138,52 +230,7 @@ export class DeepSeekProvider implements LlmProvider {
     }
 
     const payload = (await this.parseJson(response)) as ChatCompletionResponse;
-
-    if (!response.ok) {
-      throw this.errorFromStatus(response.status, payload);
-    }
-
-    const content = payload.choices?.[0]?.message?.content;
-    if (!content || content.trim().length === 0) {
-      throw new LlmProviderError(
-        "deepseek",
-        "DeepSeek ha restituito una risposta vuota (JSON mode): riprova",
-        { retryable: true },
-      );
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(content);
-    } catch (error) {
-      throw new LlmProviderError("deepseek", "La risposta DeepSeek non è JSON valido", {
-        retryable: true,
-        cause: error,
-      });
-    }
-
-    const validated = request.schema.safeParse(parsed);
-    if (!validated.success) {
-      const details = validated.error.issues
-        .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
-        .join("; ");
-      throw new LlmProviderError("deepseek", `Risposta fuori schema: ${details}`, {
-        retryable: true,
-      });
-    }
-
-    return {
-      data: validated.data,
-      provider: this.id,
-      model: payload.model ?? model,
-      usage: {
-        inputTokens: payload.usage?.prompt_tokens,
-        outputTokens: payload.usage?.completion_tokens,
-      },
-      // I prezzi DeepSeek variano tra peak e off-peak: il costo lo calcola il
-      // chiamante, non il provider.
-      latencyMs: Date.now() - started,
-    };
+    return { response, payload };
   }
 
   private async parseJson(response: Response): Promise<unknown> {

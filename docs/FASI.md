@@ -156,8 +156,9 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > ⚠️ **La Fase 1 è funzionalmente completa ma non ancora validata su 14 giorni reali.**
 > La revisione del 27 ottobre 2026 ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato
 > 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
-> due P2 rinviati (AI coach F1-18, scheduler/credenziali F1-19) e l'uso reale.
-> I test unitari (217) e l'e2e multi-utente su MongoDB reale (13 verifiche) sono verdi.
+> un P2 rinviato (scheduler/credenziali F1-19) e l'uso reale. F1-18 (AI coach)
+> è chiuso: il coach consuma `RecentContext` e usa DeepSeek.
+> I test unitari (225) e l'e2e multi-utente su MongoDB reale (13 verifiche) sono verdi.
 > Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
@@ -169,8 +170,8 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 >
 > **Onda 2 (27 ottobre 2026):** chiusi safety (F1-11), generatore (F1-12), timezone
 > (F1-13), UI auth/Hevy (F1-17) e documentazione (F1-20); aggiunto l'e2e multi-utente
-> con Mongo reale (WS-9). Restano rinviati F1-18 (AI coach) e F1-19 (scheduler e
-> credenziali cifrate).
+> con Mongo reale (WS-9). Resta rinviato F1-19 (scheduler e credenziali
+> cifrate); F1-18 è chiuso il 27 ottobre 2026.
 >
 > **Prossimo blocco (27 ottobre 2026):** sostituire il generatore a regole come
 > *autore* del piano con la pipeline Proposer + Critic + Referee descritta in
@@ -179,7 +180,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > (21 giorni, palestra inclusa) ed è sbagliato per atleti esperti e per gli sport
 > non d'impatto.
 
-**Test:** 217 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
+**Test:** 225 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
 `health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 85 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
@@ -192,7 +193,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, password locali hashate con scrypt in `auth_credentials` (mai nel documento `users`), backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`, che rimuove anche le credenziali). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0; account locali F1-24.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 217 test unitari, 13 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 225 test unitari, 13 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
 build API e web complete. **Non coperto:** login Google con credenziali reali (la
 registrazione Google richiede client OAuth e allowlist), export Hevy con chiave reale,
@@ -275,6 +276,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Deterministic Coach Provider offline-first per esecuzione affidabile senza chiavi terze parti.
 - [x] Audit log `ai_runs` con token, latenza, modello e costo USD. _(Solo metadati: manca il payload di proposta e verdetto.)_
 - [x] Endpoint `POST /api/ai/coach-advice` e widget AI Coach nella dashboard.
+- [x] **Coach con contesto reale** (27 ottobre 2026, chiude F1-18): il payload include `recentContext` (ultima gara/sforzo, giorni trascorsi, finestra di recupero, carico 7/28, ACWR, flag) e il system prompt vieta di prescrivere carico durante la finestra. Verificato su dati reali: cita la maratona di 2 giorni fa e il rapporto acuto/cronico.
 - [x] **Collegamento DeepSeek nativo** (27 ottobre 2026): `DeepSeekProvider` con JSON mode, thinking selezionabile, mappatura errori `retryable`, timeout; `deepseek-v4-pro` per pianificazione e `deepseek-flash` per il coach; smoke test `npm run spike:deepseek`. Senza chiave resta il provider deterministico.
 
 #### 1.9 Sicurezza

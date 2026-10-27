@@ -1,22 +1,18 @@
 import { LlmProviderError } from "@health-trainer/ai";
 import type { Env } from "@health-trainer/config";
 import type { Db } from "mongodb";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
 
-const insertOne = vi.fn(async (_doc?: unknown) => ({ acknowledged: true }));
+const generateMock = vi.hoisted(() => vi.fn());
+const insertOne = vi.hoisted(() => vi.fn(async (_doc?: unknown) => ({ acknowledged: true })));
 
 vi.mock("./llm.provider.js", () => ({
-  llmSettings: () => ({ model: "deepseek-flash", thinking: false }),
-  createLlmProvider: () => ({
-    id: "deepseek",
-    generate: async () => {
-      throw new LlmProviderError("deepseek", "Rate limit DeepSeek", {
-        status: 429,
-        retryable: true,
-      });
-    },
+  llmSettings: (_env: unknown, _purpose: unknown, hints?: { hardContext?: boolean }) => ({
+    model: "deepseek-flash",
+    thinking: Boolean(hints?.hardContext),
   }),
+  createLlmProvider: () => ({ id: "deepseek", generate: generateMock }),
 }));
 
 const { AiService } = await import("./ai.service.js");
@@ -42,6 +38,24 @@ const mockMicroPlan = {
       contraindications: [],
     },
   ],
+};
+
+const marathon = {
+  userId: "user_marco",
+  source: "garmin",
+  sport: "running",
+  start: "2026-10-25T07:00:00Z",
+  localDate: "2026-10-25",
+  durationSec: 17_490,
+  distanceM: 42_641,
+};
+
+const validAdvice = {
+  headline: "Recupero post-maratona",
+  readinessSummary: "Finestra di recupero attiva.",
+  workoutFocus: "Resta facile.",
+  tips: ["Non aggiungere volume."],
+  encouragement: "Costanza.",
 };
 
 function serviceWithDb(): InstanceType<typeof AiService> {
@@ -73,6 +87,11 @@ function serviceWithDb(): InstanceType<typeof AiService> {
           find: () => ({ sort: () => ({ limit: () => ({ toArray: async () => [] }) }) }),
         };
       }
+      if (name === "activities") {
+        return {
+          find: () => ({ sort: () => ({ limit: () => ({ toArray: async () => [marathon] }) }) }),
+        };
+      }
       return { insertOne };
     },
   } as unknown as Db;
@@ -82,7 +101,49 @@ function serviceWithDb(): InstanceType<typeof AiService> {
 }
 
 describe("AiService con provider LLM", () => {
+  beforeEach(() => {
+    generateMock.mockReset();
+    insertOne.mockClear();
+  });
+
+  it("passa al modello il contesto recente come dato strutturato", async () => {
+    generateMock.mockResolvedValue({
+      data: validAdvice,
+      provider: "deepseek",
+      model: "deepseek-flash",
+      usage: { inputTokens: 400, outputTokens: 120 },
+      latencyMs: 1200,
+    });
+
+    const service = serviceWithDb();
+    const result = await service.getCoachAdvice("user_marco", "sess_run_1");
+
+    expect(result.advice.headline).toBe("Recupero post-maratona");
+
+    const request = generateMock.mock.calls[0]?.[0] as {
+      user: string;
+      thinking: boolean;
+      system: string;
+    };
+    const payload = JSON.parse(request.user) as {
+      recentContext: {
+        lastLongEffort: { label: string; daysAgo: number } | null;
+        postRaceRecovery: { active: boolean };
+      };
+    };
+
+    expect(payload.recentContext.postRaceRecovery.active).toBe(true);
+    expect(payload.recentContext.lastLongEffort?.label).toMatch(/maratona/i);
+    // La finestra di recupero attiva accende il thinking anche sul coach.
+    expect(request.thinking).toBe(true);
+    expect(request.system).toMatch(/postRaceRecovery/);
+  });
+
   it("propaga un errore ritentabile come servizio non disponibile e lo registra", async () => {
+    generateMock.mockRejectedValue(
+      new LlmProviderError("deepseek", "Rate limit DeepSeek", { status: 429, retryable: true }),
+    );
+
     const service = serviceWithDb();
 
     await expect(service.getCoachAdvice("user_marco", "sess_run_1")).rejects.toThrow(

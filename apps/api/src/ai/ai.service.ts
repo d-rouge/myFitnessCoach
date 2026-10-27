@@ -1,4 +1,5 @@
 import {
+  COACH_CONTEXT_RULES,
   COACH_PROMPT_VERSION,
   COACH_RESPONSE_EXAMPLE,
   COACH_SYSTEM_PROMPT,
@@ -13,11 +14,18 @@ import {
 import type { Env } from "@health-trainer/config";
 import {
   COLLECTIONS,
+  getActivitiesForCapacity,
   getCurrentBaseline,
   getCurrentMicroPlan,
   getRecentCheckins,
 } from "@health-trainer/db";
-import { type PlannedSession, resolveTimeZone, todayLocalDate } from "@health-trainer/domain";
+import {
+  buildRecentContext,
+  type PlannedSession,
+  resolveTimeZone,
+  toCapacityActivity,
+  todayLocalDate,
+} from "@health-trainer/domain";
 import {
   BadRequestException,
   Inject,
@@ -37,11 +45,17 @@ export class AiService {
   private readonly settings: ReturnType<typeof llmSettings>;
 
   constructor(
-    @Inject(APP_ENV) env: Env,
+    @Inject(APP_ENV) private readonly env: Env,
     private readonly mongo: MongoService,
   ) {
     this.provider = createLlmProvider(env, "coach");
+    // Modello statico; il thinking dipende dal contesto e viene risolto per
+    // richiesta in `resolveSettings`.
     this.settings = llmSettings(env, "coach");
+  }
+
+  private resolveSettings(hardContext: boolean): ReturnType<typeof llmSettings> {
+    return llmSettings(this.env, "coach", { hardContext });
   }
 
   /**
@@ -100,9 +114,18 @@ export class AiService {
     }
 
     // Check recent checkin
+    const timezone = resolveTimeZone(baseline?.profile.timezone);
     const recentCheckins = await getRecentCheckins(db, userId, 2);
-    const todayStr = todayLocalDate(resolveTimeZone(baseline?.profile.timezone));
+    const todayStr = todayLocalDate(timezone);
     const todayCheckin = recentCheckins.find((c) => c.date === todayStr);
+
+    // Contesto recente: senza questo il coach non sa che due giorni fa c'è
+    // stata una maratona e può solo ripetere la nota della seduta.
+    const activities = await getActivitiesForCapacity(db, userId);
+    const recentContext = buildRecentContext(activities.map(toCapacityActivity), {
+      now: new Date().toISOString(),
+      timezone,
+    });
 
     const athleteName = baseline?.userId ? `Atleta` : "Atleta";
     const tone = baseline?.profile?.tone || "supportive";
@@ -111,17 +134,40 @@ export class AiService {
         ?.filter((i) => i.status === "acute" || i.status === "recovering" || i.status === "chronic")
         .map((i) => `${i.area} (dolore ${i.painLevel}/10)`) ?? [];
 
+    const readinessBand =
+      todayCheckin && (todayCheckin.energy ?? 3) <= 2
+        ? ("impaired" as const)
+        : ("optimal" as const);
+    const painReported = (todayCheckin?.pain?.length ?? 0) > 0;
+
     const promptPayload = {
       athleteName,
       tone,
       session,
       checkin: todayCheckin ?? null,
-      readinessBand:
-        todayCheckin && (todayCheckin.energy ?? 3) <= 2
-          ? ("impaired" as const)
-          : ("optimal" as const),
+      readinessBand,
       injuryAlerts,
+      recentContext: {
+        lastActivityDate: recentContext.lastActivityDate,
+        daysSinceLastActivity: recentContext.daysSinceLastActivity,
+        lastLongEffort: recentContext.lastLongEffort,
+        postRaceRecovery: recentContext.postRaceRecovery,
+        load7dMin: recentContext.load7dMin,
+        load28dMin: recentContext.load28dMin,
+        acuteChronicRatio: recentContext.acuteChronicRatio,
+        flags: recentContext.flags,
+      },
     };
+
+    // Il thinking costa latenza: si accende solo quando c'è qualcosa da
+    // giudicare, non per una seduta facile senza segnali.
+    const settings = this.resolveSettings(
+      painReported ||
+        injuryAlerts.length > 0 ||
+        readinessBand === "impaired" ||
+        recentContext.postRaceRecovery.active ||
+        recentContext.flags.includes("load_spike"),
+    );
 
     // Istruzioni e formato nel system prompt; nel user solo il payload JSON.
     // Così il provider deterministico continua a leggere il payload e il
@@ -129,6 +175,7 @@ export class AiService {
     // JSON mode.
     const system = [
       COACH_SYSTEM_PROMPT,
+      COACH_CONTEXT_RULES,
       COACH_USER_INSTRUCTION,
       `Esempio di risposta JSON: ${COACH_RESPONSE_EXAMPLE}`,
     ].join("\n\n");
@@ -141,8 +188,8 @@ export class AiService {
         system,
         user,
         schema: CoachAdviceSchema,
-        model: this.settings.model,
-        thinking: this.settings.thinking,
+        model: settings.model,
+        thinking: settings.thinking,
         temperature: 0.5,
         maxTokens: 1200,
       });

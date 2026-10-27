@@ -40,6 +40,7 @@ pezzi produce piani che nessun chatbot può produrre.
 | LLM | **DeepSeek cablato**: `DeepSeekProvider` (JSON mode, thinking, errori `retryable`). `LLM_MODEL=deepseek-v4-pro`, `LLM_MODEL_FAST=deepseek-flash`. Senza chiave resta `DeterministicCoachProvider` |
 | Memoria dei piani | solo i documenti salvati: nessuna sintesi usata nelle generazioni successive |
 | `ai_runs` | salva metadati e i fallimenti (`success: false`), **non** il payload né il verdetto |
+| Coach (narrazione) | **DeepSeek attivo**: riceve `recentContext`, cita gara recente, finestra di recupero e ACWR |
 
 Conseguenza: oggi il piano è corretto rispetto ai vincoli ma rigido, e la
 conoscenza metodologica vive nelle regole scritte a mano. Il documento

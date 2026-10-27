@@ -56,6 +56,11 @@ describe("AiService", () => {
             }),
           };
         }
+        if (name === "activities") {
+          return {
+            find: () => ({ sort: () => ({ limit: () => ({ toArray: async () => [] }) }) }),
+          };
+        }
         if (name === "checkins") {
           return {
             find: () => ({

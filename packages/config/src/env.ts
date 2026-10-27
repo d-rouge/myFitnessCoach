@@ -63,6 +63,12 @@ export const EnvSchema = z
     LLM_MODEL_FAST: optionalString,
     LLM_BASE_URL: optionalString,
     LLM_TIMEOUT_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
+    /**
+     * `auto` (default): thinking per pianificazione/critica e per il coach
+     * quando il contesto è delicato (dolore, readiness bassa, recupero
+     * post-gara); `on`/`off` forzano il comportamento.
+     */
+    LLM_THINKING: z.preprocess(emptyToUndefined, z.enum(["auto", "on", "off"]).optional()),
 
     FEATURE_GARMIN: booleanWithDefault("true"),
     FEATURE_YAZIO: booleanWithDefault("false"),

@@ -20,6 +20,16 @@ describe("llmSettings", () => {
     });
   });
 
+  it("con auto accende il thinking sul coach solo se il contesto è delicato", () => {
+    expect(llmSettings(env({}), "coach", { hardContext: false }).thinking).toBe(false);
+    expect(llmSettings(env({}), "coach", { hardContext: true }).thinking).toBe(true);
+  });
+
+  it("rispetta le forzature on/off da .env", () => {
+    expect(llmSettings(env({ LLM_THINKING: "on" }), "coach").thinking).toBe(true);
+    expect(llmSettings(env({ LLM_THINKING: "off" }), "planning").thinking).toBe(false);
+  });
+
   it("rispetta gli override da .env", () => {
     const settings = llmSettings(
       env({ LLM_MODEL: "modello-custom-pro", LLM_MODEL_FAST: "modello-custom-flash" }),

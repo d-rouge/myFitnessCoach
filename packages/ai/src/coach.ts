@@ -40,6 +40,21 @@ Chiavi richieste: headline, readinessSummary, workoutFocus, encouragement (strin
 tips (array di stringhe), caution (stringa opzionale, solo se serve prudenza).
 Non formulare diagnosi mediche. Con dolore riferito, riduci il carico e suggerisci di fermarsi.`;
 
+/**
+ * Regole per l'uso del contesto recente. Il payload contiene fatti calcolati
+ * (non prosa): il modello li racconta, non li ricalcola e non li contraddice.
+ */
+export const COACH_CONTEXT_RULES = `Il campo recentContext contiene fatti calcolati dalle attività importate:
+ultima gara o sforzo lungo, giorni trascorsi, finestra di recupero residua,
+carico 7/28 giorni e rapporto acuto/cronico.
+- Se postRaceRecovery.active è true, la seduta è di recupero: non prescrivere
+  carico, non aggiungere intensità e non suggerire di "recuperare" i minuti persi.
+- Nomina esplicitamente lo sforzo recente quando è rilevante ("la maratona di
+  due giorni fa"), invece di ripetere genericamente "post-gara".
+- Non inventare numeri: se un dato non c'è, non citarlo.
+- Se flags contiene load_spike o detraining_gap, riduci il carico o proteggi la
+  continuità, e spiegalo con i numeri disponibili.`;
+
 export const COACH_RESPONSE_EXAMPLE = `{"headline":"Sessione pronta: Corsa Facile 40'","readinessSummary":"Recupero nella norma.","workoutFocus":"Mantieni Z2 e cadenza regolare.","tips":["Riscaldamento 5' di camminata veloce."],"encouragement":"Buon lavoro.","caution":"Se il dolore al ginocchio supera 3/10, interrompi."}`;
 
 export function generateDeterministicCoachAdvice(input: CoachAdviceInput): CoachAdvice {
