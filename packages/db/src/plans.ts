@@ -34,6 +34,27 @@ export async function saveMacroPlan(db: Db, userId: string, plan: MacroPlan): Pr
   );
 }
 
+/**
+ * Keeps exactly one macro plan per user.
+ *
+ * `getCurrentMacroPlan` sorts by `startDate`, so two plans generated on the
+ * same day are indistinguishable and the older one may win. Plans are derived
+ * artifacts (the versioned record is the baseline), so regenerating replaces
+ * the previous plan instead of accumulating duplicates.
+ */
+export async function supersedeMacroPlans(
+  db: Db,
+  userId: string,
+  keepMacroPlanId: string,
+): Promise<void> {
+  await db
+    .collection<StoredMacroPlan>(COLLECTIONS.macroPlans)
+    .deleteMany({ userId, id: { $ne: keepMacroPlanId } });
+  await db
+    .collection<StoredMicroPlan>(COLLECTIONS.microPlans)
+    .deleteMany({ userId, macroPlanId: { $ne: keepMacroPlanId } });
+}
+
 export async function getCurrentMacroPlan(db: Db, userId: string): Promise<MacroPlan | null> {
   const collection = db.collection<StoredMacroPlan>(COLLECTIONS.macroPlans);
   const doc = await collection.find({ userId }).sort({ startDate: -1 }).limit(1).next();

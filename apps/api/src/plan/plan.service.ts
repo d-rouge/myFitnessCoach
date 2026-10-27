@@ -6,6 +6,7 @@ import {
   replacePlannedSession,
   saveMacroPlan,
   saveMicroPlan,
+  supersedeMacroPlans,
   updatePlannedSession,
 } from "@health-trainer/db";
 import {
@@ -146,6 +147,9 @@ export class PlanService {
 
     await saveMacroPlan(db, userId, macroPlan);
     await saveMicroPlan(db, userId, microPlan);
+    // Regenerating replaces the previous plan: two plans with the same
+    // `startDate` would make `getCurrentMacroPlan` non-deterministic.
+    await supersedeMacroPlans(db, userId, macroPlan.id);
 
     this.logger.log(
       `Generato macro-piano ${macroPlan.id} (${macroPlan.totalWeeks} settimane) e micro-piano settimanale per atleta ${userId}`,

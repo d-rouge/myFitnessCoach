@@ -64,6 +64,7 @@ export {
   type StoredMicroPlan,
   saveMacroPlan,
   saveMicroPlan,
+  supersedeMacroPlans,
   updatePlannedSession,
 } from "./plans";
 export {

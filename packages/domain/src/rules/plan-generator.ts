@@ -330,6 +330,28 @@ function buildRunningSession(
     };
   }
 
+  // In a post-race window a "long progressive run" is the wrong prescription:
+  // the session stays easy and shorter, and no progression is implied.
+  if (policy.forcedRecovery) {
+    const recoveryDuration = Math.min(maxDurationMin, 40);
+    return {
+      sport: "running",
+      title: "Corsa Facile Lunga (Recupero)",
+      type: "long_run",
+      durationMin: recoveryDuration,
+      rpe: 5,
+      location: "outdoor",
+      blocks: steadyBlocks(
+        recoveryDuration,
+        8,
+        6,
+        "Corsa facile, respirazione libera; se il corpo chiede, cammina",
+        "Camminata + corsa molto lenta Z1",
+        "Defaticamento e mobilità",
+      ),
+    };
+  }
+
   const longRunCap = policy.conservativeVolume ? 50 : 65;
   const durationMin = Math.min(maxDurationMin, deload ? 45 : longRunCap);
   return {

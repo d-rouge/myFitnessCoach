@@ -101,7 +101,8 @@ immediato:
 
 La finestra di recupero viene salvata in `macroPlan.recoveryWindow` e applicata
 deterministicamente: **nessuna settimana di carico** finché non scade, qualunque
-sia il tier. Le soglie sono in `RECOVERY_RULES`: maratona 21 giorni, mezza 14,
+sia il tier. Dentro la finestra anche la seduta lunga viene declassata: niente
+"lungo progressivo", ma corsa facile più corta a RPE 5. Le soglie sono in `RECOVERY_RULES`: maratona 21 giorni, mezza 14,
 lungo ≥ 15 km 7, gran fondo 100 km 10, sforzo ≥ 150 min 7; una gara riconosciuta
 dal titolo porta la finestra ad almeno 14 giorni.
 
@@ -119,6 +120,14 @@ L'LLM riceve `RecentContext` + `history` + `capacity` + `tier` come payload
 strutturato. Può spiegare, riordinare e motivare. Non può alzare il carico oltre
 il guardrail né ignorare la finestra di recupero: se lo facesse, il piano
 verrebbe comunque rifiutato dal validator deterministico.
+
+## Rigenerazione dei piani
+
+Rigenerare il macro-piano **sostituisce** il precedente
+(`supersedeMacroPlans`): due piani con la stessa `startDate` renderebbero
+`getCurrentMacroPlan` non deterministico, e un piano generato prima di una gara
+potrebbe sopravvivere a quello corretto. Il record versionato è la baseline, non
+il piano: i piani sono artefatti derivati.
 
 ## Cosa non è ancora fatto
 

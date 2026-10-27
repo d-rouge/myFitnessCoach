@@ -136,6 +136,22 @@ describe("PlanService", () => {
             memoryDocs[name]?.push(update.$set);
             return { modifiedCount: 1, upsertedCount: 1 };
           },
+          deleteMany: async (filter: {
+            userId?: string;
+            id?: { $ne?: string };
+            macroPlanId?: { $ne?: string };
+          }) => {
+            const before = memoryDocs[name]?.length ?? 0;
+            const field = filter.id !== undefined ? "id" : "macroPlanId";
+            const keep = filter.id?.$ne ?? filter.macroPlanId?.$ne;
+            const kept = (memoryDocs[name] ?? []).filter((doc) =>
+              doc.userId === filter.userId && keep !== undefined
+                ? doc[field] === keep
+                : doc.userId !== filter.userId,
+            );
+            memoryDocs[name] = kept;
+            return { deletedCount: before - kept.length };
+          },
         }),
       }),
     } as unknown as MongoService;
@@ -145,6 +161,15 @@ describe("PlanService", () => {
       startDate: "2026-11-02",
       totalWeeks: 8,
     });
+
+    // Regenerating must not leave two plans with the same start date, which
+    // would make `getCurrentMacroPlan` non-deterministic.
+    await service.generateMacroPlan(beginnerPersona.userId, {
+      startDate: "2026-11-03",
+      totalWeeks: 8,
+    });
+    expect(memoryDocs.athlete_macro_plans?.length).toBe(1);
+    expect(memoryDocs.athlete_micro_plans?.length).toBe(1);
 
     expect(result.macroPlan.totalWeeks).toBe(8);
     expect(result.microPlan.weekIndex).toBe(1);
@@ -231,6 +256,7 @@ describe("PlanService", () => {
             }),
           }),
           updateOne: async () => ({ modifiedCount: 1, upsertedCount: 1 }),
+          deleteMany: async () => ({ deletedCount: 0 }),
         }),
       }),
     } as unknown as MongoService;

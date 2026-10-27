@@ -219,6 +219,10 @@ describe("plan-generator", () => {
       expect(hasIntervals(week1.sessions)).toBe(false);
       expect(hasIntervals(week2.sessions)).toBe(false);
       expect(week1.sessions.some((s) => s.notes?.includes("Recupero post-gara"))).toBe(true);
+      // No progression is implied during a post-race window.
+      const longRun = week1.sessions.find((s) => s.type === "long_run");
+      expect(longRun?.title).toMatch(/recupero/i);
+      expect(longRun?.intensity.rpe ?? 0).toBeLessThanOrEqual(5);
       // The guard expires after the window (week 4 is a scheduled deload).
       expect(hasIntervals(week5.sessions)).toBe(true);
     });
