@@ -467,14 +467,24 @@ provider_credentials (Keystore), sync_state, outbox, backup_state
 
 ### 7.1 Principio
 
-Il motore deterministico calcola i vincoli; l'LLM sceglie e spiega dentro quei vincoli.
+> **Aggiornato il 27 ottobre 2026.** La formulazione precedente ("il motore
+> calcola i vincoli, l'LLM sceglie dentro") è stata respinta: durata dello
+> scarico, ripartenza della palestra, taper e distribuzione dell'intensità sono
+> conoscenza contesa e dipendono dall'atleta. Il disegno corrente è in
+> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md).
 
-| Motore | LLM |
-|---|---|
-| carico, readiness, progressione | selezione e ordine sessioni |
-| controindicazioni, varianti ammesse | dettaglio blocchi |
-| fattibilità obiettivo | narrativa, motivazione, spiegazione |
-| safety gate | review e raccomandazioni |
+Il codice compila il contesto e verifica la coerenza; l'LLM propone metodo,
+envelope e piano; un secondo ruolo LLM li attacca prima della pubblicazione.
+
+| Codice (deterministico) | LLM (Proposer) | LLM (Critic) | Codice (Referee) |
+|---|---|---|---|
+| raccolta e calcolo dei dati, dossier | metodo e motivazione | verdetto con violazioni | aritmetica e disponibilità |
+| derivati: carico, readiness, aderenza, capacità | envelope per modalità | contestazione dell'envelope | piano vs envelope dichiarato |
+| persistenza e provenance | macro e micro piano | coerenza metodo ↔ sessioni | nessuna conoscenza di allenamento |
+
+La conoscenza sta nella **libreria dei metodi** letta dal Proposer, non in
+costanti nel codice. Il generatore attuale a regole resta come fallback
+dichiarato quando Proposer e Critic non convergono.
 
 ### 7.2 Stadi
 
@@ -494,7 +504,8 @@ Se la validazione fallisce: repair loop (max 2), poi fallback a template determi
 | Micro Planner | macro, review, disponibilità | sessioni settimana |
 | Daily Adjuster | daily_state, sessione, ultimi 3 giorni | decisione + spiegazione |
 | Reviewer | 7/28 giorni, aderenza, obiettivi | review + decisioni |
-| Safety Critic | piano + vincoli | pass/fail + problemi |
+| Safety Critic | piano + envelope dichiarato + rubrica | verdetto: violazioni con evidenza e correzione richiesta |
+| Referee (codice, non LLM) | piano + envelope | incoerenze aritmetiche e di disponibilità |
 | Chat Coach (fase 4) | domanda + contesto | risposta + proposta di modifica |
 
 Nessun agente scrive direttamente sul piano. Le proposte passano dal validator e, per modifiche strutturali, dalla conferma dell'utente.
@@ -504,7 +515,9 @@ Nessun agente scrive direttamente sul piano. Le proposte passano dal validator e
 | Blocco | Contenuto | Token target |
 |---|---|---|
 | `athlete_brief` | profilo, anamnesi, vincoli, obiettivo, disponibilità, attrezzatura, preferenze | 800–1.200 |
-| `constraints` | envelope calcolato (carico max, varianti, controindicazioni) | 200–400 |
+| `constraints` | vincoli oggettivi: giorni e finestre, attrezzatura, infortuni, red flag, PAR-Q | 150–250 |
+| `individual_response` | RPE prescritto vs riportato, aderenza reale, dolore ricorrente | 200–300 |
+| `method_memory` | metodo in corso, fase del macrociclo, cosa ha funzionato | 300–500 |
 | `macro_summary` | fasi, focus, target | 300–500 |
 | `current_week` | sessioni, stato, review precedente | 500–800 |
 | `trend` | aggregati 7/28 giorni | 500–800 |
@@ -518,7 +531,7 @@ Totale: **3.500–6.000 token** per il giorno, **8.000–14.000** per macro/micr
 
 1. Base immutabile + hash in ogni chiamata.
 2. Catena esplicita: macro → micro → giorno → review.
-3. Numeri calcolati dal motore, non dall'LLM.
+3. Numeri derivati dai dati (carico, readiness, aderenza, capacità) calcolati dal motore. L'envelope è **proposto** dall'LLM, contestato dal Critic e verificato dal Referee: non è un numero calcolato, è una scelta motivata e tracciata.
 4. Diff e conferma su ogni rigenerazione.
 5. Prompt versionati + eval.
 6. Temperature basse per la pianificazione (0.2–0.3).

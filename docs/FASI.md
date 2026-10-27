@@ -171,11 +171,18 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > (F1-13), UI auth/Hevy (F1-17) e documentazione (F1-20); aggiunto l'e2e multi-utente
 > con Mongo reale (WS-9). Restano rinviati F1-18 (AI coach) e F1-19 (scheduler e
 > credenziali cifrate).
+>
+> **Prossimo blocco (27 ottobre 2026):** sostituire il generatore a regole come
+> *autore* del piano con la pipeline Proposer + Critic + Referee descritta in
+> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md). Il generatore resta come fallback.
+> Prerequisito riconosciuto: lo scarico post-gara oggi è una costante globale
+> (21 giorni, palestra inclusa) ed è sbagliato per atleti esperti e per gli sport
+> non d'impatto.
 
 **Test:** 198 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
 `health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
-- **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 56 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
+- **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 85 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
 - **1.2 Onboarding:** Wizard interattivo a 6 step (`OnboardingWizard.tsx`) con anamnesi di base, red flag e infortuni, obiettivi, disponibilità, attrezzatura, demo persona selector e persistenza su MongoDB (`athlete_baselines`) + API `/api/baseline`. _(WS-6: red flag e infortuni inseribili dal wizard; il salvataggio è permesso, la generazione viene bloccata.)_
 - **1.3 Piano:** Feasibility check 5k con proiezioni realistiche, generatore macrociclo e microciclo deterministico (`generateMacroPlan`, `generateMicroPlan`), safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio), Board multisport e Card "Oggi" con varianti espresse (15 min, 30 min, cyclette).
 - **1.4 Esecuzione e feedback:** Check-in mattutino rapido (`MorningCheckinCard.tsx`), motore di adattamento giornaliero real-time (`computeDailyAdjustment`), inserimento attività manuale (`/api/activities/manual`) e upload file `.FIT` con analisi e confronto automatico pianificato vs effettivo (`compareSessionWithActivity`).
@@ -258,9 +265,15 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.8 AI
 
+> **Stato reale (27 ottobre 2026):** nessun modello è collegato. Esiste solo
+> `DeterministicCoachProvider` (testi scritti a mano) e `/api/health` risponde
+> `llm: missing`. La generazione del piano è interamente deterministica e il
+> coach non consuma `RecentContext`. Il disegno di destinazione è in
+> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md).
+
 - [x] Prompt versionati (`coach-advice-v1`) con validazione Zod schema (`CoachAdviceSchema`).
 - [x] Deterministic Coach Provider offline-first per esecuzione affidabile senza chiavi terze parti.
-- [x] Audit log `ai_runs` con token, latenza, modello e costo USD.
+- [x] Audit log `ai_runs` con token, latenza, modello e costo USD. _(Solo metadati: manca il payload di proposta e verdetto.)_
 - [x] Endpoint `POST /api/ai/coach-advice` e widget AI Coach nella dashboard.
 
 #### 1.9 Sicurezza
@@ -269,6 +282,18 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Sanitizzazione log.
 - [x] Portabilità dati: Export backup JSON completo.
 - [x] Cancellazione totale dati / GDPR wipe (`DELETE /api/export/me`). _(WS-5: elimina anche `users` e `ai_runs`; dopo il wipe `/api/me` risponde 401.)_
+
+#### 1.10 Architettura LLM (pianificata, non implementata)
+
+Piano completo e criteri in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md) §11.
+Ordine vincolante: ogni passo presuppone il precedente.
+
+- [ ] **A. Dossier atleta** (`F1-25`) — `buildAthleteDossier()` deterministico, `GET /api/athlete/dossier`, test sugli scenari reali (maratona 2 giorni fa, rientro dopo 2 anni, ginocchio, zero dati). Nessuna chiave API richiesta.
+- [ ] **B. Schema e provenance** (`F1-26`) — `trainingModel`, `envelope` per modalità, `review`, `generatedBy`; `ai_runs` con il payload; migrazione compatibile dei piani esistenti.
+- [ ] **C. Provider e loop** (`F1-27`) — provider HTTP reale, `PlanProposer`, `PlanCritic`, Referee in codice (solo aritmetica), max 2 revisioni, fallback dichiarato al generatore a regole.
+- [ ] **D. Valutazione avversariale** (`F1-28`) — `npm run eval:plans` con piani deliberatamente sbagliati che il Critic deve respingere; misurare i falsi negativi prima di ogni altra metrica.
+- [ ] **E. Confronto e memoria** (`F1-29`) — piano LLM e piano a regole affiancati per 2-3 settimane; poi `Reviewer` e `Daily Adjuster` che usano la memoria dei piani.
+- [ ] **Sostituire l'envelope a costante** (`F1-30`) — rimuovere i 21 giorni globali da `RECOVERY_RULES`, introdurre i vincoli per modalità (impatto, upper body, eccentriche pesanti, mobilità). Va fatto prima di dare un envelope al Proposer, altrimenti gli si passa un vincolo sbagliato.
 
 ### Criteri di accettazione
 

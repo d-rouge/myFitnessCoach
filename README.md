@@ -15,7 +15,7 @@ Componenti presenti:
 - **L1–L3 Piani & Esecuzione:** Generatore deterministico goal/sport/durata (`generateMacroPlan`, `generateMicroPlan`), safety gate che blocca la generazione su red flag/PAR-Q, board settimanale e card "Oggi" con date nel timezone dell'atleta.
 - **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` con sessione adattata persistita (durata, RPE, blocchi, note), attività manuale e upload FIT con validazione firma/dimensione.
 - **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
-- **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`.
+- **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`. **Nessun modello è collegato**: `/api/health` risponde `llm: missing` e il piano è generato da regole. Il disegno di destinazione è in [`docs/ARCHITETTURA-LLM.md`](docs/ARCHITETTURA-LLM.md).
 - **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
 - **Auth:** registrazione e login con email + password (scrypt) oppure Google, dev login opt-in, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
 
@@ -34,6 +34,8 @@ sync automatico, uso reale di 14 giorni.
 | [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md) | Problemi aperti della Fase 1, evidenze e piano di fix in parallelo |
 | [`docs/INTEGRAZIONI.md`](docs/INTEGRAZIONI.md) | Garmin, Yazio, Zepp, Hevy, Health Connect, Drive, LLM |
 | [`docs/FIT.md`](docs/FIT.md) | Parsing binario, normalizzazione, ActivityAnalysis e brief compatto per LLM |
+| [`docs/MODELLO-ATLETA.md`](docs/MODELLO-ATLETA.md) | Storia, capacità misurata, contesto recente: chi decide il carico |
+| [`docs/ARCHITETTURA-LLM.md`](docs/ARCHITETTURA-LLM.md) | Chi genera il piano: dossier, Proposer, Critic, Referee, memoria, passi |
 | [`docs/spikes/`](docs/spikes/) | Template e risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy) |
 
 > Regola del progetto: **la documentazione si aggiorna a ogni avanzamento**, nello stesso commit.
@@ -276,4 +278,4 @@ Nessun remote configurato: verrà scelto in seguito.
 
 ## In una frase
 
-Il motore deterministico calcola i vincoli fisiologici e di sicurezza; l'LLM progetta e spiega **dentro** quei vincoli. Ogni livello del piano è versionato e verificabile.
+Il codice compila il contesto e verifica la coerenza; l'LLM propone metodo, envelope e piano; un secondo ruolo LLM li contesta prima della pubblicazione. Ogni livello del piano è versionato, tracciato e verificabile. Oggi il piano è ancora generato da regole: la pipeline LLM è progettata e non implementata (vedi [`docs/ARCHITETTURA-LLM.md`](docs/ARCHITETTURA-LLM.md)).

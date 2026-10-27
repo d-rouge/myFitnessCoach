@@ -14,6 +14,7 @@ Guida operativa per un agente che interviene su **health-trainer**. Leggere ques
 |---|---|
 | Codice o stato di una fase | `docs/FASI.md` (checkbox e stato) + `README.md` (stato) |
 | Architettura, stack o una decisione | `docs/PIANO.md` + questo file |
+| Chi genera il piano, ruoli LLM, envelope, memoria | `docs/ARCHITETTURA-LLM.md` + `docs/FASI.md` |
 | Un'integrazione, endpoint, token o limite | `docs/INTEGRAZIONI.md` + fixture/test |
 | Un comando, un path o un invariante | `AGENT.md` |
 | Un'ipotesi non verificata | il documento di spike, con la dicitura **non verificato** |
@@ -63,9 +64,10 @@ credenziali cifrate) e la validazione d'uso reale di 14 giorni. Dettaglio in
 3. `docs/FASI.md` — fase corrente, task, criteri di accettazione
 4. `docs/REVIEW-FASE-1.md` — problemi aperti della Fase 1 e piano di fix
 5. `docs/INTEGRAZIONI.md` — Garmin, Yazio, Zepp, Hevy, Health Connect, Drive
-6. `docs/MODELLO-ATLETA.md` — storia, capacità misurata, contesto recente, confine con l'LLM
-7. `docs/spikes/` — risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy)
-8. `README.md` — avvio rapido
+6. `docs/MODELLO-ATLETA.md` — storia, capacità misurata, contesto recente
+7. `docs/ARCHITETTURA-LLM.md` — chi decide il piano: dossier, Proposer, Critic, Referee, memoria
+8. `docs/spikes/` — risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy)
+9. `README.md` — avvio rapido
 
 Se un documento contraddice un altro, **vince `PIANO.md`** per l'architettura e `FASI.md` per la priorità. Segnala la contraddizione e aggiorna i documenti.
 
@@ -93,6 +95,8 @@ docs/
   REVIEW-FASE-1.md          problemi aperti Fase 1 + piano di fix
   INTEGRAZIONI.md
   FIT.md
+  MODELLO-ATLETA.md         storia, capacità misurata, contesto recente
+  ARCHITETTURA-LLM.md       dossier, Proposer, Critic, Referee, memoria
   spikes/                   risultati reali (template + registro)
 apps/
   api/                      NestJS 12 ESM: health, integrations, auth, export
@@ -332,6 +336,8 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **Capacità misurata:** `profile.capacity.source` è `garmin | manual | calibration`. Con `garmin` i numeri vengono ricalcolati dal server dalle attività importate (mai dal client) al salvataggio, in lettura (`GET /baseline`) e alla generazione del piano; senza attività la baseline viene rifiutata con 400. La regola è una sola: `apps/api/src/baseline/measured-capacity.ts`. Con `calibration` la settimana 1 è un test a RPE 4-5 e la capacità viene ri-stimata appena esistono dati.
 - **Giorno dell'atleta:** i contatori ("giorni fa", finestra 28 giorni, streak) usano il fuso della baseline, non UTC. Con `toISOString()` dopo le 22:00 italiane si sbaglia di un giorno. `buildRecentContext()` e `estimateCapacityFromActivities()` accettano `timezone`.
 - **Contesto recente:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produce fatti strutturati (ultima gara/sforzo lungo, giorni di recupero residui, rapporto acuto/cronico, gap). La finestra di recupero finisce in `macroPlan.recoveryWindow` e forza settimane di recupero deterministicamente: l'LLM può spiegarla, non ignorarla.
+- **LLM: non ancora collegato.** Oggi esiste solo `DeterministicCoachProvider` (`packages/ai/src/coach.ts`): nessuna chiamata a un modello, `/api/health` risponde `llm: missing`. La generazione del piano è interamente deterministica. Il disegno di destinazione — dossier atleta, Proposer, Critic, Referee, memoria — è in `docs/ARCHITETTURA-LLM.md`; finché non è implementato, **non descrivere il piano come generato da un LLM**.
+- **Scarico post-gara: costante provvisoria, riconosciuta sbagliata.** `RECOVERY_RULES` usa 21 giorni per chiunque e `sessionPolicy()` applica la stessa policy a tutti gli sport, quindi nella finestra anche la palestra viene limitata a RPE 6. È corretto per un principiante e troppo conservativo per un amatore avanzato; inoltre lo scarico è per modalità (impatto sì/no, upper body ok, eccentriche pesanti no), non globale. Va sostituito dall'envelope proposto dal Proposer e verificato dal Referee (`docs/ARCHITETTURA-LLM.md` §5).
 - **Un solo macro-piano attivo:** rigenerare chiama `supersedeMacroPlans()`, che cancella il piano precedente e i suoi micro-piani. Senza, due piani con la stessa `startDate` rendono `getCurrentMacroPlan` ambiguo.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Identità utente:** tutte le collezioni sono partizionate per `userId` = `users.id`, che **non** è l'`_id` di Mongo. Per l'account Google `users.id` è il subject Google (`sub`, es. `114007601918490478360`); per il dev-login è `personal`. Migrando o ispezionando dati usare sempre `users.id`, altrimenti i documenti esistono ma l'app non li vede.
@@ -421,6 +427,14 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 ---
 
 ## 9. AI e prompt
+
+Disegno completo, ruoli e passi di implementazione: `docs/ARCHITETTURA-LLM.md`.
+
+Tre regole che vengono da lì e non sono negoziabili:
+
+1. **Il contesto non si improvvisa.** Il modello riceve un dossier compilato da codice (dati Garmin, storia, risposta individuale, memoria dei piani), non una cronologia di chat.
+2. **L'envelope è un output, non un input.** Metodo, durata dello scarico e distribuzione dell'intensità li propone l'LLM, li attacca il Critic e li verifica il Referee. Non sono costanti nel codice.
+3. **Il Referee contiene solo aritmetica.** Se cresce oltre il controllo di coerenza, è un errore di progetto: quella è conoscenza, e va nel Proposer.
 
 - Un prompt per file, versionato (`v1`, `v2`), con changelog.
 - System prompt: ruolo, metodologia, vincoli, stile, divieti medici.
@@ -516,6 +530,9 @@ Prima di implementare, verifica se il task dipende da una di queste:
 | DB web Mongo vs SQLite | decisa: Mongo | non cambiare senza motivo |
 | Zepp | aperta | Health Connect su Android; API non ufficiale solo web |
 | LLM default | decisa: BYOK | managed per test |
+| Agente autonomo vs pipeline a ruoli | **decisa: pipeline** | nessun agente che scelga i tool; raccolta dati deterministica |
+| Autorità sull'envelope | **decisa: LLM propone, Critic attacca, Referee verifica** | niente costanti di allenamento nel Referee |
+| Provider/modello per Proposer e Critic | aperta | due provider diversi, chiavi in `.env` |
 
 Se una decisione cambia, aggiorna `PIANO.md` e questo file **nello stesso commit**.
 

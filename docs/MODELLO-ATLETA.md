@@ -112,20 +112,32 @@ sia il tier. Dentro la finestra anche la seduta lunga viene declassata: niente
 lungo ≥ 15 km 7, gran fondo 100 km 10, sforzo ≥ 150 min 7; una gara riconosciuta
 dal titolo porta la finestra ad almeno 14 giorni.
 
+> **Limite riconosciuto (27 ottobre 2026).** Queste costanti sono un default
+> provvisorio, non una verità. Due difetti: (1) 21 giorni valgono per un
+> principiante ma sono troppo conservativi per un amatore avanzato, perché la
+> durata reale dipende da esperienza, numero di gare, esecuzione e volume
+> pre-gara; (2) la policy è globale, quindi nella finestra anche la palestra
+> scende a RPE 6, mentre il lavoro upper body è utile e consentito — a essere
+> controindicati sono l'impatto ripetuto e le eccentriche pesanti. Lo scarico è
+> **per modalità**, non per atleta intero. La sostituzione è descritta in
+> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md) §5.
+
 ## Confine con l'LLM
 
-Il contesto è **dato di base**, non giudizio. La divisione è netta:
+Il contesto è **dato di base**, non giudizio. Ma il confine non passa dove
+sembrava il 26 ottobre: la durata dello scarico e la distribuzione
+dell'intensità non sono "guardrail", sono **conoscenza contestabile**.
 
-| Deterministico (guardrail) | LLM (narrazione) |
-|---|---|
-| Finestra post-gara, tetto di volume, RPE massimo, blocco per red flag/PAR-Q | Spiegare *perché*, dare priorità a ciò che conta, adattare tono ed esercizi |
-| Derivazione del tier | Raccontare all'atleta cosa significa `returning` |
-| Calcolo ACWR, carico acuto/cronico | Collegare i numeri al vissuto ("hai dormito male tre notti") |
+| Codice (deterministico) | LLM (Proposer) | LLM (Critic) | Codice (Referee) |
+|---|---|---|---|
+| calcolo di capacità, ACWR, aderenza, gap; dossier | metodo, envelope per modalità, piano, motivazione | contesta envelope e coerenza col metodo | aritmetica: sedute ≤ giorni, minuti ≤ finestra, piano vs envelope |
+| blocco per red flag / PAR-Q | prior di recupero e taper | verifica che i prior siano difendibili per *questo* atleta | nessuna conoscenza di allenamento |
+| derivazione del tier | racconta cosa significa `returning` | verifica che il piano sia coerente col tier | — |
 
-L'LLM riceve `RecentContext` + `history` + `capacity` + `tier` come payload
-strutturato. Può spiegare, riordinare e motivare. Non può alzare il carico oltre
-il guardrail né ignorare la finestra di recupero: se lo facesse, il piano
-verrebbe comunque rifiutato dal validator deterministico.
+Il punto di svolta: **l'envelope è un output del Proposer**, non un input del
+codice. Il Critic lo attacca; il Referee confronta il piano con ciò che il
+Proposer ha dichiarato. Così non esiste un "21 giorni" scritto a mano che valga
+per tutti. Disegno completo in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md).
 
 ## Rigenerazione dei piani
 
@@ -144,3 +156,7 @@ il piano: i piani sono artefatti derivati.
   che parta da attività Garmin reali e verifichi la finestra post-gara end-to-end.
 - I contatori usano il fuso della baseline: se l'atleta cambia fuso durante un
   viaggio, la baseline va aggiornata perché il calcolo resti coerente.
+- L'envelope per modalità non esiste ancora: è la costante globale descritta
+  sopra. Va implementato come output del Proposer (`ARCHITETTURA-LLM.md`).
+- Il dossier atleta non esiste: il piano riceve i campi singolarmente dal
+  servizio, non un payload compilato e versionato.
