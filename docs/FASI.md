@@ -185,7 +185,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 150 test unitari, 9 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 151 test unitari, 9 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
 build API e web complete. **Non coperto:** login Google con credenziali reali, export
 Hevy con chiave reale, import `.FIT` su Garmin Connect, scheduler automatico, uso reale
@@ -236,12 +236,12 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.5 Integrazioni
 
-- [x] Garmin Personal: adapter pull, token cache.
+- [x] Garmin Personal: adapter pull, token cache. _(Lo stato integrazione usa la stessa risoluzione credenziali del client, incluso `secrets/garmin-key.txt`: F1-22.)_
 - [ ] Garmin: scheduler, backoff, reminder scadenza chiave. _(Non implementato: sync solo manuale.)_
 - [x] Yazio: adapter v22, refresh, nutrients-daily/summary/peso.
 - [x] Yazio: credenziali isolate in `secrets/`.
 - [x] Dedupe attività tramite chiavi uniche (userId, source, externalId).
-- [x] Pagina/card stato integrazioni (connesso/scaduto/errore).
+- [x] Pagina/card stato integrazioni (connesso/scaduto/errore). _(Garmin e Yazio leggono le metriche filtrate per `source`, senza date duplicate: F1-23.)_
 
 #### 1.6 Export
 

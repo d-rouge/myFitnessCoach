@@ -48,6 +48,7 @@ config sicura, validazione Zod e body limit FIT. Stato attuale:
 | Backup, restore e wipe (F1-10) | ✅ chiusi (WS-5) |
 | `GET /api/review/latest` senza review (F1-14) | ✅ chiuso |
 | `GET /api/baseline` senza baseline (F1-21) | ✅ chiuso (verifica runtime) |
+| Health Garmin e overview metriche (F1-22, F1-23) | ✅ chiusi (verifica runtime) |
 | Safety, generatore, timezone, UI (F1-11, F1-12, F1-13, F1-17) | ✅ chiusi (Onda 2) |
 | AI coach, scheduler | ❌ aperti (F1-18, F1-19, rinviati) |
 
@@ -88,14 +89,14 @@ introdotto l'e2e multi-utente su MongoDB reale:
 | WS-8 | F1-17 | `/api/auth/status` espone `googleClientId`; login Google via Google Identity Services; logout esplicito non viene annullato dal dev auto-login; chiave Hevy inserita in UI, salvata in `localStorage` e inoltrata nell'header `api-key` (unit test con `fetch` mockato) |
 | WS-9 | e2e | 9 verifiche verdi su `health_trainer_e2e`: 401 senza token, identità JWT distinte, baseline legate all'utente autenticato (userId del body ignorato), piani isolati, PATCH cross-utente 404, export FIT cross-utente 404 e proprio FIT con magic bytes, check-in isolati, backup isolati, piani assenti 404 |
 
-**Test:** 150 unitari verdi (`api` 44, `domain` 56, `integrations` 40, `ai` 3,
+**Test:** 151 unitari verdi (`api` 45, `domain` 56, `integrations` 40, `ai` 3,
 `config` 5, `db` 2) + 9 verifiche e2e (`npm run test:e2e`), `lint`, `typecheck`,
 `typecheck:scripts` e build API/web puliti.
 
 Conteggio residuo: **0 P0**, **0 P1**, **2 P2** (F1-18 AI coach, F1-19 scheduler e
 credenziali cifrate, entrambi rinviati con motivazione). F1-20 è chiuso da questo
-aggiornamento documentale; **F1-21** è stato trovato e chiuso durante la verifica
-runtime del 27 ottobre 2026.
+aggiornamento documentale; **F1-21**, **F1-22** e **F1-23** sono stati trovati e chiusi
+durante la verifica runtime del 27 ottobre 2026.
 
 **Non verificato:** login Google con credenziali reali, export Hevy con chiave reale,
 import `.FIT` su Garmin Connect, sync automatico, uso reale di 14 giorni.
@@ -108,6 +109,23 @@ restituiva `null`, che Nest serializza come `200` senza body. La UI chiama
 onboarding veniva smontato e rimontato. Ora il controller risponde `404` con messaggio
 esplicito (la UI lo interpreta già come “nessuna baseline”). Aggiunti unit test del
 controller e verifica e2e su baseline e piani assenti.
+
+#### F1-22 — Health Garmin dice “missing” mentre sync e check funzionano
+
+**Stato: ✅ chiuso durante la verifica runtime.** `/api/health` guardava solo
+`env.GARMIN_PERSONAL_API_KEY`, mentre `GarminService` accetta anche
+`secrets/garmin-key.txt`. Ora `HealthService` passa a `buildHealthReport` il valore
+risolto da `GarminService.isConfigured()`; il report resta una funzione pura e testabile.
+Verificato a runtime: `/api/health` → `garmin: configured` con chiave da file.
+
+#### F1-23 — L’overview Garmin include le metriche Yazio e duplica le date
+
+**Stato: ✅ chiuso durante la verifica runtime.** `GarminSyncService.overview` usava
+`getRecentDailyMetrics` (tutte le fonti) invece di
+`getRecentDailyMetricsBySource(..., GARMIN_PROVIDER)`, quindi per le stesse date
+comparivano due righe e React segnalava chiavi duplicate. Corretto anche il conteggio
+con `countDailyMetricsBySource`. Verificato: 7 metriche, 7 date uniche, `counts.metrics`
+solo Garmin.
 
 ---
 

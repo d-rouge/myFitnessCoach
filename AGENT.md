@@ -139,7 +139,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (150 test)
+npm test                      # unit/contract test (151 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -274,6 +274,10 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
   login esplicito.
 - **Hevy UI.** La chiave può essere inserita nella board: resta in `localStorage`, viene
   inviata solo con l'export e il server ricade su `HEVY_API_KEY` se assente.
+- **Integrazioni.** Lo stato in `/api/health` per Garmin usa
+  `GarminService.isConfigured()` (env **o** `secrets/garmin-key.txt`), non il solo env.
+  Gli overview leggono `metrics_daily` filtrando per `source`: Garmin non deve mostrare
+  le righe Yazio della stessa data.
 - **E2E.** `scripts/e2e-api.ts` avvia l'API con dev endpoint disabilitati, firma due JWT
   e verifica isolamento, export FIT, check-in, backup e 404 per baseline/piani assenti.
 
@@ -305,7 +309,7 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 150 test verdi (api 44, domain 56, integrations 40, ai 3, config 5, db 2) + 9 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
+- **Test attuali:** 151 test verdi (api 45, domain 56, integrations 40, ai 3, config 5, db 2) + 9 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
   `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.

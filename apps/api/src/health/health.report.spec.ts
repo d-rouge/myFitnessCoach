@@ -19,6 +19,7 @@ describe("buildHealthReport", () => {
   it("reports ok when Mongo is reachable", () => {
     const report = buildHealthReport({
       env: baseEnv,
+      garminConfigured: false,
       mongo: { ok: true, latencyMs: 3 },
       uptimeSec: 10,
       version: "0.1.0",
@@ -34,6 +35,7 @@ describe("buildHealthReport", () => {
   it("degrades when Mongo is unreachable", () => {
     const report = buildHealthReport({
       env: baseEnv,
+      garminConfigured: false,
       mongo: { ok: false, latencyMs: 1500, error: "ECONNREFUSED" },
       uptimeSec: 10,
       version: "0.1.0",
@@ -47,12 +49,12 @@ describe("buildHealthReport", () => {
     const report = buildHealthReport({
       env: {
         ...baseEnv,
-        GARMIN_PERSONAL_API_KEY: "key",
         GOOGLE_CLIENT_ID: "id",
         GOOGLE_CLIENT_SECRET: "secret",
         LLM_PROVIDER: "openai",
         LLM_API_KEY: "llm-key",
       },
+      garminConfigured: true,
       mongo: { ok: true, latencyMs: 2 },
       uptimeSec: 10,
       version: "0.1.0",

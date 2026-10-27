@@ -30,6 +30,8 @@ export interface HealthReport {
 export interface HealthReportInput {
   env: Env;
   mongo: MongoPingResult;
+  /** Resolved by GarminService, which also accepts the local secrets file. */
+  garminConfigured: boolean;
   uptimeSec: number;
   version: string;
   now?: Date;
@@ -39,7 +41,6 @@ export function buildHealthReport(input: HealthReportInput): HealthReport {
   const { env, mongo } = input;
 
   const googleConfigured = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
-  const garminConfigured = Boolean(env.GARMIN_PERSONAL_API_KEY);
   const llmConfigured = Boolean(env.LLM_PROVIDER && env.LLM_API_KEY);
 
   const status = mongo.ok ? "ok" : "degraded";
@@ -56,7 +57,7 @@ export function buildHealthReport(input: HealthReportInput): HealthReport {
         error: mongo.error,
       },
       garmin: {
-        status: garminConfigured ? "configured" : "missing",
+        status: input.garminConfigured ? "configured" : "missing",
       },
       googleAuth: {
         status: googleConfigured ? "configured" : "missing",

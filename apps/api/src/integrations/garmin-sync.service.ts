@@ -1,10 +1,10 @@
 import {
   countActivities,
-  countDailyMetrics,
+  countDailyMetricsBySource,
   finishSyncRun,
   getActivityByExternalId,
   getRecentActivities,
-  getRecentDailyMetrics,
+  getRecentDailyMetricsBySource,
   getActivityAnalysis as getStoredActivityAnalysis,
   getSyncState,
   startSyncRun,
@@ -296,9 +296,9 @@ export class GarminSyncService {
     const [state, activities, metrics, totalActivities, totalMetrics] = await Promise.all([
       getSyncState(db, userId, provider),
       getRecentActivities(db, userId, 10),
-      getRecentDailyMetrics(db, userId, windowDays),
+      getRecentDailyMetricsBySource(db, userId, provider, windowDays),
       countActivities(db, userId),
-      countDailyMetrics(db, userId),
+      countDailyMetricsBySource(db, userId, provider),
     ]);
 
     return {
