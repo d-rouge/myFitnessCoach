@@ -155,10 +155,14 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 > ⚠️ **La Fase 1 non è completata.** La revisione del 27 ottobre 2026
 > ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato 5 problemi bloccanti, 7 gravi e
-> 7 medi. Il loop principale è rotto da namespace utente incompatibili (`personal` vs
-> `user_marco`) e l'autenticazione è aperta per default. I test unitari sono verdi ma
-> non esiste alcun test end-to-end con MongoDB reale. Le checkbox sotto sono state
-> riallineate: quelle non verificate sono di nuovo `[ ]`.
+> 7 medi. Il loop principale resta rotto dal versioning della baseline e dai flussi
+> review/check-in/export; i test unitari sono verdi ma non esiste alcun test end-to-end
+> con MongoDB reale. Le checkbox sotto sono state riallineate: quelle non verificate
+> sono di nuovo `[ ]`.
+>
+> **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
+> validazione Zod e body limit FIT sono chiusi (F1-01, F1-02, F1-04, F1-05, F1-14).
+> Restano **1 P0** (baseline/versioning, F1-03), i P1 e i P2 di Onda 1/2.
 
 **Implementato ma non verificato end-to-end.** Dettaglio e piano di fix in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
@@ -170,12 +174,12 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.6 Export:** Export dinamico `.FIT` scaricabile per qualsiasi sessione pianificata (`/api/export/workouts/session/:id.fit`), export routine palestra verso Hevy Pro (`/api/export/workouts/hevy/export`), export backup dell'utente (`/api/export/backup`) e restore (`/api/export/restore`). _(Mapping FIT e Hevy da correggere; restore non idempotente: F1-08, F1-09, F1-10.)_
 - **1.7 Review:** Motore di review settimanale deterministico (`computeWeeklyReview`), calcolo aderenza %, carico, eventi dolore e verdetto del coach (`continue`, `progress`, `deload`) con avanzamento al microciclo successivo (`/api/review/advance-week`, `WeeklyReviewCard.tsx`). _(`adjusted` conta come completata e `progress` non applica il +10%: F1-06; review vecchie riusate: F1-15.)_
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
-- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, endpoint `/api/export/backup`, restore e cancellazione dati (`DELETE /api/export/me`). _(Restore e wipe incompleti: F1-10; auth aperta per default: F1-02.)_
+- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, endpoint `/api/export/backup`, restore e cancellazione dati (`DELETE /api/export/me`). _(Restore e wipe incompleti: F1-10; autenticazione JWT e default sicuri chiusi in WS-0: F1-01, F1-02.)_
 
-**Verde (verificato il 27 ottobre 2026):** 105 test, typecheck dei workspace e lint Biome
-passano; build API e Web completata. **Non coperto:** nessun test e2e con Mongo reale,
-nessun test multi-utente, nessun import `.FIT` su Garmin Connect, nessun export Hevy
-con chiave reale.
+**Verde (verificato il 27 ottobre 2026 dopo WS-0):** 117 test, typecheck dei workspace e
+lint Biome passano; build API e Web completata. **Non coperto:** nessun test e2e con
+Mongo reale, nessun test multi-utente, nessun import `.FIT` su Garmin Connect, nessun
+export Hevy con chiave reale.
 
 ### Obiettivo
 
@@ -216,7 +220,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Check-in mattutino (sonno, energia, indolenzimento, dolore, tempo) con form rapido 20 secondi (`MorningCheckinCard.tsx`).
 - [x] Post-sessione (RPE, sensazioni, dolore, note) e registrazione completamento sessione.
 - [x] Inserimento attività manuale (`POST /api/activities/manual`).
-- [ ] Upload `.FIT` e parsing con estrazione metriche (`POST /api/activities/upload-fit`). _(`.TCX` non è supportato; l'upload FIT risponde 413 con file reali: F1-04.)_
+- [x] Upload `.FIT` e parsing con estrazione metriche (`POST /api/activities/upload-fit`). _(Corpo JSON fino a 15 MB, firma `.FIT` ai byte 8–11 e limite 10 MB validati in WS-0. `.TCX` non è supportato.)_
 - [x] Confronto dati device vs pianificato (`compareSessionWithActivity`).
 - [ ] Adattamento giornaliero (`computeDailyAdjustment`: conferma/riduzione/swap/riposo con aggiornamento immediato della sessione). _(La sessione adattata viene calcolata ma non persistita: F1-07.)_
 

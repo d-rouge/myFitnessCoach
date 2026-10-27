@@ -12,6 +12,7 @@ import {
   type MacroPlan,
   type MicroPlan,
   type PlannedSession,
+  PlannedSessionSchema,
   type SessionAlternative,
 } from "@health-trainer/domain";
 import {
@@ -37,6 +38,10 @@ export class PlanService {
     });
   }
 
+  private badRequestFrom(error: unknown): BadRequestException {
+    return new BadRequestException(error instanceof Error ? error.message : String(error));
+  }
+
   async getMacroPlan(userId: string): Promise<MacroPlan | null> {
     const db = await this.db();
     return getCurrentMacroPlan(db, userId);
@@ -54,13 +59,19 @@ export class PlanService {
       );
     }
 
-    const macroPlan = generateMacroPlan(baseline, options);
-    await saveMacroPlan(db, userId, macroPlan);
+    let macroPlan: MacroPlan;
+    let microPlan: MicroPlan;
+    try {
+      macroPlan = generateMacroPlan(baseline, options);
+      // Also automatically generate and save Week 1 MicroPlan
+      microPlan = generateMicroPlan(baseline, macroPlan, 1, {
+        startDate: macroPlan.startDate,
+      });
+    } catch (error) {
+      throw this.badRequestFrom(error);
+    }
 
-    // Also automatically generate and save Week 1 MicroPlan
-    const microPlan = generateMicroPlan(baseline, macroPlan, 1, {
-      startDate: macroPlan.startDate,
-    });
+    await saveMacroPlan(db, userId, macroPlan);
     await saveMicroPlan(db, userId, microPlan);
 
     this.logger.log(
@@ -89,7 +100,12 @@ export class PlanService {
       );
     }
 
-    const microPlan = generateMicroPlan(baseline, macroPlan, weekIndex);
+    let microPlan: MicroPlan;
+    try {
+      microPlan = generateMicroPlan(baseline, macroPlan, weekIndex);
+    } catch (error) {
+      throw this.badRequestFrom(error);
+    }
     await saveMicroPlan(db, userId, microPlan);
 
     this.logger.log(`Generato micro-piano per settimana ${weekIndex} (atleta ${userId})`);
@@ -137,6 +153,20 @@ export class PlanService {
     },
   ): Promise<{ success: boolean }> {
     const db = await this.db();
+    const microPlan = await getCurrentMicroPlan(db, userId);
+    const existing = microPlan?.sessions.find((session) => session.id === sessionId);
+    if (!existing) {
+      throw new NotFoundException(`Sessione ${sessionId} non trovata.`);
+    }
+
+    const merged = PlannedSessionSchema.safeParse({ ...existing, ...patch });
+    if (!merged.success) {
+      const details = merged.error.issues
+        .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+        .join("; ");
+      throw new BadRequestException(`Sessione non valida: ${details}`);
+    }
+
     const updated = await updatePlannedSession(db, userId, sessionId, patch);
     if (!updated) {
       throw new NotFoundException(`Sessione ${sessionId} non trovata.`);

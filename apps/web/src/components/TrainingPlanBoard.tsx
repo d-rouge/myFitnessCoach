@@ -8,6 +8,8 @@ import type {
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
+import { apiFetch } from "../lib/api";
+import { DownloadButton } from "./DownloadButton";
 import { WeeklyReviewCard } from "./WeeklyReviewCard";
 
 interface CoachAdvice {
@@ -51,27 +53,27 @@ const SPORT_COLORS: Record<Sport, { bg: string; text: string; ring: string }> = 
 };
 
 async function fetchMacroPlan(): Promise<MacroPlan | null> {
-  const res = await fetch("/api/plan/macro");
+  const res = await apiFetch("/api/plan/macro");
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Errore caricamento macro-piano");
   return res.json() as Promise<MacroPlan>;
 }
 
 async function fetchMicroPlan(): Promise<MicroPlan | null> {
-  const res = await fetch("/api/plan/micro");
+  const res = await apiFetch("/api/plan/micro");
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Errore caricamento micro-piano");
   return res.json() as Promise<MicroPlan>;
 }
 
 async function fetchTodaySession(): Promise<TodaySessionResponse> {
-  const res = await fetch("/api/plan/today");
+  const res = await apiFetch("/api/plan/today");
   if (!res.ok) throw new Error("Errore caricamento sessione odierna");
   return res.json() as Promise<TodaySessionResponse>;
 }
 
 async function fetchCoachAdvice(sessionId?: string): Promise<CoachAdviceResponse> {
-  const res = await fetch("/api/ai/coach-advice", {
+  const res = await apiFetch("/api/ai/coach-advice", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId }),
@@ -81,7 +83,7 @@ async function fetchCoachAdvice(sessionId?: string): Promise<CoachAdviceResponse
 }
 
 async function generatePlan(): Promise<{ macroPlan: MacroPlan; microPlan: MicroPlan }> {
-  const res = await fetch("/api/plan/macro/generate", {
+  const res = await apiFetch("/api/plan/macro/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
@@ -101,7 +103,7 @@ async function recordManualActivityApi(payload: {
   rpe?: number;
   notes?: string;
 }): Promise<{ comparison?: SessionComparisonResult }> {
-  const res = await fetch("/api/activities/manual", {
+  const res = await apiFetch("/api/activities/manual", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -117,7 +119,7 @@ async function uploadFitApi(payload: {
   base64: string;
   filename: string;
 }): Promise<{ comparison?: SessionComparisonResult }> {
-  const res = await fetch("/api/activities/upload-fit", {
+  const res = await apiFetch("/api/activities/upload-fit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -130,7 +132,7 @@ async function uploadFitApi(payload: {
 }
 
 async function exportHevyApi(sessionId?: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch("/api/export/workouts/hevy/export", {
+  const res = await apiFetch("/api/export/workouts/hevy/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId }),
@@ -583,13 +585,13 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                     {(today.data.session.sport === "running" ||
                       today.data.session.sport === "cycling" ||
                       today.data.session.sport === "swimming") && (
-                      <a
-                        href={`/api/export/workouts/session/${today.data.session.id}.fit`}
-                        download
+                      <DownloadButton
+                        url={`/api/export/workouts/session/${today.data.session.id}.fit`}
+                        filename={`${today.data.session.id}.fit`}
                         className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20"
                       >
                         Scarica Workout (.FIT)
-                      </a>
+                      </DownloadButton>
                     )}
 
                     {/* Hevy Export for Strength */}

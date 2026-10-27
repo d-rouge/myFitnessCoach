@@ -14,6 +14,7 @@ import {
 } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useState } from "react";
+import { apiFetch } from "../lib/api";
 
 interface OnboardingWizardProps {
   initialBaseline?: Baseline | null;
@@ -118,7 +119,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
     setError(null);
 
     try {
-      const res = await fetch("/api/baseline", {
+      const res = await apiFetch("/api/baseline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(baseline),

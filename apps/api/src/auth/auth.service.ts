@@ -7,6 +7,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { PERSONAL_USER_ID } from "../config/constants.js";
@@ -20,6 +21,7 @@ interface GoogleTokenInfo {
   aud?: string;
   email?: string;
   email_verified?: string | boolean;
+  exp?: string;
   name?: string;
   picture?: string;
 }
@@ -34,11 +36,19 @@ export class AuthService {
   ) {}
 
   private get jwtSecret(): string {
-    return this.env.JWT_SECRET || "dev-jwt-secret-health-trainer-32chars!";
+    const secret = this.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+    return secret;
   }
 
   isGoogleAuthConfigured(): boolean {
     return Boolean(this.env.GOOGLE_CLIENT_ID && this.env.GOOGLE_CLIENT_SECRET);
+  }
+
+  devLoginEnabled(): boolean {
+    return this.env.ENABLE_DEV_ENDPOINTS;
   }
 
   getAllowedEmails(): string[] {
@@ -48,6 +58,11 @@ export class AuthService {
   async verifyGoogleIdToken(idToken: string): Promise<User> {
     if (!idToken || typeof idToken !== "string") {
       throw new BadRequestException("id_token is required");
+    }
+
+    const clientId = this.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      throw new ServiceUnavailableException("Google authentication is not configured");
     }
 
     let tokenInfo: GoogleTokenInfo;
@@ -64,25 +79,37 @@ export class AuthService {
       throw new UnauthorizedException("Invalid Google token");
     }
 
+    const validIssuers = new Set(["accounts.google.com", "https://accounts.google.com"]);
+    if (!tokenInfo.iss || !validIssuers.has(tokenInfo.iss)) {
+      throw new UnauthorizedException("Invalid Google token issuer");
+    }
+
+    if (tokenInfo.aud !== clientId) {
+      this.logger.warn(
+        `Token audience mismatch: got ${tokenInfo.aud}, expected ${this.env.GOOGLE_CLIENT_ID}`,
+      );
+      throw new UnauthorizedException("Google token audience mismatch");
+    }
+
+    const emailVerified = tokenInfo.email_verified === true || tokenInfo.email_verified === "true";
+    if (!emailVerified) {
+      throw new UnauthorizedException("Google email is not verified");
+    }
+
+    const expiresAt = Number(tokenInfo.exp);
+    if (Number.isFinite(expiresAt) && expiresAt * 1000 <= Date.now()) {
+      throw new UnauthorizedException("Google token is expired");
+    }
+
     if (!tokenInfo.email || !tokenInfo.sub) {
       throw new UnauthorizedException("Google token missing email or subject");
     }
 
     const email = tokenInfo.email.toLowerCase();
-
-    // Check allowlist if configured
     const allowed = this.env.GOOGLE_ALLOWED_EMAILS;
-    if (allowed.length > 0 && !allowed.includes(email)) {
+    if (allowed.length === 0 || !allowed.includes(email)) {
       this.logger.warn(`Rejected login attempt from non-allowlisted email: ${email}`);
       throw new ForbiddenException("Email is not in the allowed list");
-    }
-
-    // Verify audience if client id is configured
-    if (this.env.GOOGLE_CLIENT_ID && tokenInfo.aud !== this.env.GOOGLE_CLIENT_ID) {
-      this.logger.warn(
-        `Token audience mismatch: got ${tokenInfo.aud}, expected ${this.env.GOOGLE_CLIENT_ID}`,
-      );
-      throw new UnauthorizedException("Google token audience mismatch");
     }
 
     const now = new Date().toISOString();
@@ -161,35 +188,18 @@ export class AuthService {
     if (!payload) return null;
 
     const db = await this.getDb();
-    if (db) {
-      const user = await getUserById(db, payload.sub);
-      if (user) return user;
+    if (!db) {
+      // Token remains verifiable when the database is temporarily unavailable.
+      return {
+        id: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        roles: payload.roles ?? ["athlete"],
+        createdAt: new Date(payload.iat * 1000).toISOString(),
+        lastLoginAt: new Date(payload.iat * 1000).toISOString(),
+      };
     }
 
-    // Fallback if DB is disconnected but token is valid
-    return {
-      id: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      roles: payload.roles ?? ["athlete"],
-      createdAt: new Date(payload.iat * 1000).toISOString(),
-      lastLoginAt: new Date(payload.iat * 1000).toISOString(),
-    };
-  }
-
-  async getMe(authHeader?: string): Promise<User> {
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7).trim();
-      const user = await this.getUserFromToken(token);
-      if (user) return user;
-    }
-
-    // If dev endpoints enabled, return dev user
-    if (this.env.ENABLE_DEV_ENDPOINTS) {
-      const { user } = await this.devLogin();
-      return user;
-    }
-
-    throw new UnauthorizedException("Authentication required");
+    return getUserById(db, payload.sub);
   }
 }

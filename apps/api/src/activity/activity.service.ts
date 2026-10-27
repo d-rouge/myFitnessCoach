@@ -32,6 +32,14 @@ export interface ManualActivityInput {
   date?: string;
 }
 
+const MAX_FIT_BYTES = 10 * 1024 * 1024;
+const FIT_SIGNATURE = [0x2e, 0x46, 0x49, 0x54]; // ".FIT" at bytes 8..11
+
+function isFitFile(buffer: Uint8Array): boolean {
+  if (buffer.length < 12) return false;
+  return FIT_SIGNATURE.every((byte, index) => buffer[8 + index] === byte);
+}
+
 @Injectable()
 export class ActivityService {
   private readonly logger = new Logger(ActivityService.name);
@@ -114,6 +122,18 @@ export class ActivityService {
     fileBuffer: Uint8Array,
     originalFilename = "upload.fit",
   ): Promise<{ activity: Activity; comparison?: SessionComparisonResult }> {
+    if (fileBuffer.length === 0) {
+      throw new BadRequestException("Il file FIT è vuoto.");
+    }
+    if (fileBuffer.length > MAX_FIT_BYTES) {
+      throw new BadRequestException("File FIT troppo grande (massimo 10 MB).");
+    }
+    if (!isFitFile(fileBuffer)) {
+      throw new BadRequestException(
+        "Il file non è un FIT valido: firma '.FIT' mancante nell'header.",
+      );
+    }
+
     const db = await this.db();
     const externalId = `fit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const parsedRaw = await parseFitFile(fileBuffer);

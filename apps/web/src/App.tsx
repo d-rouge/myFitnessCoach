@@ -7,9 +7,11 @@ import {
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
+import { DownloadButton } from "./components/DownloadButton";
 import { MorningCheckinCard } from "./components/MorningCheckinCard";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { TrainingPlanBoard } from "./components/TrainingPlanBoard";
+import { apiFetch, fetchAuthStatus, fetchMe, loginDev, type SessionUser } from "./lib/api";
 
 type CheckStatus = "ok" | "error" | "configured" | "missing" | "unchecked";
 type SyncStatus = "never" | "running" | "ok" | "partial" | "error";
@@ -134,35 +136,21 @@ interface ActivityAnalysis {
   brief: string;
 }
 
-interface UserInfo {
-  id: string;
-  email: string;
-  name: string;
-  picture?: string;
-  roles: string[];
-}
-
-async function fetchMe(): Promise<UserInfo> {
-  const response = await fetch("/api/me");
-  if (!response.ok) throw new Error(`Me failed (${response.status})`);
-  return response.json() as Promise<UserInfo>;
-}
-
 async function fetchHealth(): Promise<HealthReport> {
-  const response = await fetch("/api/health");
+  const response = await apiFetch("/api/health");
   if (!response.ok) throw new Error(`Health check failed (${response.status})`);
   return response.json() as Promise<HealthReport>;
 }
 
 async function checkGarmin(): Promise<GarminCheck> {
-  const response = await fetch("/api/integrations/garmin/check", { method: "POST" });
+  const response = await apiFetch("/api/integrations/garmin/check", { method: "POST" });
   const body = (await response.json()) as GarminCheck & { message?: string };
   if (!response.ok) throw new Error(body.message ?? `Garmin check failed (${response.status})`);
   return body;
 }
 
 async function fetchGarminOverview(): Promise<GarminOverview> {
-  const response = await fetch("/api/integrations/garmin/overview?days=7");
+  const response = await apiFetch("/api/integrations/garmin/overview?days=7");
   const body = (await response.json()) as GarminOverview & { message?: string };
   if (!response.ok) {
     throw new Error(body.message ?? `Garmin overview failed (${response.status})`);
@@ -171,21 +159,21 @@ async function fetchGarminOverview(): Promise<GarminOverview> {
 }
 
 async function syncGarmin(): Promise<GarminSyncResult> {
-  const response = await fetch("/api/integrations/garmin/sync?days=7", { method: "POST" });
+  const response = await apiFetch("/api/integrations/garmin/sync?days=7", { method: "POST" });
   const body = (await response.json()) as GarminSyncResult & { message?: string };
   if (!response.ok) throw new Error(body.message ?? `Garmin sync failed (${response.status})`);
   return body;
 }
 
 async function checkYazio(): Promise<YazioCheck> {
-  const response = await fetch("/api/integrations/yazio/check", { method: "POST" });
+  const response = await apiFetch("/api/integrations/yazio/check", { method: "POST" });
   const body = (await response.json()) as YazioCheck & { message?: string };
   if (!response.ok) throw new Error(body.message ?? `Yazio check failed (${response.status})`);
   return body;
 }
 
 async function fetchYazioOverview(): Promise<YazioOverview> {
-  const response = await fetch("/api/integrations/yazio/overview?days=7");
+  const response = await apiFetch("/api/integrations/yazio/overview?days=7");
   const body = (await response.json()) as YazioOverview & { message?: string };
   if (!response.ok) {
     throw new Error(body.message ?? `Yazio overview failed (${response.status})`);
@@ -194,14 +182,14 @@ async function fetchYazioOverview(): Promise<YazioOverview> {
 }
 
 async function syncYazio(): Promise<YazioSyncResult> {
-  const response = await fetch("/api/integrations/yazio/sync?days=7", { method: "POST" });
+  const response = await apiFetch("/api/integrations/yazio/sync?days=7", { method: "POST" });
   const body = (await response.json()) as YazioSyncResult & { message?: string };
   if (!response.ok) throw new Error(body.message ?? `Yazio sync failed (${response.status})`);
   return body;
 }
 
 async function analyzeGarminActivity(activityId: string): Promise<ActivityAnalysis> {
-  const response = await fetch(`/api/integrations/garmin/activities/${activityId}/analyze`, {
+  const response = await apiFetch(`/api/integrations/garmin/activities/${activityId}/analyze`, {
     method: "POST",
   });
   const body = (await response.json()) as ActivityAnalysis & { message?: string };
@@ -212,14 +200,14 @@ async function analyzeGarminActivity(activityId: string): Promise<ActivityAnalys
 }
 
 async function fetchCurrentBaseline(): Promise<Baseline | null> {
-  const response = await fetch("/api/baseline");
+  const response = await apiFetch("/api/baseline");
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Baseline check failed (${response.status})`);
   return response.json() as Promise<Baseline>;
 }
 
 async function checkFeasibility(input: FiveKProjectionInput): Promise<FiveKProjection> {
-  const response = await fetch("/api/baseline/feasibility", {
+  const response = await apiFetch("/api/baseline/feasibility", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -340,9 +328,8 @@ function Card({
   );
 }
 
-export default function App() {
+function Dashboard({ user }: { user: SessionUser }) {
   const queryClient = useQueryClient();
-  const me = useQuery({ queryKey: ["me"], queryFn: fetchMe });
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth });
   const overview = useQuery({ queryKey: ["garmin-overview"], queryFn: fetchGarminOverview });
   const yazioOverview = useQuery({
@@ -378,7 +365,7 @@ export default function App() {
 
   const wipeDataMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/export/me", { method: "DELETE" });
+      const res = await apiFetch("/api/export/me", { method: "DELETE" });
       if (!res.ok) throw new Error("Errore durante la cancellazione dati");
       return res.json();
     },
@@ -391,7 +378,7 @@ export default function App() {
   const restoreBackupMutation = useMutation({
     mutationFn: async (jsonString: string) => {
       const backup = JSON.parse(jsonString);
-      const res = await fetch("/api/export/restore", {
+      const res = await apiFetch("/api/export/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(backup),
@@ -439,9 +426,9 @@ export default function App() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {me.data ? (
+          {user ? (
             <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-              Atleta: {me.data.name} ({me.data.email})
+              Atleta: {user.name} ({user.email})
             </span>
           ) : null}
           <span className="rounded-full bg-lime-300/10 px-3 py-1.5 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-300/30">
@@ -1002,13 +989,13 @@ export default function App() {
               Defaticamento 10 min (Zona 1).
             </p>
           </div>
-          <a
-            href="/api/export/workouts/sample-5x800m.fit"
-            download="5x800m-intervals.fit"
+          <DownloadButton
+            url="/api/export/workouts/sample-5x800m.fit"
+            filename="5x800m-intervals.fit"
             className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
           >
             Scarica workout (.FIT)
-          </a>
+          </DownloadButton>
         </div>
         <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs text-slate-400">
           <p className="font-medium text-slate-300">Come importare in Garmin Connect:</p>
@@ -1054,13 +1041,13 @@ export default function App() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href="/api/export/backup"
-              download
+            <DownloadButton
+              url="/api/export/backup"
+              filename="health-trainer-backup.json"
               className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
             >
               Scarica Backup (.JSON)
-            </a>
+            </DownloadButton>
             <label className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
               Ripristina Backup
               <input
@@ -1112,4 +1099,82 @@ export default function App() {
       </footer>
     </main>
   );
+}
+
+function Splash() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-6">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.035] px-8 py-6 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-300 font-black text-slate-950">
+          HT
+        </div>
+        <p className="text-sm text-slate-400">Verifico la sessione…</p>
+      </div>
+    </main>
+  );
+}
+
+function LoginScreen() {
+  const status = useQuery({ queryKey: ["auth-status"], queryFn: fetchAuthStatus, retry: 1 });
+  const devLogin = useMutation({
+    mutationFn: loginDev,
+    onSuccess: () => window.location.reload(),
+  });
+
+  return (
+    <main className="flex min-h-screen items-center justify-center px-6">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.035] p-8 shadow-2xl">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-300 font-black text-slate-950">
+          HT
+        </div>
+        <h1 className="text-xl font-semibold text-white">Autenticazione richiesta</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          health-trainer usa un token JWT per isolare i dati dell&apos;atleta. Nessuna richiesta
+          viene accettata senza credenziali.
+        </p>
+
+        {status.data?.devLoginEnabled ? (
+          <button
+            type="button"
+            onClick={() => devLogin.mutate()}
+            disabled={devLogin.isPending}
+            className="mt-6 w-full rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-lime-200 disabled:opacity-60"
+          >
+            {devLogin.isPending ? "Accesso…" : "Accedi come atleta locale"}
+          </button>
+        ) : status.data?.googleConfigured ? (
+          <p className="mt-6 rounded-xl bg-amber-400/10 p-3 text-xs leading-5 text-amber-200 ring-1 ring-amber-400/30">
+            Google OAuth è configurato lato API, ma il flusso di login nella UI non è ancora
+            disponibile. Abilita <code>ENABLE_DEV_ENDPOINTS=true</code> in locale oppure usa
+            l&apos;endpoint <code>/api/auth/google</code>.
+          </p>
+        ) : (
+          <p className="mt-6 rounded-xl bg-rose-400/10 p-3 text-xs leading-5 text-rose-200 ring-1 ring-rose-400/30">
+            Nessun metodo di login configurato. Imposta <code>GOOGLE_CLIENT_ID</code> e{" "}
+            <code>GOOGLE_ALLOWED_EMAILS</code>, oppure <code>ENABLE_DEV_ENDPOINTS=true</code> per lo
+            sviluppo locale.
+          </p>
+        )}
+
+        {status.isError ? (
+          <p className="mt-4 text-xs text-rose-300">
+            API non raggiungibile. Avvia il backend e ricarica la pagina.
+          </p>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export default function App() {
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: fetchMe,
+    retry: 0,
+    refetchInterval: false,
+  });
+
+  if (me.isLoading) return <Splash />;
+  if (!me.data) return <LoginScreen />;
+  return <Dashboard user={me.data} />;
 }

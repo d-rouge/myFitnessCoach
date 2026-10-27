@@ -5,6 +5,7 @@ import {
   restoreUserData,
   type UserDataBackup,
 } from "@health-trainer/db";
+import type { User } from "@health-trainer/domain";
 import {
   buildHevyRoutine,
   buildSampleFullBodyHevyRoutine,
@@ -20,7 +21,6 @@ import {
   Delete,
   Get,
   Header,
-  Headers,
   NotFoundException,
   Param,
   Post,
@@ -28,11 +28,10 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import type { Response } from "express";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
 import { MongoService } from "../database/mongo.service.js";
-
-function resolveUserId(headerUserId?: string): string {
-  return headerUserId?.trim() ? headerUserId.trim() : "user_marco";
-}
+import { type HevyExportInput, HevyExportSchema } from "./export.schemas.js";
 
 @Controller("export")
 export class ExportController {
@@ -79,13 +78,12 @@ export class ExportController {
 
   @Get("workouts/session/:sessionId.fit")
   async downloadSessionFitWorkout(
+    @CurrentUser() user: User,
     @Param("sessionId") sessionId: string,
-    @Headers("x-user-id") headerUserId: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const userId = resolveUserId(headerUserId);
     const db = await this.db();
-    const microPlan = await getCurrentMicroPlan(db, userId);
+    const microPlan = await getCurrentMicroPlan(db, user.id);
 
     if (!microPlan) {
       throw new NotFoundException("Nessun piano settimanale attivo trovato.");
@@ -115,12 +113,11 @@ export class ExportController {
 
   @Post("workouts/hevy/export")
   async exportToHevy(
-    @Body() body: { sessionId?: string; apiKey?: string },
-    @Headers("x-user-id") headerUserId?: string,
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(HevyExportSchema)) body: HevyExportInput,
   ) {
-    const userId = resolveUserId(headerUserId);
     const db = await this.db();
-    const microPlan = await getCurrentMicroPlan(db, userId);
+    const microPlan = await getCurrentMicroPlan(db, user.id);
 
     let session = microPlan?.sessions.find((s) => s.id === body.sessionId);
     if (!session && microPlan) {
@@ -150,17 +147,13 @@ export class ExportController {
   }
 
   @Get("backup")
-  async downloadBackup(
-    @Headers("x-user-id") headerUserId: string | undefined,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const userId = resolveUserId(headerUserId);
+  async downloadBackup(@CurrentUser() user: User, @Res({ passthrough: true }) res: Response) {
     const db = await this.db();
-    const backup = await exportUserData(db, userId);
+    const backup = await exportUserData(db, user.id);
 
     res.set({
       "Content-Type": "application/json",
-      "Content-Disposition": `attachment; filename="health-trainer-backup-${userId}-${Date.now()}.json"`,
+      "Content-Disposition": `attachment; filename="health-trainer-backup-${user.id}-${Date.now()}.json"`,
     });
 
     return backup;
@@ -176,9 +169,8 @@ export class ExportController {
   }
 
   @Delete("me")
-  async deleteMyData(@Headers("x-user-id") headerUserId?: string) {
-    const userId = resolveUserId(headerUserId);
+  async deleteMyData(@CurrentUser() user: User) {
     const db = await this.db();
-    return deleteUserData(db, userId);
+    return deleteUserData(db, user.id);
   }
 }

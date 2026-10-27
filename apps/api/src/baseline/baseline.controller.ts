@@ -4,38 +4,27 @@ import {
   intermediatePersona,
   kneePainPersona,
 } from "@health-trainer/domain";
-import { Body, Controller, Get, Headers, Post } from "@nestjs/common";
-import { AuthService } from "../auth/auth.service.js";
+import { Body, Controller, Get, Post } from "@nestjs/common";
+import { CurrentUser } from "../auth/current-user.decorator.js";
 import { BaselineService } from "./baseline.service.js";
 
 @Controller("baseline")
 export class BaselineController {
-  constructor(
-    private readonly baselineService: BaselineService,
-    private readonly authService: AuthService,
-  ) {}
-
-  private async resolveUserId(authHeader?: string): Promise<string> {
-    const user = await this.authService.getMe(authHeader);
-    return user.id;
-  }
+  constructor(private readonly baselineService: BaselineService) {}
 
   @Get()
-  async getCurrent(@Headers("authorization") authHeader?: string) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.baselineService.getCurrent(userId);
+  async getCurrent(@CurrentUser() user: { id: string }) {
+    return this.baselineService.getCurrent(user.id);
   }
 
   @Post()
-  async save(@Body() body: unknown, @Headers("authorization") authHeader?: string) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.baselineService.save(userId, body);
+  async save(@CurrentUser() user: { id: string }, @Body() body: unknown) {
+    return this.baselineService.save(user.id, body);
   }
 
   @Get("history")
-  async getHistory(@Headers("authorization") authHeader?: string) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.baselineService.getHistory(userId);
+  async getHistory(@CurrentUser() user: { id: string }) {
+    return this.baselineService.getHistory(user.id);
   }
 
   @Get("personas")

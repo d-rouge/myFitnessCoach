@@ -1,37 +1,51 @@
-import { Body, Controller, Get, Headers, Post } from "@nestjs/common";
+import type { User } from "@health-trainer/domain";
+import { Body, Controller, Get, Post } from "@nestjs/common";
+import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
+import {
+  type DevLoginInput,
+  DevLoginSchema,
+  type GoogleLoginInput,
+  GoogleLoginSchema,
+} from "./auth.schemas.js";
 import { AuthService } from "./auth.service.js";
+import { CurrentUser } from "./current-user.decorator.js";
+import { Public } from "./public.decorator.js";
 
 @Controller()
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Get("me")
-  async getMe(@Headers("authorization") authHeader?: string) {
-    return this.auth.getMe(authHeader);
+  getMe(@CurrentUser() user: User): User {
+    return user;
   }
 
   @Get("auth/status")
+  @Public()
   getStatus() {
     return {
       googleConfigured: this.auth.isGoogleAuthConfigured(),
       allowedEmailsCount: this.auth.getAllowedEmails().length,
-      devLoginEnabled: true,
+      devLoginEnabled: this.auth.devLoginEnabled(),
     };
   }
 
   @Post("auth/google")
-  async googleLogin(@Body() body: { id_token?: string }) {
-    const user = await this.auth.verifyGoogleIdToken(body?.id_token ?? "");
+  @Public()
+  async googleLogin(@Body(new ZodValidationPipe(GoogleLoginSchema)) body: GoogleLoginInput) {
+    const user = await this.auth.verifyGoogleIdToken(body.id_token);
     const token = this.auth.createSessionToken(user);
     return { token, user };
   }
 
   @Post("auth/dev-login")
-  async devLogin(@Body() body?: { email?: string; name?: string }) {
+  @Public()
+  async devLogin(@Body(new ZodValidationPipe(DevLoginSchema)) body: DevLoginInput) {
     return this.auth.devLogin(body);
   }
 
   @Post("auth/logout")
+  @Public()
   logout() {
     return { ok: true };
   }

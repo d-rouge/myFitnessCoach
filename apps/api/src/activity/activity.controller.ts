@@ -1,56 +1,47 @@
-import type { Sport } from "@health-trainer/domain";
-import { BadRequestException, Body, Controller, Get, Headers, Post, Query } from "@nestjs/common";
+import type { User } from "@health-trainer/domain";
+import { Body, Controller, Get, Post, Query } from "@nestjs/common";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
+import {
+  type ActivityHistoryQuery,
+  ActivityHistoryQuerySchema,
+  type ManualActivityInput,
+  ManualActivitySchema,
+  type UploadFitInput,
+  UploadFitSchema,
+} from "./activity.schemas.js";
 import { ActivityService } from "./activity.service.js";
-
-function resolveUserId(headerUserId?: string): string {
-  return headerUserId?.trim() ? headerUserId.trim() : "user_marco";
-}
-
-interface ManualActivityDto {
-  sessionId?: string;
-  sport?: Sport;
-  durationMin: number;
-  distanceKm?: number;
-  avgHr?: number;
-  maxHr?: number;
-  rpe?: number;
-  notes?: string;
-  date?: string;
-}
-
-interface UploadFitDto {
-  base64: string;
-  filename?: string;
-}
 
 @Controller("activities")
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}
 
   @Post("manual")
-  async recordManual(@Body() body: ManualActivityDto, @Headers("x-user-id") headerUserId?: string) {
-    const userId = resolveUserId(headerUserId);
-    return this.activityService.recordManualActivity(userId, body);
+  async recordManual(
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(ManualActivitySchema)) body: ManualActivityInput,
+  ) {
+    return this.activityService.recordManualActivity(user.id, body);
   }
 
   @Post("upload-fit")
-  async uploadFit(@Body() body: UploadFitDto, @Headers("x-user-id") headerUserId?: string) {
-    if (!body?.base64) {
-      throw new BadRequestException("Payload non valido: campo 'base64' obbligatorio.");
-    }
-    const userId = resolveUserId(headerUserId);
+  async uploadFit(
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(UploadFitSchema)) body: UploadFitInput,
+  ) {
     const buffer = Buffer.from(body.base64, "base64");
     return this.activityService.recordFitUpload(
-      userId,
+      user.id,
       new Uint8Array(buffer),
       body.filename || "workout.fit",
     );
   }
 
   @Get("history")
-  async getHistory(@Headers("x-user-id") headerUserId?: string, @Query("limit") limit?: string) {
-    const userId = resolveUserId(headerUserId);
-    const parsedLimit = limit ? Number.parseInt(limit, 10) : 10;
-    return this.activityService.getRecentActivities(userId, parsedLimit);
+  async getHistory(
+    @CurrentUser() user: User,
+    @Query(new ZodValidationPipe(ActivityHistoryQuerySchema)) query: ActivityHistoryQuery,
+  ) {
+    return this.activityService.getRecentActivities(user.id, query.limit);
   }
 }

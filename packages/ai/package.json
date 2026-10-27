@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@health-trainer/domain": "workspace:*",
+    "@health-trainer/domain": "*",
     "zod": "4.6.7"
   },
   "devDependencies": {

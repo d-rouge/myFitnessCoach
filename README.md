@@ -2,18 +2,20 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 1 implementata ma **non rilasciabile** — revisione del 27 ottobre 2026 con
-5 problemi bloccanti, 7 gravi e 7 medi ([`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md)).
-Il loop è rotto da namespace utente incompatibili e l'autenticazione è aperta per default.
+**Stato:** Fase 1 implementata ma **non rilasciabile**. WS-0 (fondamenta) è chiuso:
+autenticazione JWT unica, config sicura, validazione Zod e upload FIT funzionante.
+Restano **1 problema bloccante**, 7 gravi e 6 medi
+([`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md)): versioning baseline, semantica
+review/check-in, export e backup.
 Componenti presenti:
 - **L0 Onboarding & Baseline:** Wizard 6 step (`OnboardingWizard.tsx`) con obiettivi e persistenza Mongo (`athlete_baselines`).
 - **L1–L3 Piani & Esecuzione:** Generatore deterministico macro/micro ciclo (`generateMacroPlan`, `generateMicroPlan`), safety critic per il ginocchio, board settimanale e card "Oggi".
-- **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` (non persistito), attività manuale e upload FIT (rotto con file reali).
+- **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` (non persistito), attività manuale e upload FIT con validazione firma/dimensione.
 - **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
 - **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`.
 - **Export & Portabilità:** FIT dinamico (mapping da correggere), Hevy (payload hardcoded), backup/restore/wipe (non completi).
 
-105 test unitari verdi, typecheck e lint puliti, build verificata. **Nessun test e2e** con
+117 test unitari verdi, typecheck e lint puliti, build verificata. **Nessun test e2e** con
 Mongo reale né verifica multi-utente.
 
 ## Documenti
@@ -42,6 +44,9 @@ L'app non avvia né ferma servizi di sistema. Se Mongo non è in ascolto, avvial
 
 ```bash
 cp .env.example .env
+# Obbligatorio: genera un JWT_SECRET (min 32 caratteri)
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+# Incollalo in .env come JWT_SECRET=...
 npm install
 npm run dev
 ```
@@ -49,9 +54,20 @@ npm run dev
 - Web: <http://localhost:5173>
 - API health: <http://localhost:3000/api/health>
 - Integrazioni: <http://localhost:3000/api/integrations/status>
-- Utente corrente: <http://localhost:3000/api/me>
+- Utente corrente: `GET /api/me` con `Authorization: Bearer <token>`
 
 Se Mongo non è raggiungibile, l'API parte comunque e `/api/health` risponde `degraded`. Con Mongo attivo risponde `ok`.
+
+Gli esempi `curl` più sotto verso endpoint protetti richiedono il bearer token. In
+locale, con `ENABLE_DEV_ENDPOINTS=true`:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/dev-login \
+  -H 'Content-Type: application/json' -d '{}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/me
+```
+
+La web app lo fa automaticamente tramite `apiFetch` (`apps/web/src/lib/api.ts`).
 
 ## Comandi
 
@@ -60,7 +76,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (88 test)
+npm test                 # unit + contract test (117 test)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
 npm run spike:garmin     # spike Garmin Personal API
@@ -149,9 +165,16 @@ Il file generato (`dist/workouts/5x800m-intervals.fit`) può essere:
 ## Auth e Profilo Utente
 
 L'API include il modulo `auth` con:
-- Endpoint `/api/me` per il profilo dell'utente autenticato (o utente dev con allowlist).
-- Google OAuth token exchange (`POST /api/auth/google`) con controllo allowlist email (`GOOGLE_ALLOWED_EMAILS`).
-- Dev login (`POST /api/auth/dev-login`) abilitato in sviluppo (`ENABLE_DEV_ENDPOINTS=true`).
+- `AuthGuard` globale: tutti gli endpoint richiedono `Authorization: Bearer <token>`,
+  tranne `/api/health` e le rotte `@Public()` di auth. `x-user-id` è ignorato.
+- `GET /api/me` per il profilo dell'utente autenticato.
+- Google OAuth token exchange (`POST /api/auth/google`) con verifica `iss`, `aud`,
+  `email_verified`, `exp` e allowlist email (`GOOGLE_ALLOWED_EMAILS`, obbligatoria se
+  `GOOGLE_CLIENT_ID` è impostata).
+- Dev login (`POST /api/auth/dev-login`) **opt-in** con `ENABLE_DEV_ENDPOINTS=true`
+  (default `false`); quando disabilitato risponde 403.
+- `JWT_SECRET` obbligatorio e di almeno 32 caratteri fuori da `NODE_ENV=test`: senza
+  di esso l'API non parte.
 - Persistenza automatica del profilo in MongoDB (`users`).
 
 ## Stack

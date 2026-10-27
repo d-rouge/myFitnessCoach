@@ -2,6 +2,7 @@ import type { Checkin, DailyAdjustmentResult } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { apiFetch } from "../lib/api";
 
 interface TodayCheckinResponse {
   date: string;
@@ -10,7 +11,7 @@ interface TodayCheckinResponse {
 }
 
 async function fetchTodayCheckin(): Promise<TodayCheckinResponse> {
-  const res = await fetch("/api/checkin/today");
+  const res = await apiFetch("/api/checkin/today");
   if (!res.ok) throw new Error("Errore recupero check-in");
   return res.json() as Promise<TodayCheckinResponse>;
 }
@@ -19,7 +20,7 @@ async function submitCheckin(data: Checkin): Promise<{
   checkin: Checkin;
   adjustment?: DailyAdjustmentResult;
 }> {
-  const res = await fetch("/api/checkin", {
+  const res = await apiFetch("/api/checkin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),

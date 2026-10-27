@@ -1,9 +1,9 @@
-import { Body, Controller, Headers, Post } from "@nestjs/common";
+import type { User } from "@health-trainer/domain";
+import { Body, Controller, Post } from "@nestjs/common";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
+import { type CoachAdviceRequest, CoachAdviceRequestSchema } from "./ai.schemas.js";
 import { AiService } from "./ai.service.js";
-
-function resolveUserId(headerUserId?: string): string {
-  return headerUserId?.trim() ? headerUserId.trim() : "user_marco";
-}
 
 @Controller("ai")
 export class AiController {
@@ -11,10 +11,9 @@ export class AiController {
 
   @Post("coach-advice")
   async getCoachAdvice(
-    @Body() body: { sessionId?: string },
-    @Headers("x-user-id") headerUserId?: string,
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(CoachAdviceRequestSchema)) body: CoachAdviceRequest,
   ) {
-    const userId = resolveUserId(headerUserId);
-    return this.aiService.getCoachAdvice(userId, body?.sessionId);
+    return this.aiService.getCoachAdvice(user.id, body.sessionId);
   }
 }

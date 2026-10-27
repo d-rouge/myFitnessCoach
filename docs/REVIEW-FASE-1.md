@@ -1,6 +1,6 @@
 # Revisione Fase 1 — problemi e piano di fix
 
-**Versione:** 1.0
+**Versione:** 1.1 (WS-0 applicato)
 **Data:** 27 ottobre 2026
 **Scope:** codice della Fase 1 (`7dacb6e..b2c7b49`)
 **Metodo:** revisione statica + verifica runtime su MongoDB temporaneo (`health_trainer_review`) e API sulla porta 3999
@@ -27,6 +27,27 @@ permissivi e non esiste un test end-to-end con database reale.
 
 **Verdetto:** Fase 1 **non completata**. I criteri di accettazione in `FASI.md` erano
 dichiarati tutti soddisfatti; la maggior parte non è stata verificata su dati reali.
+
+### 1.1 Aggiornamento WS-0 (27 ottobre 2026)
+
+Le fondamenta sono state chiuse in **WS-0**: guard JWT globale, `@CurrentUser()`,
+config sicura, validazione Zod e body limit FIT. Stato attuale:
+
+| Area | Stato |
+|---|---|
+| Autenticazione (F1-01, F1-02) | ✅ chiusa |
+| Validazione input (F1-05) | ✅ chiusa |
+| Upload FIT (F1-04) | ✅ chiuso |
+| `GET /api/review/latest` senza review (F1-14) | ✅ chiuso |
+| Baseline/versioning (F1-03) | ❌ aperto (WS-2) |
+| Review, check-in, export, safety, backup | ❌ aperti (Onda 1/2) |
+
+**Test:** 117 unitari verdi (`api` 32, `domain` 41, `integrations` 36, `ai` 3,
+`config` 5), `lint`, `typecheck` e build API puliti. Il test e2e con Mongo reale
+resta da fare (WS-9). Le verifiche runtime di WS-0 sono state eseguite su
+`health_trainer_ws0` (poi eliminato) e sulla porta 3999.
+
+Conteggio residuo: **1 P0**, **7 P1**, **6 P2**.
 
 ---
 
@@ -67,6 +88,11 @@ Pulizia: terminare il processo API e cancellare il database `health_trainer_revi
 
 #### F1-01 — Due namespace utente incompatibili
 
+**Stato: ✅ chiuso in WS-0.** `AuthGuard` globale (`APP_GUARD` in `auth.module.ts`)
+risolve l'utente solo dal bearer token e lo espone con `@CurrentUser()`; `x-user-id` è
+ignorato da tutti i controller. Verificato a runtime: senza token → 401,
+`x-user-id: personal` senza token → 401, `me` con token + header estraneo → `personal`.
+
 - **Sintomo:** metà delle API scrive su `personal`, metà legge `user_marco`.
 - **Evidenza:** `/api/me` → `personal`; baseline e piani salvati su `personal`;
   `POST /api/review/weekly` → `404`; `GET /api/export/backup` → collezioni vuote.
@@ -82,6 +108,14 @@ Pulizia: terminare il processo API e cancellare il database `health_trainer_revi
   richieste senza token.
 
 #### F1-02 — Autenticazione insicura per default
+
+**Stato: ✅ chiuso in WS-0.** Rimosso il segreto hardcoded: `JWT_SECRET` è obbligatorio
+(min 32 caratteri) fuori da `NODE_ENV=test` e il boot fallisce con
+`Invalid environment configuration`. `ENABLE_DEV_ENDPOINTS` è `false` di default e il
+dev login risponde 403 quando disabilitato. `auth/status` legge l'env reale. Il token
+Google verifica `iss`, `aud`, `email_verified`, `exp` e la allowlist (obbligatoria se
+`GOOGLE_CLIENT_ID` è impostata). `getMe` non esegue più auto-login e un utente
+cancellato non viene più riautenticato dal fallback.
 
 - **Sintomo:** login automatico, segreto hardcoded, Google token accettati senza verifica.
 - **Causa:**
@@ -115,6 +149,11 @@ Pulizia: terminare il processo API e cancellare il database `health_trainer_revi
 
 #### F1-04 — Upload FIT sempre in errore 413
 
+**Stato: ✅ chiuso in WS-0.** `main.ts` disabilita il body parser di default e registra
+`useBodyParser("json", { limit: "15mb" })`. L'endpoint valida firma `.FIT` ai byte 8–11 e
+dimensione massima 10 MB prima del decode. Verificato: payload 200 KB non-FIT → 400 con
+messaggio chiaro (non più 413), FIT valido → 201.
+
 - **Sintomo:** qualsiasi FIT reale viene rifiutato.
 - **Evidenza:** payload 200 KB → 266 KB base64 → `413 request entity too large`.
 - **Causa:** `apps/api/src/main.ts` non configura il body parser (default Express 100 KB);
@@ -124,6 +163,12 @@ Pulizia: terminare il processo API e cancellare il database `health_trainer_revi
 - **Test:** upload di un FIT reale da 1 MB → 201; file > limite → 413 con messaggio chiaro.
 
 #### F1-05 — Nessuna validazione degli input
+
+**Stato: ✅ chiuso in WS-0.** `ZodValidationPipe` applicato esplicitamente a ogni
+endpoint (piano, attività, check-in, AI, auth, export) con schemi dedicati. Il patch di
+sessione viene rivalidato con `PlannedSessionSchema` dopo il merge. Verificato:
+`totalWeeks:1` → 400 `MacroPlan validation failed`, `weekIndex:"abc"` → 400,
+`status:"banana"` → 400, `durationMin:-5` → 400, check-in con data invalida → 400.
 
 - **Sintomo:** input invalidi producono 500 o vengono persistiti.
 - **Evidenza:** `totalWeeks: 1` → 500; `weekIndex: "abc"` → 500;
@@ -234,6 +279,9 @@ Pulizia: terminare il processo API e cancellare il database `health_trainer_revi
 
 #### F1-14 — `GET /api/review/latest` risponde 200 con body vuoto
 
+**Stato: ✅ chiuso in WS-0.** Il controller risponde `404 Not Found` con messaggio
+esplicito quando non esiste una review; la UI gestisce il 404 come "nessuna review".
+
 - **Causa:** il service restituisce `null` (`review.service.ts:66-69`); Nest invia 200
   senza body.
 - **Effetto:** `WeeklyReviewCard` tratta solo il 404 come "nessuna review" e va in errore
@@ -327,8 +375,8 @@ conflitto sono:
 
 | ID | Contenuto | File principali | Dipende da | Parallelizzabile subito |
 |---|---|---|---|---|
-| **WS-0** | Fondamenta: guard JWT, `@CurrentUser`, `ValidationPipe`, body limit, config sicura | `auth/*`, `main.ts`, `config/env.ts`, tutti i controller (1 riga) | — | No: va prima, è il punto di convergenza |
-| **WS-1** | Chiusura auth: Google token, allowlist, dev login opt-in, `auth/status` | `auth/*`, `config` | WS-0 | Dopo WS-0 |
+| **WS-0** | Fondamenta: guard JWT, `@CurrentUser`, `ValidationPipe`, body limit, config sicura | `auth/*`, `main.ts`, `config/env.ts`, tutti i controller (1 riga) | — | ✅ **fatto** (27 ott 2026) |
+| **WS-1** | Chiusura auth: Google token, allowlist, dev login opt-in, `auth/status` | `auth/*`, `config` | WS-0 | ✅ backend fatto in WS-0; login Google in UI resta in WS-8 |
 | **WS-2** | Baseline: id server, supersede, indice unique, `getCurrent` | `db/baselines.ts`, `db/indexes.ts`, `baseline.service.ts` | — | **Sì** (solo repository) |
 | **WS-3** | Semantica review/check-in: `adjusted`, progressione reale, finestra settimanale, `advanceWeek` | `domain/rules/weekly-review.ts`, `domain/rules/daily-adjustment.ts`, `review.service.ts`, `checkin.service.ts` | — | **Sì** (dominio + service, no controller) |
 | **WS-4** | Export: FIT sport/target, Hevy reale | `integrations/fit/*`, `integrations/hevy/*`, `export.controller.ts` | — | **Sì** (integrations), controller dopo WS-0 |
@@ -340,7 +388,7 @@ conflitto sono:
 
 ### 4.3 Onde consigliate
 
-**Onda 0 — fondamento (sequenziale, 1 sessione)**
+**Onda 0 — fondamento (sequenziale, 1 sessione) — ✅ completata il 27 ottobre 2026**
 WS-0 + WS-1. Tocca tutti i controller: farlo per primo evita conflitti a valle.
 Include `main.ts` (validation + body limit) e `config`.
 

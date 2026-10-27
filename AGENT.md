@@ -132,7 +132,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (105 test, nessun e2e)
+npm test                      # unit/contract test (117 test, nessun e2e)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
 npm run spike:garmin          # spike Garmin (aggiungi -- --write per salvare il report)
@@ -149,27 +149,68 @@ Se un comando non esiste, verifica `package.json`, crea lo script solo se fa par
 
 ### 5.1 Endpoint API attuali
 
+Tutti gli endpoint sono protetti dal `AuthGuard` globale (`APP_GUARD`) e richiedono
+`Authorization: Bearer <token>`, tranne quelli marcati `@Public()`:
+
 ```text
+Pubblici
 GET  /api/health
-GET  /api/me
 GET  /api/auth/status
 POST /api/auth/google
-POST /api/auth/dev-login
+POST /api/auth/dev-login   (solo se ENABLE_DEV_ENDPOINTS=true, altrimenti 403)
 POST /api/auth/logout
+
+Protetti (JWT)
+GET  /api/me
+GET  /api/baseline
+POST /api/baseline
+GET  /api/baseline/history
+GET  /api/baseline/personas
+POST /api/baseline/safety
+POST /api/baseline/feasibility
+GET  /api/plan/macro
+POST /api/plan/macro/generate
+GET  /api/plan/micro?weekIndex=1
+POST /api/plan/micro/generate
+GET  /api/plan/today
+PATCH /api/plan/sessions/:sessionId
+POST /api/checkin
+GET  /api/checkin/today
+POST /api/review/weekly
+GET  /api/review/latest          (404 se non esiste)
+POST /api/review/advance-week
+POST /api/activities/manual
+POST /api/activities/upload-fit  (JSON base64, max 10 MB, firma .FIT)
+GET  /api/activities/history?limit=10
+POST /api/ai/coach-advice
 GET  /api/integrations/status
 POST /api/integrations/garmin/check
 GET  /api/integrations/garmin/overview?days=7
 POST /api/integrations/garmin/sync?days=7
+POST /api/integrations/garmin/activities/:activityId/analyze
+GET  /api/integrations/garmin/activities/:activityId/analysis
 POST /api/integrations/yazio/check
 GET  /api/integrations/yazio/overview?days=7
 POST /api/integrations/yazio/sync?days=7
-POST /api/integrations/garmin/activities/:activityId/analyze
-GET  /api/integrations/garmin/activities/:activityId/analysis
-GET  /api/export/workouts/sample-5x800m.fit
 GET  /api/export/workouts/sample-5x800m/info
+GET  /api/export/workouts/sample-5x800m.fit
+GET  /api/export/workouts/session/:sessionId.fit
+GET  /api/export/workouts/hevy/sample-fullbody.json
+POST /api/export/workouts/hevy/export
+GET  /api/export/backup
+POST /api/export/restore
+DELETE /api/export/me
 ```
 
-Gli endpoint Garmin sono protetti da `DevOnlyGuard` e richiedono `ENABLE_DEV_ENDPOINTS=true` (default in sviluppo). L'autenticazione supporta Google ID token con allowlist email e dev login in sviluppo.
+**Autenticazione.** L'utente si risolve **solo** dal bearer token: `x-user-id` è ignorato.
+I controller ricevono l'utente con `@CurrentUser()`. `JWT_SECRET` è obbligatorio
+(min 32 caratteri) fuori da `NODE_ENV=test`; senza di esso il boot fallisce.
+`ENABLE_DEV_ENDPOINTS` è `false` di default. Gli endpoint Garmin/Yazio restano protetti
+anche da `DevOnlyGuard` (richiedono `ENABLE_DEV_ENDPOINTS=true`).
+
+**Validazione.** Ogni payload/query passa da `ZodValidationPipe` con uno schema
+dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accetta fino a
+15 MB (`useBodyParser` in `main.ts`) per gli upload FIT in base64.
 
 ---
 

@@ -1,70 +1,63 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from "@nestjs/common";
-import { AuthService } from "../auth/auth.service.js";
+import type { User } from "@health-trainer/domain";
+import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
+import {
+  type GenerateMacroInput,
+  GenerateMacroSchema,
+  type GenerateMicroInput,
+  GenerateMicroSchema,
+  type MicroQueryInput,
+  MicroQuerySchema,
+  type UpdateSessionInput,
+  UpdateSessionSchema,
+} from "./plan.schemas.js";
 import { PlanService } from "./plan.service.js";
 
 @Controller("plan")
 export class PlanController {
-  constructor(
-    private readonly planService: PlanService,
-    private readonly authService: AuthService,
-  ) {}
-
-  private async resolveUserId(authHeader?: string): Promise<string> {
-    const user = await this.authService.getMe(authHeader);
-    return user.id;
-  }
+  constructor(private readonly planService: PlanService) {}
 
   @Get("macro")
-  async getMacro(@Headers("authorization") authHeader?: string) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.planService.getMacroPlan(userId);
+  async getMacro(@CurrentUser() user: User) {
+    return this.planService.getMacroPlan(user.id);
   }
 
   @Post("macro/generate")
   async generateMacro(
-    @Body() body: { startDate?: string; totalWeeks?: number },
-    @Headers("authorization") authHeader?: string,
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(GenerateMacroSchema)) body: GenerateMacroInput,
   ) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.planService.generateMacroPlan(userId, body);
+    return this.planService.generateMacroPlan(user.id, body);
   }
 
   @Get("micro")
   async getMicro(
-    @Query("weekIndex") weekIndex?: string,
-    @Headers("authorization") authHeader?: string,
+    @CurrentUser() user: User,
+    @Query(new ZodValidationPipe(MicroQuerySchema)) query: MicroQueryInput,
   ) {
-    const userId = await this.resolveUserId(authHeader);
-    const parsedWeek = weekIndex ? Number.parseInt(weekIndex, 10) : undefined;
-    return this.planService.getMicroPlan(userId, parsedWeek);
+    return this.planService.getMicroPlan(user.id, query.weekIndex);
   }
 
   @Post("micro/generate")
   async generateMicro(
-    @Body() body: { weekIndex: number },
-    @Headers("authorization") authHeader?: string,
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(GenerateMicroSchema)) body: GenerateMicroInput,
   ) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.planService.generateMicroPlan(userId, body.weekIndex);
+    return this.planService.generateMicroPlan(user.id, body.weekIndex);
   }
 
   @Get("today")
-  async getToday(@Headers("authorization") authHeader?: string) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.planService.getTodaySession(userId);
+  async getToday(@CurrentUser() user: User) {
+    return this.planService.getTodaySession(user.id);
   }
 
   @Patch("sessions/:sessionId")
   async updateSession(
+    @CurrentUser() user: User,
     @Param("sessionId") sessionId: string,
-    @Body()
-    patch: {
-      status?: "planned" | "completed" | "skipped" | "adjusted";
-      notes?: string;
-    },
-    @Headers("authorization") authHeader?: string,
+    @Body(new ZodValidationPipe(UpdateSessionSchema)) patch: UpdateSessionInput,
   ) {
-    const userId = await this.resolveUserId(authHeader);
-    return this.planService.updateSession(userId, sessionId, patch);
+    return this.planService.updateSession(user.id, sessionId, patch);
   }
 }

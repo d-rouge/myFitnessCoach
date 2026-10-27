@@ -1,16 +1,17 @@
 import type { Review } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "../lib/api";
 
 async function fetchLatestReview(): Promise<Review | null> {
-  const res = await fetch("/api/review/latest");
+  const res = await apiFetch("/api/review/latest");
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Errore nel recupero della review");
   return res.json() as Promise<Review>;
 }
 
 async function triggerWeeklyReview(): Promise<Review> {
-  const res = await fetch("/api/review/weekly", {
+  const res = await apiFetch("/api/review/weekly", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -22,7 +23,7 @@ async function triggerWeeklyReview(): Promise<Review> {
 }
 
 async function triggerAdvanceWeek(): Promise<{ review: Review }> {
-  const res = await fetch("/api/review/advance-week", {
+  const res = await apiFetch("/api/review/advance-week", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
