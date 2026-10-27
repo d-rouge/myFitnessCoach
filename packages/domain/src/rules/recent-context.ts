@@ -1,5 +1,6 @@
 import type { Sport } from "../schemas/common";
 import { dayIndex } from "./capacity";
+import { todayLocalDate } from "./dates";
 
 /**
  * Facts about the athlete's recent past, derived from imported activities.
@@ -109,9 +110,13 @@ function addDays(date: string, days: number): string {
  */
 export function buildRecentContext(
   activities: readonly ContextActivity[],
-  options: { now: string },
+  options: { now: string; timezone?: string },
 ): RecentContext {
-  const nowDay = dayIndex(options.now);
+  // "Today" is the athlete's calendar day, not the UTC one: at 00:30 in Rome
+  // the UTC date is still yesterday and every day offset would be off by one.
+  const nowDay = dayIndex(
+    options.timezone ? todayLocalDate(options.timezone, new Date(options.now)) : options.now,
+  );
   const sorted = [...activities].sort((a, b) => (a.localDate < b.localDate ? 1 : -1));
   const last = sorted[0] ?? null;
 

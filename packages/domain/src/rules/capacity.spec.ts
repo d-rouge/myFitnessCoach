@@ -96,4 +96,17 @@ describe("estimateCapacityFromActivities", () => {
     expect(estimate.capacity.recent5kSec).toBeNull();
     expect(estimate.warnings).toContain("no_5k_reference");
   });
+
+  it("counts the 28-day window in the athlete's timezone, not in UTC", () => {
+    // 00:30 on 28 July in Rome (CEST, UTC+2), still 27 July in UTC.
+    const now = "2026-07-27T22:30:00.000Z";
+    // Exactly 28 days before the 28th, 27 before the 27th.
+    const activities = [run("2026-06-30", 1800, 5000)];
+
+    const utc = estimateCapacityFromActivities(activities, { now });
+    const rome = estimateCapacityFromActivities(activities, { now, timezone: "Europe/Rome" });
+
+    expect(utc.capacity.longestRecentSessionMin).toBe(30);
+    expect(rome.capacity.longestRecentSessionMin).toBe(0);
+  });
 });

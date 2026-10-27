@@ -26,6 +26,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { MongoService } from "../database/mongo.service.js";
+import { withMeasuredCapacity } from "./measured-capacity.js";
 
 const SaveBaselineInputSchema = BaselineSchema.omit({
   id: true,
@@ -49,10 +50,23 @@ export class BaselineService {
     });
   }
 
+  /**
+   * Current baseline, already normalized and with capacity measured from the
+   * imported activities when the declared source asks for it. Reading it here
+   * means the dashboard and the wizard never show stale zeros.
+   */
   async getCurrent(userId: string): Promise<Baseline | null> {
     const db = await this.db();
     const baseline = await getCurrentBaseline(db, userId);
-    return baseline ? withDerivedExperienceTier(baseline) : null;
+    if (!baseline) return null;
+
+    const normalized = withDerivedExperienceTier(baseline);
+    const activities = await getActivitiesForCapacity(db, userId);
+    return withMeasuredCapacity(
+      normalized,
+      activities.map(toCapacityActivity),
+      new Date().toISOString(),
+    );
   }
 
   async getHistory(userId: string): Promise<Baseline[]> {
@@ -76,6 +90,7 @@ export class BaselineService {
     return estimateCapacityFromActivities(activities.map(toCapacityActivity), {
       now: new Date().toISOString(),
       sport: baseline ? primarySportOf(baseline) : "running",
+      timezone: baseline?.profile.timezone,
     });
   }
 

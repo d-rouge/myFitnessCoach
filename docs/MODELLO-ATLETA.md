@@ -44,12 +44,18 @@ Questa è la parte **misurabile**, e ha la precedenza su tutto:
 
 | `source` | Come si ottiene | Effetto |
 |---|---|---|
-| `garmin` | `estimateCapacityFromActivities()` sulle attività importate. Ricalcolata dal server al salvataggio **e** a ogni generazione di piano. Il client manda solo l'intenzione, mai i numeri. | Carico iniziale misurato. |
+| `garmin` | `estimateCapacityFromActivities()` sulle attività importate. Ricalcolata dal server al salvataggio, in lettura (`GET /baseline`) **e** a ogni generazione di piano. Il client manda solo l'intenzione, mai i numeri. | Carico iniziale misurato. |
 | `manual` | L'atleta li digita. | Carico iniziale dichiarato. |
 | `calibration` | Non c'è nulla da misurare. | La settimana 1 è un test a RPE 4-5; la capacità viene ri-stimata appena esistono dati. |
 
 Con `garmin` e nessuna attività importata la baseline viene **rifiutata**
 (`400`), invece di salvare zeri silenziosi.
+
+La stessa regola vale per `calibration`: finché non ci sono dati il documento
+tiene gli zeri segnaposto, appena arrivano le attività la lettura mostra la
+capacità misurata. Un solo punto di verità: `withMeasuredCapacity()`
+(`apps/api/src/baseline/measured-capacity.ts`), usato dalla lettura e dalla
+generazione del piano.
 
 Le baseline salvate prima della v2 (campo `experience`) vengono normalizzate in
 lettura con `source: "calibration"`: i vecchi numeri non sono considerati
@@ -136,3 +142,5 @@ il piano: i piani sono artefatti derivati.
   dolore, completamento) per aggiornare `capacity` senza import.
 - La persona `returningPersona` esiste come demo, ma non c'è ancora un test e2e
   che parta da attività Garmin reali e verifichi la finestra post-gara end-to-end.
+- I contatori usano il fuso della baseline: se l'atleta cambia fuso durante un
+  viaggio, la baseline va aggiornata perché il calcolo resti coerente.

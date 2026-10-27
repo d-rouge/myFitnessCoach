@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
 
 const activities: unknown[] = [];
+let currentBaseline: unknown = null;
 
 vi.mock("@health-trainer/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@health-trainer/db")>();
   return {
     ...actual,
     getActivitiesForCapacity: vi.fn(async () => activities),
-    getCurrentBaseline: vi.fn(async () => null),
+    getCurrentBaseline: vi.fn(async () => currentBaseline),
     saveBaseline: vi.fn(async (_db: unknown, input: Record<string, unknown>) => ({
       ...input,
       id: "baseline_test",
@@ -47,6 +48,7 @@ const baselineInput = (source: "manual" | "garmin" | "calibration") => {
 describe("BaselineService capacity provenance", () => {
   beforeEach(() => {
     activities.length = 0;
+    currentBaseline = null;
   });
 
   it("refuses a garmin-sourced baseline when nothing was imported", async () => {
@@ -119,5 +121,67 @@ describe("BaselineService capacity provenance", () => {
     const saved = await service.save("user-1", input);
 
     expect(saved.profile.experienceTier).toBe("novice");
+  });
+
+  it("hydrates capacity on read so the UI never shows stale zeros", async () => {
+    // Document saved before the v2 model: no history, no capacity.
+    currentBaseline = {
+      ...beginnerPersona,
+      profile: {
+        birthDate: "1992-05-14",
+        sex: beginnerPersona.profile.sex,
+        heightCm: 178,
+        weightKg: 78,
+        sports: ["running"],
+        timezone: "Europe/Rome",
+        tone: beginnerPersona.profile.tone,
+        units: "metric",
+        experience: "beginner",
+      },
+    };
+    activities.push({
+      userId: "user-1",
+      source: "garmin",
+      externalId: "a1",
+      sport: "running",
+      start: "2026-10-25T07:00:00Z",
+      localDate: "2026-10-25",
+      durationSec: 17_490,
+      distanceM: 42_641,
+      fetchedAt: "2026-10-25T08:00:00Z",
+    });
+
+    const service = new BaselineService(mockMongo);
+    const current = await service.getCurrent("user-1");
+
+    // `experience: "beginner"` normalizes to `calibration`, which is a promise:
+    // the measurement replaces the placeholder zeros.
+    expect(current?.profile.capacity.source).toBe("garmin");
+    expect(current?.profile.capacity.longestRecentSessionMin).toBe(292);
+    expect(current?.profile.capacity.asOf).toBeTruthy();
+    expect(current?.profile.experienceTier).toBeDefined();
+  });
+
+  it("never overwrites capacity entered by hand", async () => {
+    currentBaseline = beginnerPersona;
+    activities.push({
+      userId: "user-1",
+      source: "garmin",
+      externalId: "a1",
+      sport: "running",
+      start: "2026-10-25T07:00:00Z",
+      localDate: "2026-10-25",
+      durationSec: 17_490,
+      distanceM: 42_641,
+      fetchedAt: "2026-10-25T08:00:00Z",
+    });
+
+    const service = new BaselineService(mockMongo);
+    const current = await service.getCurrent("user-1");
+
+    expect(current?.profile.capacity.source).toBe("manual");
+    expect(current?.profile.capacity.activeWeeks).toBe(
+      beginnerPersona.profile.capacity.activeWeeks,
+    );
   });
 });

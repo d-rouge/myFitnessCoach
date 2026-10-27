@@ -140,7 +140,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (194 test)
+npm test                      # unit/contract test (198 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -327,9 +327,10 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 194 test verdi (api 61, domain 83, integrations 40, ai 3, config 5, db 2) + 13 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
+- **Test attuali:** 198 test verdi (api 63, domain 85, integrations 40, ai 3, config 5, db 2) + 13 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **Modello atleta (v2):** `profile.experience` è stato rimosso. Al suo posto `profile.history` (cosa hai fatto), `profile.capacity` (cosa sai fare ora) e `profile.experienceTier` **derivato server-side** per lo sport dell'obiettivo primario. Regole in `packages/domain/src/rules/experience.ts`. Dettagli e confine con l'LLM in `docs/MODELLO-ATLETA.md`.
-- **Capacità misurata:** `profile.capacity.source` è `garmin | manual | calibration`. Con `garmin` i numeri vengono ricalcolati dal server dalle attività importate (mai dal client) sia al salvataggio sia alla generazione del piano; senza attività la baseline viene rifiutata con 400. Con `calibration` la settimana 1 è un test a RPE 4-5 e la capacità viene ri-stimata appena esistono dati.
+- **Capacità misurata:** `profile.capacity.source` è `garmin | manual | calibration`. Con `garmin` i numeri vengono ricalcolati dal server dalle attività importate (mai dal client) al salvataggio, in lettura (`GET /baseline`) e alla generazione del piano; senza attività la baseline viene rifiutata con 400. La regola è una sola: `apps/api/src/baseline/measured-capacity.ts`. Con `calibration` la settimana 1 è un test a RPE 4-5 e la capacità viene ri-stimata appena esistono dati.
+- **Giorno dell'atleta:** i contatori ("giorni fa", finestra 28 giorni, streak) usano il fuso della baseline, non UTC. Con `toISOString()` dopo le 22:00 italiane si sbaglia di un giorno. `buildRecentContext()` e `estimateCapacityFromActivities()` accettano `timezone`.
 - **Contesto recente:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produce fatti strutturati (ultima gara/sforzo lungo, giorni di recupero residui, rapporto acuto/cronico, gap). La finestra di recupero finisce in `macroPlan.recoveryWindow` e forza settimane di recupero deterministicamente: l'LLM può spiegarla, non ignorarla.
 - **Un solo macro-piano attivo:** rigenerare chiama `supersedeMacroPlans()`, che cancella il piano precedente e i suoi micro-piani. Senza, due piani con la stessa `startDate` rendono `getCurrentMacroPlan` ambiguo.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.

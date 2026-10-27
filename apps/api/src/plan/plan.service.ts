@@ -13,7 +13,6 @@ import {
   assessSafety,
   type Baseline,
   buildRecentContext,
-  estimateCapacityFromActivities,
   generateMacroPlan,
   generateMicroPlan,
   type MacroPlan,
@@ -34,6 +33,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import type { Db } from "mongodb";
+import { withMeasuredCapacity } from "../baseline/measured-capacity.js";
 import { getUserTimeZone } from "../common/user-timezone.js";
 import { MongoService } from "../database/mongo.service.js";
 
@@ -68,23 +68,15 @@ export class PlanService {
     const normalized = withDerivedExperienceTier(stored);
     const activities = await getActivitiesForCapacity(db, normalized.userId);
     const now = new Date().toISOString();
-    const recentContext = buildRecentContext(activities, { now });
-    const estimate = estimateCapacityFromActivities(activities.map(toCapacityActivity), {
+    const recentContext = buildRecentContext(activities, {
       now,
-      sport: normalized.goals.primary.sport ?? normalized.profile.sports[0] ?? "running",
+      timezone: normalized.profile.timezone,
     });
 
-    const source = normalized.profile.capacity.source;
-    // `calibration` is an unfinished promise: as soon as imported activities
-    // exist the estimate replaces the placeholder zeros.
-    const shouldRefresh = source === "garmin" || source === "calibration";
-    const profile =
-      shouldRefresh && estimate.available
-        ? { ...normalized.profile, capacity: estimate.capacity }
-        : normalized.profile;
-
+    // Same rule the API uses on read: `garmin` and `calibration` are measured
+    // from the activities, `manual` is left alone.
     return {
-      baseline: withDerivedExperienceTier({ ...normalized, profile }),
+      baseline: withMeasuredCapacity(normalized, activities.map(toCapacityActivity), now),
       recentContext,
     };
   }

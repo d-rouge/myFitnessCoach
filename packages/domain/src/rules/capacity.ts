@@ -1,6 +1,7 @@
 import type { Activity } from "../schemas/activity";
 import type { CurrentCapacity } from "../schemas/athletic";
 import type { Sport } from "../schemas/common";
+import { todayLocalDate } from "./dates";
 import { riegelTime } from "./feasibility";
 
 /** Window used for sessions/week and the longest recent session. */
@@ -58,9 +59,15 @@ function clampInt(value: number, min: number, max: number): number {
  */
 export function estimateCapacityFromActivities(
   activities: readonly CapacityActivity[],
-  options: { now: string; sport?: Sport } = { now: new Date().toISOString() },
+  options: { now: string; sport?: Sport; timezone?: string } = {
+    now: new Date().toISOString(),
+  },
 ): CapacityEstimate {
-  const nowDay = dayIndex(options.now);
+  // "Today" is the athlete's calendar day, not the UTC one: at 00:30 in Rome
+  // the UTC date is still yesterday and every day offset would be off by one.
+  const nowDay = dayIndex(
+    options.timezone ? todayLocalDate(options.timezone, new Date(options.now)) : options.now,
+  );
   const sorted = [...activities].sort((a, b) => (a.localDate < b.localDate ? 1 : -1));
   const last = sorted[0] ?? null;
   const lastDay = last ? dayIndex(last.localDate) : null;

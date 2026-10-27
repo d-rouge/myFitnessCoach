@@ -79,4 +79,18 @@ describe("buildRecentContext", () => {
     expect(context.acuteChronicRatio).toBeNull();
     expect(context.flags).toEqual([]);
   });
+
+  it("counts days since the effort in the athlete's timezone, not in UTC", () => {
+    // 00:30 on 28 July in Rome (CEST, UTC+2), still 27 July in UTC.
+    const context = buildRecentContext(
+      [activity({ localDate: "2026-07-25", distanceM: 42_195, durationSec: 14_400 })],
+      { now: "2026-07-27T22:30:00.000Z", timezone: "Europe/Rome" },
+    );
+
+    expect(context.daysSinceLastActivity).toBe(3);
+    expect(context.lastLongEffort?.daysAgo).toBe(3);
+    // Still three weeks of protection, until 15 November.
+    expect(context.postRaceRecovery.weeks).toBe(3);
+    expect(context.postRaceRecovery.untilDate).toBe("2026-08-15");
+  });
 });
