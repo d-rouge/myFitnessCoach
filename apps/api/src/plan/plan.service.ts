@@ -62,23 +62,28 @@ export class PlanService {
     db: Db,
     stored: Baseline,
   ): Promise<{ baseline: Baseline; recentContext: RecentContext }> {
-    const activities = await getActivitiesForCapacity(db, stored.userId);
+    // Documents saved before the v2 model have no `capacity`/`history`.
+    // Normalize first: the provenance lookup below would read `undefined`.
+    const normalized = withDerivedExperienceTier(stored);
+    const activities = await getActivitiesForCapacity(db, normalized.userId);
     const now = new Date().toISOString();
     const recentContext = buildRecentContext(activities, { now });
     const estimate = estimateCapacityFromActivities(activities.map(toCapacityActivity), {
       now,
-      sport: stored.goals.primary.sport ?? stored.profile.sports[0] ?? "running",
+      sport: normalized.goals.primary.sport ?? normalized.profile.sports[0] ?? "running",
     });
 
-    const source = stored.profile.capacity.source;
+    const source = normalized.profile.capacity.source;
+    // `calibration` is an unfinished promise: as soon as imported activities
+    // exist the estimate replaces the placeholder zeros.
     const shouldRefresh = source === "garmin" || source === "calibration";
     const profile =
       shouldRefresh && estimate.available
-        ? { ...stored.profile, capacity: estimate.capacity }
-        : stored.profile;
+        ? { ...normalized.profile, capacity: estimate.capacity }
+        : normalized.profile;
 
     return {
-      baseline: withDerivedExperienceTier({ ...stored, profile }),
+      baseline: withDerivedExperienceTier({ ...normalized, profile }),
       recentContext,
     };
   }

@@ -140,7 +140,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (193 test)
+npm test                      # unit/contract test (194 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -327,15 +327,12 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 193 test verdi (api 60, domain 83, integrations 40, ai 3, config 5, db 2) + 12 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
+- **Test attuali:** 194 test verdi (api 61, domain 83, integrations 40, ai 3, config 5, db 2) + 13 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **Modello atleta (v2):** `profile.experience` è stato rimosso. Al suo posto `profile.history` (cosa hai fatto), `profile.capacity` (cosa sai fare ora) e `profile.experienceTier` **derivato server-side** per lo sport dell'obiettivo primario. Regole in `packages/domain/src/rules/experience.ts`. Dettagli e confine con l'LLM in `docs/MODELLO-ATLETA.md`.
 - **Capacità misurata:** `profile.capacity.source` è `garmin | manual | calibration`. Con `garmin` i numeri vengono ricalcolati dal server dalle attività importate (mai dal client) sia al salvataggio sia alla generazione del piano; senza attività la baseline viene rifiutata con 400. Con `calibration` la settimana 1 è un test a RPE 4-5 e la capacità viene ri-stimata appena esistono dati.
 - **Contesto recente:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produce fatti strutturati (ultima gara/sforzo lungo, giorni di recupero residui, rapporto acuto/cronico, gap). La finestra di recupero finisce in `macroPlan.recoveryWindow` e forza settimane di recupero deterministicamente: l'LLM può spiegarla, non ignorarla.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
-- **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
-  `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
-- **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.
-- **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
+- **Identità utente:** tutte le collezioni sono partizionate per `userId` = `users.id`, che **non** è l'`_id` di Mongo. Per l'account Google `users.id` è il subject Google (`sub`, es. `114007601918490478360`); per il dev-login è `personal`. Migrando o ispezionando dati usare sempre `users.id`, altrimenti i documenti esistono ma l'app non li vede.
 - **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
   `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
 - **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.

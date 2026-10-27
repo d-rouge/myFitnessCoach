@@ -183,4 +183,65 @@ describe("PlanService", () => {
 
     await expect(service.generateMacroPlan(unclear.userId)).rejects.toThrow(/PAR-Q/i);
   });
+
+  it("generates from a legacy baseline, refreshing capacity and forcing post-race recovery", async () => {
+    const userId = "user_legacy";
+    // Shape of a document saved before the v2 model: no history, no capacity.
+    const legacy = {
+      ...beginnerPersona,
+      userId,
+      anamnesis: { ...beginnerPersona.anamnesis, freeText: "" },
+      profile: {
+        birthDate: "1992-05-14",
+        sex: beginnerPersona.profile.sex,
+        heightCm: 178,
+        weightKg: 78,
+        sports: ["running"],
+        timezone: "Europe/Rome",
+        tone: beginnerPersona.profile.tone,
+        units: "metric",
+      },
+    };
+
+    const activities = [
+      {
+        userId,
+        source: "garmin",
+        sport: "running",
+        start: "2026-10-25T07:00:00Z",
+        localDate: "2026-10-25",
+        durationSec: 17_490,
+        distanceM: 42_641,
+        title: "Maratona",
+      },
+    ];
+
+    const mockMongo = {
+      getDb: async () => ({
+        collection: (name: string) => ({
+          findOne: async (query: { userId?: string }) =>
+            name === "athlete_baselines" && query.userId === userId ? legacy : null,
+          find: (query: { userId?: string }) => ({
+            sort: () => ({
+              limit: () => ({
+                next: async () => null,
+                toArray: async () =>
+                  name === "activities" ? activities.filter((a) => a.userId === query.userId) : [],
+              }),
+            }),
+          }),
+          updateOne: async () => ({ modifiedCount: 1, upsertedCount: 1 }),
+        }),
+      }),
+    } as unknown as MongoService;
+
+    const service = new PlanService(mockMongo);
+    const result = await service.generateMacroPlan(userId, { startDate: "2026-10-27" });
+
+    // The dictionary created by `experience: "beginner"` is not trusted: the
+    // measured capacity replaces it, then the marathon guard applies.
+    expect(result.macroPlan.recoveryWindow?.weeks).toBe(3);
+    expect(result.macroPlan.flags).toContain("post_race_recovery");
+    expect(result.microPlan.sessions.every((s) => (s.intensity.rpe ?? 0) <= 6)).toBe(true);
+  });
 });

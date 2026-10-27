@@ -370,6 +370,67 @@ async function main(): Promise<void> {
     assertEqual(emptyMicro.status, 404, "micro-piano assente → 404");
     results.push("baseline e piani assenti rispondono 404 (niente 200 vuoto)");
 
+    // --- Safety gates --------------------------------------------------------
+    const userD: User = {
+      id: "e2e_user_d",
+      email: "e2e-d@example.test",
+      name: "E2E Athlete D",
+      roles: ["athlete"],
+      createdAt: now,
+      lastLoginAt: now,
+    };
+    await upsertUser(db, userD);
+    const tokenD = signJwt(
+      { sub: userD.id, email: userD.email, name: userD.name, roles: userD.roles },
+      jwtSecret,
+    );
+
+    const parqMissing = await request("/baseline", tokenD, {
+      method: "POST",
+      body: JSON.stringify({
+        ...beginnerPersona,
+        anamnesis: { ...beginnerPersona.anamnesis, parqCleared: false, redFlags: [] },
+      }),
+    });
+    assertEqual(parqMissing.status, 201, "baseline salvabile anche senza PAR-Q");
+
+    const parqBlocked = await request("/plan/macro/generate", tokenD, {
+      method: "POST",
+      body: JSON.stringify({ startDate: "2026-11-02" }),
+    });
+    assertEqual(parqBlocked.status, 400, "generazione bloccata senza PAR-Q");
+    const parqMessage = (await parqBlocked.text()).toLowerCase();
+    assert(parqMessage.includes("par-q"), "il blocco deve citare il PAR-Q");
+    assert(parqMessage.includes("idoneità"), "il blocco deve chiedere idoneità medica");
+
+    const redFlagSaved = await request("/baseline", tokenD, {
+      method: "POST",
+      body: JSON.stringify({
+        ...beginnerPersona,
+        anamnesis: {
+          ...beginnerPersona.anamnesis,
+          parqCleared: true,
+          redFlags: ["dolore toracico"],
+        },
+      }),
+    });
+    assertEqual(redFlagSaved.status, 201, "baseline con red flag salvata ma non utilizzabile");
+
+    const redFlagBlocked = await request("/plan/macro/generate", tokenD, {
+      method: "POST",
+      body: JSON.stringify({ startDate: "2026-11-02" }),
+    });
+    assertEqual(redFlagBlocked.status, 400, "generazione bloccata con red flag assoluto");
+    const redFlagMessage = (await redFlagBlocked.text()).toLowerCase();
+    assert(redFlagMessage.includes("sicurezza"), "il blocco deve citare la sicurezza");
+    assert(redFlagMessage.includes("dolore toracico"), "il blocco deve riportare il red flag");
+    assertEqual(
+      (await request("/plan/macro", tokenD)).status,
+      404,
+      "un piano bloccato non deve essere scritto",
+    );
+    results.push("gate di sicurezza: PAR-Q mancante e red flag assoluto bloccano la generazione");
+
     console.log(`\nE2E OK — ${results.length} verifiche contro MongoDB reale (${dbName}):`);
     for (const result of results) console.log(`  ✓ ${result}`);
   } finally {

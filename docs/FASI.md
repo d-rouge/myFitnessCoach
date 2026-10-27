@@ -157,7 +157,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > La revisione del 27 ottobre 2026 ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato
 > 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
 > due P2 rinviati (AI coach F1-18, scheduler/credenziali F1-19) e l'uso reale.
-> I test unitari (193) e l'e2e multi-utente su MongoDB reale (12 verifiche) sono verdi.
+> I test unitari (194) e l'e2e multi-utente su MongoDB reale (13 verifiche) sono verdi.
 > Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
@@ -172,7 +172,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > con Mongo reale (WS-9). Restano rinviati F1-18 (AI coach) e F1-19 (scheduler e
 > credenziali cifrate).
 
-**Test:** 193 unitari + 12 verifiche e2e verdi (`npm run test:e2e`, database
+**Test:** 194 unitari + 13 verifiche e2e verdi (`npm run test:e2e`, database
 `health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 56 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
@@ -185,7 +185,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
 - **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, password locali hashate con scrypt in `auth_credentials` (mai nel documento `users`), backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`, che rimuove anche le credenziali). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0; account locali F1-24.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 193 test unitari, 12 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 194 test unitari, 13 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
 build API e web complete. **Non coperto:** login Google con credenziali reali (la
 registrazione Google richiede client OAuth e allowlist), export Hevy con chiave reale,
