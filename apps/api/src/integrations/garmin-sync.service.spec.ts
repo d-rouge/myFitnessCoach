@@ -1,7 +1,7 @@
 import { COLLECTIONS } from "@health-trainer/db";
 import type { Db } from "mongodb";
 import { describe, expect, it } from "vitest";
-import { GARMIN_PROVIDER, PERSONAL_USER_ID } from "../config/constants.js";
+import { GARMIN_PROVIDER } from "../config/constants.js";
 import type { MongoService } from "../database/mongo.service.js";
 import type { GarminService } from "./garmin.service.js";
 import { GarminSyncService } from "./garmin-sync.service.js";
@@ -36,8 +36,8 @@ describe("GarminSyncService overview", () => {
       { getDb: async () => db } as unknown as MongoService,
     );
 
-    await service.overview(7);
+    await service.overview("usr_authenticated", 7);
 
-    expect(metricFilters).toEqual([{ userId: PERSONAL_USER_ID, source: GARMIN_PROVIDER }]);
+    expect(metricFilters).toEqual([{ userId: "usr_authenticated", source: GARMIN_PROVIDER }]);
   });
 });

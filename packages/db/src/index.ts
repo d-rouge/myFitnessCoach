@@ -30,6 +30,13 @@ export {
 } from "./checkins";
 export { COLLECTIONS, ensureIndexes } from "./collections";
 export {
+  deleteCredentials,
+  getCredentialsByEmail,
+  getCredentialsByUserId,
+  type StoredCredentials,
+  saveCredentials,
+} from "./credentials";
+export {
   countDailyMetrics,
   countDailyMetricsBySource,
   getRecentDailyMetrics,

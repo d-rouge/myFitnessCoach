@@ -15,6 +15,7 @@ function createMockEnv(overrides?: Partial<Env>): Env {
     API_PORT: 3000,
     WEB_ORIGIN: "http://localhost:5173",
     ENABLE_DEV_ENDPOINTS: true,
+    ENABLE_LOCAL_AUTH: true,
     JWT_SECRET,
     MONGODB_URI: "mongodb://127.0.0.1:27017/health_trainer",
     GOOGLE_CLIENT_ID: "client-id-123",

@@ -49,6 +49,7 @@ config sicura, validazione Zod e body limit FIT. Stato attuale:
 | `GET /api/review/latest` senza review (F1-14) | ✅ chiuso |
 | `GET /api/baseline` senza baseline (F1-21) | ✅ chiuso (verifica runtime) |
 | Health Garmin e overview metriche (F1-22, F1-23) | ✅ chiusi (verifica runtime) |
+| Account locali email/password (F1-24) | ✅ implementato |
 | Safety, generatore, timezone, UI (F1-11, F1-12, F1-13, F1-17) | ✅ chiusi (Onda 2) |
 | AI coach, scheduler | ❌ aperti (F1-18, F1-19, rinviati) |
 
@@ -126,6 +127,31 @@ Verificato a runtime: `/api/health` → `garmin: configured` con chiave da file.
 comparivano due righe e React segnalava chiavi duplicate. Corretto anche il conteggio
 con `countDailyMetricsBySource`. Verificato: 7 metriche, 7 date uniche, `counts.metrics`
 solo Garmin.
+
+### 1.4 Account locali e isolamento integrazioni (27 ottobre 2026)
+
+Aggiunta l'autenticazione locale per poter partire con un account reale senza dipendere
+da Google, mantenendo Google come metodo alternativo:
+
+| Area | Implementazione |
+|---|---|
+| Registrazione | `POST /api/auth/register` con email, password (min 8) e nome opzionale; email normalizzata, 409 su duplicato, account `usr_<uuid>` con ruolo `athlete` |
+| Login | `POST /api/auth/login` (200) con verifica scrypt e timing-safe; 401 generico `Email o password non validi.` |
+| Storage | Hash `scrypt$<salt>$<key>` in `auth_credentials` (indici unique su `userId` ed `email`); nessun materiale password nel documento pubblico `users` |
+| Google | La prima login verificata e in allowlist crea l'account; con email già presente collega lo stesso `userId` invece di duplicarlo |
+| UI | Login screen con tab Accedi / Crea account, gestione errori API in italiano, Google e dev login invariati |
+| Integrazioni | Garmin/Yazio sync, analyze e overview usano l'`userId` del token; rimosso `PERSONAL_USER_ID` hardcoded |
+| Wipe | `DELETE /api/export/me` elimina anche `auth_credentials` |
+
+**Test:** 162 unitari verdi (`api` 56, `domain` 56, `integrations` 40, `ai` 3,
+`config` 5, `db` 2) + 10 verifiche e2e, `lint`, `typecheck`, `typecheck:scripts` e build
+API/web puliti. L'e2e verifica registrazione, login corretto, password errata (401),
+email duplicata (409), assenza di materiale password nella risposta e baseline iniziale
+404 per il nuovo account.
+
+Conteggio residuo invariato: **0 P0**, **0 P1**, **2 P2** (F1-18 AI coach, F1-19
+scheduler e credenziali cifrate). Restano non verificati il login Google reale (serve
+client OAuth + allowlist) e l'export Hevy con chiave reale.
 
 ---
 

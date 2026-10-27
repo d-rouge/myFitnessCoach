@@ -35,11 +35,11 @@
 | Yazio client v22 + mapper + sync + UI | fatto; **test reale OK** (7 giorni, peso); supporto refresh token per Google |
 | FIT parser + ActivityAnalysis + brief LLM | fatto (FIT reale: 17.492 record → brief ~2 KB) |
 | Garmin workout `.FIT` export | fatto (encoder con `@garmin/fitsdk`, test validati con Decoder ufficiale, script e endpoint download) |
-| Modulo Auth Google / Dev e `/api/me` | fatto (NestJS `AuthModule`, allowlist email, sessione JWT, collezione `users` Mongo, login Google/dev e logout nella UI) |
+| Modulo Auth locale / Google / Dev e `/api/me` | fatto (NestJS `AuthModule`, account email + password con scrypt, allowlist Google, linking per email, sessione JWT, collezione `users` Mongo, login/registrazione Google/local/dev e logout nella UI) |
 | Spike documentati con verdetto | fatto (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`) |
 | API NestJS `health` + Garmin/Yazio `sync`/`overview` + `export` + `auth` | fatto |
 | Web React/Vite con dati Garmin + nutrizione Yazio + export FIT + profilo atleta | fatto |
-| Test totali | 151 unitari + 9 verifiche e2e su MongoDB reale |
+| Test totali | 162 unitari + 10 verifiche e2e su MongoDB reale |
 | MongoDB locale `127.0.0.1:27017` | configurato (gestito dall'utente) |
 | Repository git locale (`main`, nessun remote) | fatto |
 | Prossimi passi | Fase 1 funzionalmente completa; validazione d'uso di 14 giorni, poi F1-18/F1-19 o Fase 2 |

@@ -11,10 +11,27 @@ export interface SessionUser {
 }
 
 export interface AuthStatus {
+  localAuthEnabled: boolean;
   googleConfigured: boolean;
   googleClientId: string | null;
   allowedEmailsCount: number;
   devLoginEnabled: boolean;
+}
+
+interface ApiErrorBody {
+  message?: string;
+  issues?: Array<{ message?: string }>;
+}
+
+/** Turns a Nest/Zod error body into a single user-facing Italian message. */
+async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+  const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+  const issues = (body.issues ?? [])
+    .map((issue) => issue.message)
+    .filter((message): message is string => Boolean(message));
+  if (issues.length > 0) return issues.join(" ");
+  if (typeof body.message === "string" && body.message) return body.message;
+  return `${fallback} (${response.status})`;
 }
 
 export function getToken(): string | null {
@@ -73,8 +90,48 @@ export async function loginWithGoogle(idToken: string): Promise<SessionUser> {
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `Google login failed (${response.status})`);
+    throw new Error(await readErrorMessage(response, "Google login failed"));
+  }
+
+  const data = (await response.json()) as { token: string; user: SessionUser };
+  setToken(data.token);
+  return data.user;
+}
+
+export interface LocalAuthInput {
+  email: string;
+  password: string;
+}
+
+/** Email + password login. Stores the JWT and returns the athlete. */
+export async function loginLocal(input: LocalAuthInput): Promise<SessionUser> {
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Accesso non riuscito"));
+  }
+
+  const data = (await response.json()) as { token: string; user: SessionUser };
+  setToken(data.token);
+  return data.user;
+}
+
+/** Creates a local account and signs in immediately. */
+export async function registerLocal(
+  input: LocalAuthInput & { name?: string },
+): Promise<SessionUser> {
+  const response = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Registrazione non riuscita"));
   }
 
   const data = (await response.json()) as { token: string; user: SessionUser };

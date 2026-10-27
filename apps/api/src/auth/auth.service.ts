@@ -1,8 +1,17 @@
+import { randomUUID } from "node:crypto";
 import type { Env } from "@health-trainer/config";
-import { getUserById, upsertUser } from "@health-trainer/db";
+import {
+  COLLECTIONS,
+  getCredentialsByEmail,
+  getUserByEmail,
+  getUserById,
+  saveCredentials,
+  upsertUser,
+} from "@health-trainer/db";
 import type { User } from "@health-trainer/domain";
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -14,6 +23,7 @@ import { PERSONAL_USER_ID } from "../config/constants.js";
 import { APP_ENV } from "../config/env.module.js";
 import { MongoService } from "../database/mongo.service.js";
 import { signJwt, verifyJwt } from "./jwt.util.js";
+import { hashPassword, verifyPassword } from "./password.js";
 
 interface GoogleTokenInfo {
   iss?: string;
@@ -24,6 +34,10 @@ interface GoogleTokenInfo {
   exp?: string;
   name?: string;
   picture?: string;
+}
+
+function isDuplicateKey(error: unknown): boolean {
+  return (error as { code?: number } | null)?.code === 11000;
 }
 
 @Injectable()
@@ -54,6 +68,11 @@ export class AuthService {
 
   devLoginEnabled(): boolean {
     return this.env.ENABLE_DEV_ENDPOINTS;
+  }
+
+  /** Email + password accounts are enabled unless explicitly disabled. */
+  isLocalAuthEnabled(): boolean {
+    return this.env.ENABLE_LOCAL_AUTH;
   }
 
   getAllowedEmails(): string[] {
@@ -118,22 +137,119 @@ export class AuthService {
     }
 
     const now = new Date().toISOString();
+    const db = await this.getDb();
+
+    // A verified Google email can sign in to an existing local account: the
+    // account is identified by email, so both methods reach the same data.
+    const existing = db ? await getUserByEmail(db, email) : null;
+    const googleName = tokenInfo.name || email.split("@")[0] || "User";
     const user: User = {
-      id: tokenInfo.sub,
+      id: existing?.id ?? tokenInfo.sub,
       email,
-      name: tokenInfo.name || email.split("@")[0] || "User",
-      picture: tokenInfo.picture,
-      roles: ["athlete"],
-      createdAt: now,
+      name: existing?.name ?? googleName,
+      picture: tokenInfo.picture ?? existing?.picture,
+      roles: existing?.roles ?? ["athlete"],
+      createdAt: existing?.createdAt ?? now,
       lastLoginAt: now,
     };
 
-    const db = await this.getDb();
     if (db) {
       return upsertUser(db, user);
     }
 
     return user;
+  }
+
+  /**
+   * Creates a local account. The public user document never contains password
+   * material: credentials live in their own collection.
+   */
+  async registerLocal(input: {
+    email: string;
+    password: string;
+    name?: string;
+  }): Promise<{ token: string; user: User }> {
+    if (!this.isLocalAuthEnabled()) {
+      throw new ForbiddenException("La registrazione con email e password è disabilitata.");
+    }
+
+    const db = await this.requireDb();
+    const email = input.email.trim().toLowerCase();
+
+    if (await getUserByEmail(db, email)) {
+      throw new ConflictException("Esiste già un account con questa email.");
+    }
+
+    const now = new Date().toISOString();
+    const user: User = {
+      id: `usr_${randomUUID()}`,
+      email,
+      name: input.name?.trim() || email.split("@")[0] || "Atleta",
+      roles: ["athlete"],
+      createdAt: now,
+      lastLoginAt: now,
+    };
+    const passwordHash = await hashPassword(input.password);
+
+    let created: User;
+    try {
+      created = await upsertUser(db, user);
+    } catch (error) {
+      if (isDuplicateKey(error)) {
+        throw new ConflictException("Esiste già un account con questa email.");
+      }
+      throw error;
+    }
+
+    try {
+      await saveCredentials(db, {
+        userId: created.id,
+        email,
+        passwordHash,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (error) {
+      // Do not leave a user without credentials behind if the insert fails.
+      await db.collection(COLLECTIONS.users).deleteOne({ id: created.id });
+      if (isDuplicateKey(error)) {
+        throw new ConflictException("Esiste già un account con questa email.");
+      }
+      throw error;
+    }
+
+    return { token: this.createSessionToken(created), user: created };
+  }
+
+  /** Authenticates an email + password account. */
+  async loginLocal(input: {
+    email: string;
+    password: string;
+  }): Promise<{ token: string; user: User }> {
+    if (!this.isLocalAuthEnabled()) {
+      throw new ForbiddenException("L'accesso con email e password è disabilitato.");
+    }
+
+    const db = await this.requireDb();
+    const credentials = await getCredentialsByEmail(db, input.email.trim().toLowerCase());
+
+    if (!credentials) {
+      // Same scrypt cost as a real check, so unknown emails are not cheap to probe.
+      await hashPassword(input.password);
+      throw new UnauthorizedException("Email o password non validi.");
+    }
+
+    if (!(await verifyPassword(input.password, credentials.passwordHash))) {
+      throw new UnauthorizedException("Email o password non validi.");
+    }
+
+    const user = await getUserById(db, credentials.userId);
+    if (!user) {
+      throw new UnauthorizedException("Email o password non validi.");
+    }
+
+    const updated = await upsertUser(db, { ...user, lastLoginAt: new Date().toISOString() });
+    return { token: this.createSessionToken(updated), user: updated };
   }
 
   private async getDb() {
@@ -142,6 +258,14 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  private async requireDb() {
+    const db = await this.getDb();
+    if (!db) {
+      throw new ServiceUnavailableException("Database non disponibile: riprova tra poco.");
+    }
+    return db;
   }
 
   createSessionToken(user: User): string {

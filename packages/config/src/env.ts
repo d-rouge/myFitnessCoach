@@ -19,6 +19,7 @@ export const EnvSchema = z
     API_PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().default(3000)),
     WEB_ORIGIN: z.string().default("http://localhost:5173"),
     ENABLE_DEV_ENDPOINTS: booleanWithDefault("false"),
+    ENABLE_LOCAL_AUTH: booleanWithDefault("true"),
 
     MONGODB_URI: z.string().default("mongodb://127.0.0.1:27017/health_trainer"),
 

@@ -6,7 +6,7 @@ import {
 } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { DownloadButton } from "./components/DownloadButton";
 import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { MorningCheckinCard } from "./components/MorningCheckinCard";
@@ -17,8 +17,10 @@ import {
   fetchAuthStatus,
   fetchMe,
   loginDev,
+  loginLocal,
   loginWithGoogle,
   logout,
+  registerLocal,
   type SessionUser,
 } from "./lib/api";
 
@@ -1138,14 +1140,22 @@ function LoginScreen() {
   const queryClient = useQueryClient();
   const status = useQuery({ queryKey: ["auth-status"], queryFn: fetchAuthStatus, retry: 1 });
   const [authError, setAuthError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  const applyUser = (user: SessionUser) => {
+    setAuthError(null);
+    setPassword("");
+    queryClient.setQueryData(["me"], user);
+  };
+  const fail = (error: Error) => setAuthError(error.message);
 
   const googleLogin = useMutation({
     mutationFn: loginWithGoogle,
-    onSuccess: (user) => {
-      setAuthError(null);
-      queryClient.setQueryData(["me"], user);
-    },
-    onError: (error: Error) => setAuthError(error.message),
+    onSuccess: applyUser,
+    onError: fail,
   });
 
   const devLogin = useMutation({
@@ -1154,13 +1164,46 @@ function LoginScreen() {
       setAuthError(null);
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     },
-    onError: (error: Error) => setAuthError(error.message),
+    onError: fail,
+  });
+
+  const localLogin = useMutation({
+    mutationFn: loginLocal,
+    onSuccess: applyUser,
+    onError: fail,
+  });
+
+  const localRegister = useMutation({
+    mutationFn: registerLocal,
+    onSuccess: applyUser,
+    onError: fail,
   });
 
   const googleReady = Boolean(status.data?.googleConfigured && status.data.googleClientId);
+  const localReady = Boolean(status.data?.localAuthEnabled);
+  const localPending = localLogin.isPending || localRegister.isPending;
+
+  function switchMode(next: "login" | "register") {
+    setMode(next);
+    setAuthError(null);
+  }
+
+  function submitLocal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthError(null);
+    if (mode === "login") {
+      localLogin.mutate({ email: email.trim(), password });
+      return;
+    }
+    localRegister.mutate({
+      email: email.trim(),
+      password,
+      name: name.trim() || undefined,
+    });
+  }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <main className="flex min-h-screen items-center justify-center px-6 py-10">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.035] p-8 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-300 font-black text-slate-950">
           HT
@@ -1171,42 +1214,131 @@ function LoginScreen() {
           viene accettata senza credenziali.
         </p>
 
+        {localReady ? (
+          <>
+            <div className="mt-6 grid grid-cols-2 gap-1 rounded-xl bg-white/5 p-1">
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                className={cn(
+                  "rounded-lg px-3 py-2 text-xs font-semibold transition",
+                  mode === "login"
+                    ? "bg-lime-300 text-slate-950"
+                    : "text-slate-300 hover:text-white",
+                )}
+              >
+                Accedi
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("register")}
+                className={cn(
+                  "rounded-lg px-3 py-2 text-xs font-semibold transition",
+                  mode === "register"
+                    ? "bg-lime-300 text-slate-950"
+                    : "text-slate-300 hover:text-white",
+                )}
+              >
+                Crea account
+              </button>
+            </div>
+
+            <form onSubmit={submitLocal} className="mt-4 space-y-3">
+              {mode === "register" ? (
+                <label className="block text-xs text-slate-400">
+                  Nome (opzionale)
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="name"
+                    maxLength={100}
+                    placeholder="Marco"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-lime-300/60 focus:outline-none"
+                  />
+                </label>
+              ) : null}
+              <label className="block text-xs text-slate-400">
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  required
+                  maxLength={254}
+                  placeholder="atleta@example.com"
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-lime-300/60 focus:outline-none"
+                />
+              </label>
+              <label className="block text-xs text-slate-400">
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                  minLength={mode === "register" ? 8 : undefined}
+                  maxLength={128}
+                  placeholder={mode === "register" ? "Almeno 8 caratteri" : "La tua password"}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-lime-300/60 focus:outline-none"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={localPending || googleLogin.isPending}
+                className="w-full rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {localPending
+                  ? mode === "login"
+                    ? "Accesso…"
+                    : "Creo l'account…"
+                  : mode === "login"
+                    ? "Accedi"
+                    : "Crea account e inizia"}
+              </button>
+            </form>
+          </>
+        ) : null}
+
         {googleReady && status.data?.googleClientId ? (
           <>
-            <GoogleSignInButton
-              clientId={status.data.googleClientId}
-              onCredential={(idToken) => googleLogin.mutate(idToken)}
-            />
+            {localReady ? (
+              <div className="mt-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-white/10" />
+                <span className="text-[11px] uppercase tracking-widest text-slate-500">oppure</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
+            ) : null}
+            <div className="mt-5">
+              <GoogleSignInButton
+                clientId={status.data.googleClientId}
+                onCredential={(idToken) => googleLogin.mutate(idToken)}
+              />
+            </div>
             {googleLogin.isPending ? (
               <p className="mt-2 text-center text-xs text-slate-400">Verifico l&apos;account…</p>
             ) : null}
           </>
         ) : null}
 
-        {googleReady && status.data?.devLoginEnabled ? (
-          <div className="mt-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-white/10" />
-            <span className="text-[11px] uppercase tracking-widest text-slate-500">oppure</span>
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
-        ) : null}
-
         {status.data?.devLoginEnabled ? (
           <button
             type="button"
             onClick={() => devLogin.mutate()}
-            disabled={devLogin.isPending || googleLogin.isPending}
-            className="mt-6 w-full rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-lime-200 disabled:opacity-60"
+            disabled={devLogin.isPending || googleLogin.isPending || localPending}
+            className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
           >
-            {devLogin.isPending ? "Accesso…" : "Accedi come atleta locale"}
+            {devLogin.isPending ? "Accesso…" : "Accedi come atleta locale (dev)"}
           </button>
         ) : null}
 
-        {!googleReady && !status.data?.devLoginEnabled && status.data ? (
+        {!localReady && !googleReady && !status.data?.devLoginEnabled && status.data ? (
           <p className="mt-6 rounded-xl bg-rose-400/10 p-3 text-xs leading-5 text-rose-200 ring-1 ring-rose-400/30">
-            Nessun metodo di login configurato. Imposta <code>GOOGLE_CLIENT_ID</code>,{" "}
-            <code>GOOGLE_CLIENT_SECRET</code> e <code>GOOGLE_ALLOWED_EMAILS</code>, oppure{" "}
-            <code>ENABLE_DEV_ENDPOINTS=true</code> per lo sviluppo locale.
+            Nessun metodo di login configurato. Imposta <code>ENABLE_LOCAL_AUTH=true</code> per
+            email e password, oppure <code>GOOGLE_CLIENT_ID</code>,{" "}
+            <code>GOOGLE_CLIENT_SECRET</code> e <code>GOOGLE_ALLOWED_EMAILS</code> per Google.
           </p>
         ) : null}
 

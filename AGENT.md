@@ -98,14 +98,14 @@ apps/
     src/database/           MongoService (connessione + indici)
     src/common/             helper condivisi (`getUserTimeZone`)
     src/integrations/       GarminService, GarminSyncService, YazioService, YazioSyncService
-    src/auth/               AuthService, AuthController, JWT util
+    src/auth/               AuthService (locale/Google/dev), password scrypt, JWT util
     src/export/             ExportController (download workout .FIT)
   web/                      React + Vite + Tailwind, dati Garmin/Yazio in UI, atleta autenticato, export FIT
   mobile/                   Expo (fase 3, non ancora creata)
 packages/
   domain/                   Zod (activity, daily metrics, user, etc.), regole pure
   integrations/             Garmin + Yazio + FIT parser/analysis + FIT workout encoder
-  db/                       Mongo client, repository activities/metrics/nutrition/analyses/sync/users
+  db/                       Mongo client, repository activities/metrics/nutrition/analyses/sync/users/credentials
   ai/                       interfacce provider/prompt (stub)
   ui/                       utility UI condivise (cn)
   config/                   env Zod, feature flag
@@ -139,7 +139,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (151 test)
+npm test                      # unit/contract test (162 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -168,7 +168,9 @@ Tutti gli endpoint sono protetti dal `AuthGuard` globale (`APP_GUARD`) e richied
 Pubblici
 GET  /api/health
 GET  /api/auth/status
-POST /api/auth/google
+POST /api/auth/register    (email + password, se ENABLE_LOCAL_AUTH=true)
+POST /api/auth/login       (email + password, 200; 401 se credenziali errate)
+POST /api/auth/google      (Google ID token + allowlist)
 POST /api/auth/dev-login   (solo se ENABLE_DEV_ENDPOINTS=true, altrimenti 403)
 POST /api/auth/logout
 
@@ -268,8 +270,17 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **Risorse assenti.** `GET /api/baseline`, `GET /api/plan/macro` e `GET /api/plan/micro`
   rispondono `404` esplicito; la UI tratta il 404 come "nessun dato". Mai `200` con body
   vuoto: Nest non serializza `null` e il client andrebbe in errore di parsing.
-- **Auth UI.** `/api/auth/status` espone `googleClientId`; il login usa Google Identity
-  Services se configurato, il dev login è visibile solo se abilitato. Il logout imposta
+- **Auth locale.** `POST /api/auth/register` e `POST /api/auth/login` gestiscono account
+  email + password (scrypt con salt casuale, hash in `auth_credentials`; il documento
+  pubblico `users` non contiene mai materiale password). Email normalizzata, messaggi di
+  validazione in italiano, 409 su email duplicata, 401 generico su credenziali errate.
+  `ENABLE_LOCAL_AUTH` (default `true`) abilita o disabilita i due endpoint.
+- **Google e linking.** La prima login Google verificata e in allowlist crea l'account;
+  se esiste già un account locale con la stessa email, Google accede a quello stesso
+  `userId` invece di duplicarlo.
+- **Auth UI.** `/api/auth/status` espone `localAuthEnabled`, `googleClientId` e
+  `devLoginEnabled`; la login screen offre accesso/registrazione locale, Google Identity
+  Services se configurato e dev login solo se abilitato. Il logout imposta
   `health-trainer.logged-out` e impedisce il dev auto-login finché non si effettua un
   login esplicito.
 - **Hevy UI.** La chiave può essere inserita nella board: resta in `localStorage`, viene
@@ -277,9 +288,11 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **Integrazioni.** Lo stato in `/api/health` per Garmin usa
   `GarminService.isConfigured()` (env **o** `secrets/garmin-key.txt`), non il solo env.
   Gli overview leggono `metrics_daily` filtrando per `source`: Garmin non deve mostrare
-  le righe Yazio della stessa data.
+  le righe Yazio della stessa data. Sync, analyze e overview usano l'`userId` del token,
+  mai `personal` hardcoded: un account nuovo non vede i dati di un altro.
 - **E2E.** `scripts/e2e-api.ts` avvia l'API con dev endpoint disabilitati, firma due JWT
-  e verifica isolamento, export FIT, check-in, backup e 404 per baseline/piani assenti.
+  e verifica registrazione/login locali, isolamento, export FIT, check-in, backup e 404
+  per baseline/piani assenti.
 
 ---
 
@@ -309,7 +322,7 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
 - **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
 - `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 151 test verdi (api 45, domain 56, integrations 40, ai 3, config 5, db 2) + 9 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
+- **Test attuali:** 162 test verdi (api 56, domain 56, integrations 40, ai 3, config 5, db 2) + 10 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
 - **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
 - **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
   `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.

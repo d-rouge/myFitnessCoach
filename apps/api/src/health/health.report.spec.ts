@@ -7,6 +7,7 @@ const baseEnv = {
   API_PORT: 3000,
   WEB_ORIGIN: "http://localhost:5173",
   ENABLE_DEV_ENDPOINTS: true,
+  ENABLE_LOCAL_AUTH: true,
   MONGODB_URI: "mongodb://127.0.0.1:27017/health_trainer",
   GOOGLE_ALLOWED_EMAILS: [],
   FEATURE_GARMIN: true,

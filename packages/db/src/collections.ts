@@ -6,6 +6,7 @@ export const COLLECTIONS = {
   aiRuns: "ai_runs",
   baselines: "athlete_baselines",
   checkins: "checkins",
+  credentials: "auth_credentials",
   macroPlans: "athlete_macro_plans",
   microPlans: "athlete_micro_plans",
   dailyMetrics: "metrics_daily",
@@ -58,6 +59,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
     db.collection(COLLECTIONS.users).createIndex({ id: 1 }, { unique: true }),
     db.collection(COLLECTIONS.users).createIndex({ email: 1 }, { unique: true }),
+    db.collection(COLLECTIONS.credentials).createIndex({ userId: 1 }, { unique: true }),
+    db.collection(COLLECTIONS.credentials).createIndex({ email: 1 }, { unique: true }),
     db.collection(COLLECTIONS.baselines).createIndex({ userId: 1, version: -1 }),
     ensureActiveBaselineIndex(db),
     db

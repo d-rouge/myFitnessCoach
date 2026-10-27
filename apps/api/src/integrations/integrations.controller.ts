@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { CurrentUser } from "../auth/current-user.decorator.js";
 import { DevOnlyGuard } from "./dev-only.guard.js";
 import { GarminService } from "./garmin.service.js";
 import { GarminSyncService } from "./garmin-sync.service.js";
@@ -49,26 +50,32 @@ export class IntegrationsController {
 
   @Get("garmin/overview")
   @UseGuards(DevOnlyGuard)
-  garminOverview(@Query("days") days?: string) {
-    return this.garminSync.overview(parseDays(days));
+  garminOverview(@CurrentUser() user: { id: string }, @Query("days") days?: string) {
+    return this.garminSync.overview(user.id, parseDays(days));
   }
 
   @Post("garmin/sync")
   @UseGuards(DevOnlyGuard)
-  syncGarmin(@Query("days") days?: string) {
-    return this.garminSync.sync(parseDays(days));
+  syncGarmin(@CurrentUser() user: { id: string }, @Query("days") days?: string) {
+    return this.garminSync.sync(user.id, parseDays(days));
   }
 
   @Post("garmin/activities/:activityId/analyze")
   @UseGuards(DevOnlyGuard)
-  async analyzeGarminActivity(@Param("activityId") activityId: string) {
-    return this.toAnalysisDto(await this.garminSync.analyzeActivity(activityId));
+  async analyzeGarminActivity(
+    @CurrentUser() user: { id: string },
+    @Param("activityId") activityId: string,
+  ) {
+    return this.toAnalysisDto(await this.garminSync.analyzeActivity(user.id, activityId));
   }
 
   @Get("garmin/activities/:activityId/analysis")
   @UseGuards(DevOnlyGuard)
-  async getGarminActivityAnalysis(@Param("activityId") activityId: string) {
-    const analysis = await this.garminSync.getActivityAnalysis(activityId);
+  async getGarminActivityAnalysis(
+    @CurrentUser() user: { id: string },
+    @Param("activityId") activityId: string,
+  ) {
+    const analysis = await this.garminSync.getActivityAnalysis(user.id, activityId);
     if (!analysis) throw new NotFoundException("Activity analysis not found");
     return this.toAnalysisDto(analysis);
   }
@@ -95,13 +102,13 @@ export class IntegrationsController {
 
   @Get("yazio/overview")
   @UseGuards(DevOnlyGuard)
-  yazioOverview(@Query("days") days?: string) {
-    return this.yazioSync.overview(parseDays(days));
+  yazioOverview(@CurrentUser() user: { id: string }, @Query("days") days?: string) {
+    return this.yazioSync.overview(user.id, parseDays(days));
   }
 
   @Post("yazio/sync")
   @UseGuards(DevOnlyGuard)
-  syncYazio(@Query("days") days?: string) {
-    return this.yazioSync.sync(parseDays(days));
+  syncYazio(@CurrentUser() user: { id: string }, @Query("days") days?: string) {
+    return this.yazioSync.sync(user.id, parseDays(days));
   }
 }

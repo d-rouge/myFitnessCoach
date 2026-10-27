@@ -1,11 +1,15 @@
 import type { User } from "@health-trainer/domain";
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post } from "@nestjs/common";
 import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
 import {
   type DevLoginInput,
   DevLoginSchema,
   type GoogleLoginInput,
   GoogleLoginSchema,
+  type LocalLoginInput,
+  LocalLoginSchema,
+  type RegisterInput,
+  RegisterSchema,
 } from "./auth.schemas.js";
 import { AuthService } from "./auth.service.js";
 import { CurrentUser } from "./current-user.decorator.js";
@@ -24,11 +28,25 @@ export class AuthController {
   @Public()
   getStatus() {
     return {
+      localAuthEnabled: this.auth.isLocalAuthEnabled(),
       googleConfigured: this.auth.isGoogleAuthConfigured(),
       googleClientId: this.auth.getGoogleClientId(),
       allowedEmailsCount: this.auth.getAllowedEmails().length,
       devLoginEnabled: this.auth.devLoginEnabled(),
     };
+  }
+
+  @Post("auth/register")
+  @Public()
+  async register(@Body(new ZodValidationPipe(RegisterSchema)) body: RegisterInput) {
+    return this.auth.registerLocal(body);
+  }
+
+  @Post("auth/login")
+  @HttpCode(200)
+  @Public()
+  async login(@Body(new ZodValidationPipe(LocalLoginSchema)) body: LocalLoginInput) {
+    return this.auth.loginLocal(body);
   }
 
   @Post("auth/google")

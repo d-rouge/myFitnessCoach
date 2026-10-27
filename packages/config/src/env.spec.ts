@@ -11,6 +11,7 @@ describe("loadEnv", () => {
     expect(env.MONGODB_URI).toContain("health_trainer");
     expect(env.GOOGLE_ALLOWED_EMAILS).toEqual([]);
     expect(env.ENABLE_DEV_ENDPOINTS).toBe(false);
+    expect(env.ENABLE_LOCAL_AUTH).toBe(true);
   });
 
   it("parses comma separated emails and booleans", () => {

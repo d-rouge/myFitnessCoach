@@ -158,6 +158,46 @@ async function main(): Promise<void> {
     assertEqual(meABody.id, userA.id, "identità utente A");
     results.push("identità JWT distinta per A");
 
+    // --- Local email + password accounts ------------------------------------
+    const localEmail = "e2e-local@example.test";
+    const register = await request("/auth/register", undefined, {
+      method: "POST",
+      body: JSON.stringify({ email: localEmail, password: "e2e-password-123", name: "E2E Local" }),
+    });
+    assertEqual(register.status, 201, "POST /auth/register");
+    const registered = await readJson<{ token: string; user: User }>(register);
+    assertEqual(registered.user.email, localEmail, "email dell'account locale");
+    assert(registered.user.id.startsWith("usr_"), "l'account locale ha un id dedicato");
+    assert(
+      !JSON.stringify(registered.user).toLowerCase().includes("password"),
+      "la risposta di registrazione non deve contenere materiale password",
+    );
+
+    const meLocal = await readJson<User>(await request("/me", registered.token));
+    assertEqual(meLocal.id, registered.user.id, "GET /me con token dell'account locale");
+
+    const login = await request("/auth/login", undefined, {
+      method: "POST",
+      body: JSON.stringify({ email: localEmail, password: "e2e-password-123" }),
+    });
+    assertEqual(login.status, 200, "POST /auth/login con password corretta");
+
+    const wrongLogin = await request("/auth/login", undefined, {
+      method: "POST",
+      body: JSON.stringify({ email: localEmail, password: "wrong-password" }),
+    });
+    assertEqual(wrongLogin.status, 401, "login con password errata");
+
+    const duplicate = await request("/auth/register", undefined, {
+      method: "POST",
+      body: JSON.stringify({ email: localEmail, password: "another-password-123" }),
+    });
+    assertEqual(duplicate.status, 409, "registrazione con email duplicata");
+
+    const localBaseline = await request("/baseline", registered.token);
+    assertEqual(localBaseline.status, 404, "il nuovo account locale parte senza baseline");
+    results.push("registrazione e login locali, password errata 401, email duplicata 409");
+
     // --- Baselines and plans -------------------------------------------------
     const saveA = await request("/baseline", tokenA, {
       method: "POST",

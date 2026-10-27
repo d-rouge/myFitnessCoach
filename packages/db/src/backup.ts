@@ -33,6 +33,7 @@ const USER_COLLECTIONS = [
   COLLECTIONS.aiRuns,
   COLLECTIONS.syncRuns,
   COLLECTIONS.syncState,
+  COLLECTIONS.credentials,
 ] as const;
 
 const RESTORE_COLLECTIONS = [

@@ -17,9 +17,9 @@ Componenti presenti:
 - **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
 - **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`.
 - **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
-- **Auth UI:** login Google (Google Identity Services) o dev login, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
+- **Auth:** registrazione e login con email + password (scrypt) oppure Google, dev login opt-in, logout esplicito, chiave Hevy salvata nel browser e inoltrata per export.
 
-151 test unitari e 9 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
+162 test unitari e 10 verifiche e2e verdi (`npm run test:e2e` su MongoDB reale
 temporaneo), typecheck e lint puliti, build verificata. **Non verificato:** login Google
 con credenziali reali, export Hevy con chiave reale, import `.FIT` su Garmin Connect,
 sync automatico, uso reale di 14 giorni.
@@ -82,7 +82,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (151 test)
+npm test                 # unit + contract test (162 test)
 npm run test:e2e         # e2e multi-utente su MongoDB reale (`*_e2e`, poi pulito)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
@@ -175,17 +175,25 @@ L'API include il modulo `auth` con:
 - `AuthGuard` globale: tutti gli endpoint richiedono `Authorization: Bearer <token>`,
   tranne `/api/health` e le rotte `@Public()` di auth. `x-user-id` è ignorato.
 - `GET /api/me` per il profilo dell'utente autenticato.
+- Account locali: `POST /api/auth/register` e `POST /api/auth/login` con email e password
+  (minimo 8 caratteri). Le password sono hashate con scrypt e salt casuale nella
+  collezione `auth_credentials`; il documento `users` non contiene materiale password.
+  Email duplicata → 409, credenziali errate → 401 generico. `ENABLE_LOCAL_AUTH=true`
+  (default) abilita i due endpoint.
 - Google OAuth token exchange (`POST /api/auth/google`) con verifica `iss`, `aud`,
   `email_verified`, `exp` e allowlist email (`GOOGLE_ALLOWED_EMAILS`, obbligatoria se
-  `GOOGLE_CLIENT_ID` è impostata).
+  `GOOGLE_CLIENT_ID` è impostata). La prima login Google verificata crea l'account; se
+  esiste già un account locale con la stessa email, i due metodi condividono lo stesso
+  `userId`.
 - Dev login (`POST /api/auth/dev-login`) **opt-in** con `ENABLE_DEV_ENDPOINTS=true`
   (default `false`); quando disabilitato risponde 403.
 - `JWT_SECRET` obbligatorio e di almeno 32 caratteri fuori da `NODE_ENV=test`: senza
   di esso l'API non parte.
 - Persistenza automatica del profilo in MongoDB (`users`).
-- `GET /api/auth/status` espone `googleClientId` (se configurato) e
-  `devLoginEnabled`: la web app mostra il bottone Google Identity Services e nasconde il
-  dev login quando disabilitato. Il logout è esplicito e impedisce il dev auto-login.
+- `GET /api/auth/status` espone `localAuthEnabled`, `googleClientId` (se configurato) e
+  `devLoginEnabled`: la web app mostra i form email/password, il bottone Google Identity
+  Services e nasconde il dev login quando disabilitato. Il logout è esplicito e impedisce
+  il dev auto-login.
 - La chiave API Hevy può essere inserita dalla board della sessione di forza: resta nel
   `localStorage` del browser e viene inviata solo con l'export (fallback server
   `HEVY_API_KEY`).

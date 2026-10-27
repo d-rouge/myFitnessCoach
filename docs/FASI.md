@@ -121,7 +121,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 #### 0.7 Auth e dati
 
 - [x] `EnvModule`, `GET /api/health`, `GET /api/integrations/status`.
-- [x] Modulo `AuthModule` con supporto token Google ID e dev login.
+- [x] Modulo `AuthModule` con supporto token Google ID, account locali email + password (scrypt) e dev login. _(Registrazione/login locali e linking Google per email: F1-24.)_
 - [x] Controllo allowlist email (`GOOGLE_ALLOWED_EMAILS`).
 - [x] `users` in Mongo con indici univoci, sessione JWT con HMAC-SHA256 e test unitari.
 - [x] Endpoint `/api/me`.
@@ -157,7 +157,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > La revisione del 27 ottobre 2026 ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato
 > 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
 > due P2 rinviati (AI coach F1-18, scheduler/credenziali F1-19) e l'uso reale.
-> I test unitari (148) e l'e2e multi-utente su MongoDB reale (9 verifiche) sono verdi.
+> I test unitari (162) e l'e2e multi-utente su MongoDB reale (10 verifiche) sono verdi.
 > Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
@@ -172,7 +172,7 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 > con Mongo reale (WS-9). Restano rinviati F1-18 (AI coach) e F1-19 (scheduler e
 > credenziali cifrate).
 
-**Test:** 148 unitari + 9 verifiche e2e verdi (`npm run test:e2e`, database
+**Test:** 162 unitari + 10 verifiche e2e verdi (`npm run test:e2e`, database
 `health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 56 unit test con casi limite e fixture di 3 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio).
@@ -183,13 +183,13 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.6 Export:** Export `.FIT` per corsa/bici/nuoto (`/api/export/workouts/session/:id.fit`), export routine palestra verso Hevy Pro (`/api/export/workouts/hevy/export`), backup completo (`/api/export/backup`) e restore idempotente (`/api/export/restore`). _(F1-08, F1-09, F1-10 chiusi in WS-4/WS-5; l'export Hevy con chiave reale non è ancora stato provato.)_
 - **1.7 Review:** Motore di review settimanale deterministico (`computeWeeklyReview`), aderenza basata sulle sole sessioni `completed`, eventi dolore limitati alla settimana valutata, verdetto (`continue`, `progress`, `deload`) applicato al microciclo successivo (`/api/review/advance-week`, `WeeklyReviewCard.tsx`). _(F1-06, F1-15, F1-16 chiusi in WS-3.)_
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
-- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0.)_
+- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, password locali hashate con scrypt in `auth_credentials` (mai nel documento `users`), backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`, che rimuove anche le credenziali). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0; account locali F1-24.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 151 test unitari, 9 verifiche e2e
+**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 162 test unitari, 10 verifiche e2e
 su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
-build API e web complete. **Non coperto:** login Google con credenziali reali, export
-Hevy con chiave reale, import `.FIT` su Garmin Connect, scheduler automatico, uso reale
-di 14 giorni.
+build API e web complete. **Non coperto:** login Google con credenziali reali (la
+registrazione Google richiede client OAuth e allowlist), export Hevy con chiave reale,
+import `.FIT` su Garmin Connect, scheduler automatico, uso reale di 14 giorni.
 
 ### Obiettivo
 

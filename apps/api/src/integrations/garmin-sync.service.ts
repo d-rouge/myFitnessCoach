@@ -27,7 +27,7 @@ import {
 } from "@health-trainer/integrations";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { getUserTimeZone } from "../common/user-timezone.js";
-import { GARMIN_PROVIDER, PERSONAL_USER_ID } from "../config/constants.js";
+import { GARMIN_PROVIDER } from "../config/constants.js";
 import { MongoService } from "../database/mongo.service.js";
 import { GarminService } from "./garmin.service.js";
 
@@ -142,10 +142,9 @@ export class GarminSyncService {
     });
   }
 
-  async sync(days = 7): Promise<GarminSyncResult> {
+  async sync(userId: string, days = 7): Promise<GarminSyncResult> {
     const syncDays = Math.min(30, Math.max(1, Math.trunc(days)));
     const db = await this.db();
-    const userId = PERSONAL_USER_ID;
     const provider = GARMIN_PROVIDER;
     const timeZone = await getUserTimeZone(db, userId);
     const to = todayIso(timeZone);
@@ -264,9 +263,8 @@ export class GarminSyncService {
     }
   }
 
-  async analyzeActivity(activityId: string): Promise<ActivityAnalysis> {
+  async analyzeActivity(userId: string, activityId: string): Promise<ActivityAnalysis> {
     const db = await this.db();
-    const userId = PERSONAL_USER_ID;
     const activity = await getActivityByExternalId(db, userId, GARMIN_PROVIDER, activityId);
     const zip = await this.garmin.getClient().downloadActivity(activityId);
 
@@ -282,15 +280,14 @@ export class GarminSyncService {
     return analysis;
   }
 
-  async getActivityAnalysis(activityId: string): Promise<ActivityAnalysis | null> {
+  async getActivityAnalysis(userId: string, activityId: string): Promise<ActivityAnalysis | null> {
     const db = await this.db();
-    return getStoredActivityAnalysis(db, PERSONAL_USER_ID, GARMIN_PROVIDER, activityId);
+    return getStoredActivityAnalysis(db, userId, GARMIN_PROVIDER, activityId);
   }
 
-  async overview(days = 7): Promise<GarminOverview> {
+  async overview(userId: string, days = 7): Promise<GarminOverview> {
     const windowDays = Math.min(30, Math.max(1, Math.trunc(days)));
     const db = await this.db();
-    const userId = PERSONAL_USER_ID;
     const provider = GARMIN_PROVIDER;
 
     const [state, activities, metrics, totalActivities, totalMetrics] = await Promise.all([

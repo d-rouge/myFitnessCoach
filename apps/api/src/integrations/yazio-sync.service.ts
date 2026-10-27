@@ -27,7 +27,6 @@ import {
 } from "@health-trainer/integrations";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { getUserTimeZone } from "../common/user-timezone.js";
-import { PERSONAL_USER_ID } from "../config/constants.js";
 import { MongoService } from "../database/mongo.service.js";
 import { YazioService } from "./yazio.service.js";
 
@@ -148,10 +147,9 @@ export class YazioSyncService {
     });
   }
 
-  async sync(days = 7): Promise<YazioSyncResult> {
+  async sync(userId: string, days = 7): Promise<YazioSyncResult> {
     const syncDays = Math.min(30, Math.max(1, Math.trunc(days)));
     const db = await this.db();
-    const userId = PERSONAL_USER_ID;
     const provider = YAZIO_PROVIDER;
     const timeZone = await getUserTimeZone(db, userId);
     const to = todayIso(timeZone);
@@ -346,10 +344,9 @@ export class YazioSyncService {
     }
   }
 
-  async overview(days = 7): Promise<YazioOverview> {
+  async overview(userId: string, days = 7): Promise<YazioOverview> {
     const windowDays = Math.min(30, Math.max(1, Math.trunc(days)));
     const db = await this.db();
-    const userId = PERSONAL_USER_ID;
     const provider = YAZIO_PROVIDER;
 
     const [state, nutrition, metrics, totalDays, totalWeight] = await Promise.all([
