@@ -2,6 +2,7 @@ import {
   getCurrentBaseline,
   getCurrentMacroPlan,
   getCurrentMicroPlan,
+  replacePlannedSession,
   saveMacroPlan,
   saveMicroPlan,
   updatePlannedSession,
@@ -171,6 +172,47 @@ export class PlanService {
     if (!updated) {
       throw new NotFoundException(`Sessione ${sessionId} non trovata.`);
     }
+    return { success: true };
+  }
+
+  /**
+   * Persists a full session produced by the daily adjustment engine.
+   * Manual notes and identity fields are preserved.
+   */
+  async applyAdjustment(
+    userId: string,
+    sessionId: string,
+    adjustedSession: PlannedSession,
+  ): Promise<{ success: boolean }> {
+    const db = await this.db();
+    const microPlan = await getCurrentMicroPlan(db, userId);
+    const existing = microPlan?.sessions.find((session) => session.id === sessionId);
+    if (!existing) {
+      throw new NotFoundException(`Sessione ${sessionId} non trovata.`);
+    }
+
+    const merged = PlannedSessionSchema.safeParse({
+      ...existing,
+      ...adjustedSession,
+      id: existing.id,
+      date: existing.date,
+      status: "adjusted",
+    });
+    if (!merged.success) {
+      const details = merged.error.issues
+        .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+        .join("; ");
+      throw new BadRequestException(`Sessione adattata non valida: ${details}`);
+    }
+
+    const updated = await replacePlannedSession(db, userId, sessionId, merged.data);
+    if (!updated) {
+      throw new NotFoundException(`Sessione ${sessionId} non trovata.`);
+    }
+
+    this.logger.log(
+      `Sessione ${sessionId} adattata per atleta ${userId} (${merged.data.durationMin} min, RPE ${merged.data.intensity.rpe ?? "-"})`,
+    );
     return { success: true };
   }
 }

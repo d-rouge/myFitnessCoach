@@ -59,11 +59,18 @@ export class CheckinService {
         session: todayInfo.session,
       });
 
-      // If adaptation changed the session, update the session in the micro plan
+      // If adaptation changed the session, persist the adapted duration,
+      // intensity and blocks, not just the status.
       if (todayInfo.session && adjustment.adjustedSession && adjustment.decision !== "confirm") {
-        await this.planService.updateSession(userId, todayInfo.session.id, {
-          status: "adjusted",
-          notes: `Adattamento automatico (${adjustment.decision}): ${adjustment.changes.join("; ")}`,
+        const adjustmentNote = `Adattamento automatico (${adjustment.decision}): ${adjustment.changes.join("; ")}`;
+        const notes = [adjustment.adjustedSession.notes, adjustmentNote]
+          .filter(Boolean)
+          .join(" | ")
+          .slice(0, 2000);
+
+        await this.planService.applyAdjustment(userId, todayInfo.session.id, {
+          ...adjustment.adjustedSession,
+          notes,
         });
       }
     }

@@ -1,6 +1,6 @@
 # Revisione Fase 1 — problemi e piano di fix
 
-**Versione:** 1.1 (WS-0 applicato)
+**Versione:** 1.2 (WS-0 e Onda 1 applicati)
 **Data:** 27 ottobre 2026
 **Scope:** codice della Fase 1 (`7dacb6e..b2c7b49`)
 **Metodo:** revisione statica + verifica runtime su MongoDB temporaneo (`health_trainer_review`) e API sulla porta 3999
@@ -38,9 +38,12 @@ config sicura, validazione Zod e body limit FIT. Stato attuale:
 | Autenticazione (F1-01, F1-02) | ✅ chiusa |
 | Validazione input (F1-05) | ✅ chiusa |
 | Upload FIT (F1-04) | ✅ chiuso |
+| Baseline/versioning (F1-03) | ✅ chiuso (WS-2) |
+| Review e check-in (F1-06, F1-07, F1-15, F1-16) | ✅ chiusi (WS-3) |
+| Export FIT e Hevy (F1-08, F1-09) | ✅ chiusi (WS-4) |
+| Backup, restore e wipe (F1-10) | ✅ chiusi (WS-5) |
 | `GET /api/review/latest` senza review (F1-14) | ✅ chiuso |
-| Baseline/versioning (F1-03) | ❌ aperto (WS-2) |
-| Review, check-in, export, safety, backup | ❌ aperti (Onda 1/2) |
+| Safety, generatore, timezone, UI, scheduler | ❌ aperti (Onda 2) |
 
 **Test:** 117 unitari verdi (`api` 32, `domain` 41, `integrations` 36, `ai` 3,
 `config` 5), `lint`, `typecheck` e build API puliti. Il test e2e con Mongo reale
@@ -48,6 +51,24 @@ resta da fare (WS-9). Le verifiche runtime di WS-0 sono state eseguite su
 `health_trainer_ws0` (poi eliminato) e sulla porta 3999.
 
 Conteggio residuo: **1 P0**, **7 P1**, **6 P2**.
+
+### 1.2 Aggiornamento Onda 1 (27 ottobre 2026)
+
+Onda 1 ha chiuso cinque difetti P1 e i due P2 di review/check-in:
+
+| Workstream | Fix | Evidenza runtime |
+|---|---|---|
+| WS-2 | F1-03 | 5 salvataggi → versioni 1–5, 1 sola baseline attiva, `GET /api/baseline` = v5, indice unique partial `uniq_active_baseline_per_user` presente |
+| WS-3 | F1-06, F1-07, F1-15, F1-16 | settimana con sole `adjusted` → aderenza 0%; check-in con 20 min → sessione persistita a 20 min, RPE 5, blocchi e note; `progress` → 50/44/50 min; ultima settimana → `400 Il macrociclo è completo (settimana 4/4)...`; check-in di due settimane prima ignorato |
+| WS-4 | F1-08, F1-09 | corsa → download `.FIT` con magic bytes; forza → 400 esplicito; Hevy senza chiave → 400, sport non-forza → 400 prima della chiave, sessione inesistente → 404 |
+| WS-5 | F1-10 | backup `0.3.0` con `aiRuns`; restore con `userId` estraneo → 15 righe sull'utente autenticato; doppio restore → sempre 15; wipe → `/api/me` 401, `users` e `ai_runs` a 0; restore successivo recupera la baseline v5 |
+
+**Test:** 130 unitari verdi (`api` 38, `domain` 42, `integrations` 40, `ai` 3,
+`config` 5, `db` 2), `lint`, `typecheck` e build puliti.
+
+Conteggio residuo: **0 P0**, **2 P1** (F1-11, F1-12), **4 P2**
+(F1-13, F1-17, F1-18, F1-19) e il disallineamento documentale F1-20, in gran parte
+risolto con questo aggiornamento. L'e2e con Mongo reale resta in WS-9.
 
 ---
 
@@ -134,6 +155,12 @@ cancellato non viene più riautenticato dal fallback.
 
 #### F1-03 — Il salvataggio baseline corrompe la cronologia
 
+**Stato: ✅ chiuso in WS-2.** Gli `id` sono generati dal server con UUIDv7
+(`packages/db/src/ids.ts`), `saveBaseline` supersede per `{ userId, supersededAt: null }`
+e incrementa `version`; `getCurrentBaseline` ordina per `version`/`validFrom`. L'indice
+unique partial `uniq_active_baseline_per_user` viene creato al boot, con deduplica dei
+dati legacy. Verificato: 5 salvataggi → versioni 1–5, una sola attiva, `GET` = v5.
+
 - **Sintomo:** più baseline attive contemporaneamente, versioni duplicate, `/api/baseline`
   restituisce una versione vecchia.
 - **Evidenza:** 4 salvataggi → 4 record, 3 con `supersededAt: null`, due con `version: 3`,
@@ -186,6 +213,11 @@ sessione viene rivalidato con `PlannedSessionSchema` dopo il merge. Verificato:
 
 #### F1-06 — `adjusted` conta come completata e `progress` non viene applicato
 
+**Stato: ✅ chiuso in WS-3.** `computeWeeklyReview` conta solo `status === "completed"`;
+`applyReviewDecision` applica +10% di volume su `progress` e −30% con RPE −2 su `deload`
+(mobilità/recupero esclusi). Verificato: settimana con sole `adjusted` → 0%;
+`progress` → 50/44/50 min.
+
 - **Sintomo:** una settimana con sole sessioni adattate risulta 100% completata e
   "pronta a progredire", ma il volume non cambia.
 - **Evidenza:** 3 sessioni `adjusted` → `3/3`, `100%`, decisione `progress`.
@@ -199,6 +231,11 @@ sessione viene rivalidato con `PlannedSessionSchema` dopo il merge. Verificato:
 
 #### F1-07 — L'adattamento del check-in viene scartato
 
+**Stato: ✅ chiuso in WS-3.** `PlanService.applyAdjustment` rivalida la sessione adattata
+e la sostituisce integralmente (`replacePlannedSession`): durata, RPE, blocchi e note
+persistono. Verificato: check-in con 20 min disponibili → sessione a 20 min, RPE 5,
+1 blocco, note `Adattamento automatico (swap): ...`.
+
 - **Sintomo:** la UI mostra la sessione ridotta, ma il piano resta invariato.
 - **Causa:** `checkin.service.ts:63-67` salva solo `status: "adjusted"` e le note;
   `DailyAdjustmentResult.adjustedSession` non viene persistito.
@@ -208,6 +245,11 @@ sessione viene rivalidato con `PlannedSessionSchema` dopo il merge. Verificato:
   non la conta come completata.
 
 #### F1-08 — Export FIT errato per forza/mobilità e target persi
+
+**Stato: ✅ chiuso in WS-4.** `workoutSportFor` mappa solo corsa/bici/nuoto e lancia un
+errore esplicito per gli altri sport; il controller risponde 400. `parseTextTarget`
+converte passo (`4:20-4:35/km` → speed), potenza (`W`), cadenza (`rpm`) e zone HR.
+Verificato: corsa → `.FIT` con magic bytes; forza → 400 con messaggio dedicato.
 
 - **Sintomo:** una scheda palestra viene esportata come corsa; i target di passo/HR
   spariscono.
@@ -222,6 +264,12 @@ sessione viene rivalidato con `PlannedSessionSchema` dopo il merge. Verificato:
 
 #### F1-09 — Export Hevy finto
 
+**Stato: ✅ chiuso in WS-4.** `exportHevyRoutine` restituisce `success: false` senza
+chiave; il controller risolve prima sessione e sport (forza obbligatoria) e poi legge
+`HEVY_API_KEY`/`body.apiKey`. Gli esercizi derivano dai blocchi con fallback full-body
+dichiarato. Nessuna sessione inventata: sessione assente → 404. Verificato senza chiave
+reale; l'export con chiave vera resta da provare.
+
 - **Sintomo:** senza chiave restituisce `success: true`; la routine è sempre la stessa.
 - **Causa:** `routine-builder.ts:139-147` (offline preview con successo),
   esercizi e pesi hardcoded, nessuna lettura di `session.blocks`, `HEVY_API_KEY` env
@@ -232,6 +280,12 @@ sessione viene rivalidato con `PlannedSessionSchema` dopo il merge. Verificato:
   derivati dalla sessione.
 
 #### F1-10 — Backup, restore e wipe non mantengono le promesse
+
+**Stato: ✅ chiuso in WS-5.** Backup `0.3.0` con `aiRuns`; `restoreUserData(db, backup,
+userId)` ignora il `userId` del body, valida le chiavi prima di cancellare e sostituisce
+le collezioni (idempotente). Il wipe elimina anche `users` e `ai_runs`. Verificato:
+`userId` estraneo ignorato (0 righe), doppio restore → 15 righe, wipe → `/api/me` 401,
+dev login + restore → baseline v5 recuperata.
 
 - **Sintomo:** il restore duplica i dati, ignora metà collezioni e si fida del body;
   il wipe non elimina l'utente.
@@ -291,6 +345,10 @@ esplicito quando non esiste una review; la UI gestisce il 404 come "nessuna revi
 
 #### F1-15 — `advanceWeek` riusa review vecchie e riparte da 1
 
+**Stato: ✅ chiuso in WS-3.** `advanceWeek` usa `getReviewForWeek` sulla settimana
+corrente e, se manca, la ricalcola; a fine macro risponde 400 invece di tornare alla
+settimana 1. Verificato: `400 Il macrociclo è completo (settimana 4/4)...`.
+
 - **Causa:** usa l'ultima review disponibile senza verificare la settimana
   (`review.service.ts:80-107`); a fine macro `nextWeekIndex = 1`.
 - **Fix:** ricalcolare/validare la review della settimana corrente; a fine macro
@@ -299,6 +357,10 @@ esplicito quando non esiste una review; la UI gestisce il 404 come "nessuna revi
   nessun wrap-around.
 
 #### F1-16 — Finestra temporale della review sbagliata
+
+**Stato: ✅ chiuso in WS-3.** La review legge `getCheckinsInRange` tra
+`microPlan.startDate` e `microPlan.endDate`. Verificato: check-in con dolore del
+2026-10-01 (fuori settimana) non ha prodotto eventi dolore nella review corrente.
 
 - **Causa:** `review.service.ts:48` legge gli ultimi 14 check-in, non quelli della
   settimana valutata.

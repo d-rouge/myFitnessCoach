@@ -257,14 +257,13 @@ export function create5x800mWorkout(options?: {
 }
 
 export function sessionToWorkoutDef(session: PlannedSession): WorkoutDef {
-  const sport: WorkoutSport =
-    session.sport === "cycling" ? "cycling" : session.sport === "swimming" ? "swimming" : "running";
+  const sport = workoutSportFor(session);
   const steps: WorkoutStepDef[] = [];
 
   if (session.blocks.length > 0) {
     for (const block of session.blocks) {
       const startIndex = steps.length;
-      for (const step of block.steps) {
+      for (const [stepIndex, step] of block.steps.entries()) {
         const intensity: WorkoutStepIntensity =
           step.kind === "warmup"
             ? "warmup"
@@ -278,11 +277,14 @@ export function sessionToWorkoutDef(session: PlannedSession): WorkoutDef {
           ? { type: "distance", meters: step.distanceM }
           : { type: "time", seconds: (step.durationMin ?? 10) * 60 };
 
+        const parsedTarget = parseTextTarget(step.target);
+
         steps.push({
-          name: step.target ?? `${step.kind} step`,
+          name: stepName(step.kind, stepIndex, step.distanceM),
           intensity,
           duration,
-          target: { type: "open" },
+          target: parsedTarget.target,
+          notes: joinNotes(step.target, step.notes),
         });
       }
 
@@ -302,6 +304,7 @@ export function sessionToWorkoutDef(session: PlannedSession): WorkoutDef {
     const warmupMin = Math.min(10, Math.floor(session.durationMin * 0.2));
     const cooldownMin = Math.min(10, Math.floor(session.durationMin * 0.2));
     const workMin = Math.max(10, session.durationMin - warmupMin - cooldownMin);
+    const workTarget = parseTextTarget(session.intensity.target);
 
     steps.push(
       {
@@ -311,10 +314,11 @@ export function sessionToWorkoutDef(session: PlannedSession): WorkoutDef {
         target: { type: "heartRateZone", zone: 2 },
       },
       {
-        name: session.title,
+        name: session.title.slice(0, 30),
         intensity: "interval",
         duration: { type: "time", seconds: workMin * 60 },
-        target: { type: "open" },
+        target: workTarget.target,
+        notes: session.intensity.target,
       },
       {
         name: "Defaticamento Z1",
@@ -331,6 +335,130 @@ export function sessionToWorkoutDef(session: PlannedSession): WorkoutDef {
     description: session.successCriteria ?? session.title,
     steps,
   };
+}
+
+const FIT_SPORTS: Record<string, WorkoutSport> = {
+  running: "running",
+  cycling: "cycling",
+  swimming: "swimming",
+};
+
+/**
+ * Returns the FIT sport for a session, or throws for strength/mobility/other.
+ * Silently mapping them to running produced broken Garmin workouts.
+ */
+export function workoutSportFor(session: PlannedSession): WorkoutSport {
+  const sport = FIT_SPORTS[session.sport];
+  if (!sport) {
+    throw new Error(
+      `Export FIT non supportato per lo sport "${session.sport}". Usa l'export Hevy per la palestra o scegli una sessione di corsa, bici o nuoto.`,
+    );
+  }
+  return sport;
+}
+
+type StepKind = "warmup" | "work" | "recovery" | "cooldown" | "rest" | "mobility";
+
+function stepName(kind: StepKind, index: number, distanceM?: number): string {
+  if (distanceM) return `${distanceM}m ${kind}`;
+  const labels: Record<StepKind, string> = {
+    warmup: "Riscaldamento",
+    work: "Lavoro",
+    recovery: "Recupero",
+    cooldown: "Defaticamento",
+    rest: "Riposo",
+    mobility: "Mobilità",
+  };
+  return `${labels[kind]} ${index + 1}`;
+}
+
+function joinNotes(...values: Array<string | undefined>): string | undefined {
+  const text = values.filter(Boolean).join(" — ");
+  return text.length > 0 ? text.slice(0, 50) : undefined;
+}
+
+/**
+ * Converts free-text session targets ("Z2", "Passo 4:20-4:35/km", "90-100 rpm",
+ * "180-220 W") into structured FIT targets. Unknown text stays as notes.
+ */
+export function parseTextTarget(text: string | undefined): {
+  target: WorkoutTarget;
+  notes?: string;
+} {
+  if (!text) return { target: { type: "open" } };
+
+  const pace = parsePaceTarget(text);
+  if (pace) {
+    return {
+      target: { type: "speed", minSpeedMs: pace.slow, maxSpeedMs: pace.fast },
+      notes: text.slice(0, 50),
+    };
+  }
+
+  const power = /(\d{2,3})\s*[-–]\s*(\d{2,3})\s*w\b/i.exec(text);
+  if (power?.[1] && power[2]) {
+    return {
+      target: {
+        type: "power",
+        minWatts: Number(power[1]),
+        maxWatts: Number(power[2]),
+      },
+      notes: text.slice(0, 50),
+    };
+  }
+
+  const cadence = /(\d{2,3})\s*[-–]\s*(\d{2,3})\s*rpm/i.exec(text);
+  if (cadence?.[1] && cadence[2]) {
+    return {
+      target: {
+        type: "cadence",
+        minRpm: Number(cadence[1]),
+        maxRpm: Number(cadence[2]),
+      },
+      notes: text.slice(0, 50),
+    };
+  }
+
+  const zone = parseHeartRateZone(text);
+  if (zone !== null) {
+    return { target: { type: "heartRateZone", zone }, notes: text.slice(0, 50) };
+  }
+
+  // RPE and other textual prescriptions cannot be represented in FIT steps.
+  return { target: { type: "open" }, notes: text.slice(0, 50) };
+}
+
+function parsePaceTarget(text: string): { slow: number; fast: number } | null {
+  const range =
+    /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})\s*\/?\s*km/i.exec(text) ??
+    /(\d{1,2}):(\d{2})\s*\/\s*km/i.exec(text) ??
+    /passo\s*(\d{1,2}):(\d{2})/i.exec(text);
+
+  if (!range) return null;
+
+  const first = Number(range[1]) * 60 + Number(range[2]);
+  const second = range[3] ? Number(range[3]) * 60 + Number(range[4]) : first;
+  const slower = Math.max(first, second);
+  const faster = Math.min(first, second);
+
+  return {
+    slow: paceToSpeedMs(slower),
+    fast: paceToSpeedMs(faster),
+  };
+}
+
+function parseHeartRateZone(text: string): number | null {
+  const range = /z(?:ona)?\s*([1-5])\s*[-–]\s*z?\s*([1-5])/i.exec(text);
+  if (range?.[1] && range[2]) {
+    const low = Number(range[1]);
+    const high = Number(range[2]);
+    return Math.round((low + high) / 2);
+  }
+
+  const single = /z(?:ona)?\s*([1-5])\b/i.exec(text);
+  if (single?.[1]) return Number(single[1]);
+
+  return null;
 }
 
 export function encodeSessionWorkoutFit(session: PlannedSession): Uint8Array {

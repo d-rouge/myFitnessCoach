@@ -113,13 +113,14 @@ packages/
 
 Leggere `docs/FASI.md`. La **Fase 0 — Spike e fondamenta** è completata.
 
-La **Fase 1 — Web MVP personale** è implementata nelle feature ma **non è chiusa**:
-prima di aggiungere funzionalità vanno risolti i problemi P0/P1 di
-[`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md). In particolare: autenticazione unica,
-versioning baseline, validazione input, semantica review/check-in, export e safety.
+La **Fase 1 — Web MVP personale** è implementata e Onda 1 è chiusa (baseline,
+review/check-in, export FIT/Hevy, backup/restore). Restano aperti i P1 di Onda 2
+(safety F1-11, generatore F1-12), i P2 (timezone, UI auth/Hevy, AI coach, scheduler) e
+l'e2e con Mongo reale (WS-9). Dettaglio in
+[`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
-**Prossimo passo:** chiudere i bloccanti della Fase 1 seguendo le onde di lavoro del
-documento di revisione, poi il test d'uso reale di 14 giorni.
+**Prossimo passo:** chiudere Onda 2 seguendo le onde del documento di revisione, poi il
+test d'uso reale di 14 giorni.
 
 ---
 
@@ -132,7 +133,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (117 test, nessun e2e)
+npm test                      # unit/contract test (130 test, nessun e2e)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
 npm run spike:garmin          # spike Garmin (aggiungi -- --write per salvare il report)
@@ -211,6 +212,34 @@ anche da `DevOnlyGuard` (richiedono `ENABLE_DEV_ENDPOINTS=true`).
 **Validazione.** Ogni payload/query passa da `ZodValidationPipe` con uno schema
 dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accetta fino a
 15 MB (`useBodyParser` in `main.ts`) per gli upload FIT in base64.
+
+**Semantica consolidata in Onda 1 (non regredire):**
+
+- **Baseline/versioning.** L'`id` è generato dal server con UUIDv7
+  (`packages/db/src/ids.ts`), mai dal client. `saveBaseline` supersede per
+  `{ userId, supersededAt: null }`, incrementa `version` e imposta `validFrom`.
+  L'indice unique partial `uniq_active_baseline_per_user` garantisce una sola baseline
+  attiva per utente; `getCurrentBaseline` ordina per `version`/`validFrom`.
+- **Review.** Conta come completate solo le sessioni `status === "completed"`; `adjusted`
+  non lo è. Gli eventi dolore arrivano solo dai check-in dentro
+  `microPlan.startDate..endDate`. `advanceWeek` usa la review della settimana corrente
+  (mai una review vecchia) e a fine macro risponde `400`, senza ripartire da 1.
+- **Decisioni.** `progress` applica +10% di volume al microciclo successivo; `deload`
+  applica −30% e abbassa l'RPE di 2. Mobilità e recupero non vengono scalati.
+- **Check-in.** Un adattamento automatico persiste l'intera sessione (durata, RPE,
+  blocchi) più le note in `sessions[].notes`, tramite `replacePlannedSession`; non basta
+  cambiare lo stato.
+- **Export FIT.** Solo `running`, `cycling`, `swimming`; forza/mobilità/altro → `400`.
+  I target testuali vengono interpretati: `Z2`, `Passo 4:20-4:35/km`, `85-95 rpm`,
+  `180-220 W`. Il testo non interpretabile resta nelle note dello step.
+- **Export Hevy.** Richiede `body.apiKey` o `HEVY_API_KEY`. L'ordine di validazione è
+  sessione → sport (`strength`) → chiave, così un errore reale non viene mascherato.
+  La sessione non viene mai inventata; gli esercizi derivano dai blocchi, con fallback
+  full-body dichiarato.
+- **Backup/restore.** Il backup (`0.3.0`) include `ai_runs`. La firma è
+  `restoreUserData(db, backup, userId)`: il `userId` del body è ignorato, il restore è
+  idempotente (delete+insert per collezione) e valida le chiavi prima di cancellare.
+  `deleteUserData` elimina anche `users` e `ai_runs`.
 
 ---
 

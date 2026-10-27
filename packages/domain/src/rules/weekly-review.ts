@@ -12,9 +12,7 @@ export function computeWeeklyReview(input: WeeklyReviewInput): Review {
   const { userId, microPlan, checkins = [] } = input;
 
   const plannedSessionsCount = microPlan.sessions.length;
-  const completedSessions = microPlan.sessions.filter(
-    (s) => s.status === "completed" || s.status === "adjusted",
-  );
+  const completedSessions = microPlan.sessions.filter((s) => s.status === "completed");
   const completedSessionsCount = completedSessions.length;
 
   const adherencePct =

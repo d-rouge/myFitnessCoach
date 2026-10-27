@@ -18,6 +18,8 @@ import {
 import { MongoService } from "../database/mongo.service.js";
 
 const SaveBaselineInputSchema = BaselineSchema.omit({
+  id: true,
+  userId: true,
   version: true,
   validFrom: true,
   supersededAt: true,

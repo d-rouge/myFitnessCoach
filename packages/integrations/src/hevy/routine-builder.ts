@@ -37,51 +37,75 @@ export const HEVY_EXERCISE_CATALOG: Record<string, { id: string; name: string }>
   plank: { id: "98BA3011", name: "Plank" },
 };
 
+const EXERCISE_PATTERNS: Array<{ key: keyof typeof HEVY_EXERCISE_CATALOG; pattern: RegExp }> = [
+  { key: "romanian_deadlift", pattern: /rumen|romanian/i },
+  { key: "deadlift", pattern: /stacco|deadlift/i },
+  { key: "bench_press", pattern: /panca|bench|push-?up|piegamenti/i },
+  { key: "overhead_press", pattern: /overhead|military|lento avanti|spinta sopra/i },
+  { key: "pull_up", pattern: /trazion|pull-?up/i },
+  { key: "barbell_row", pattern: /remator|\brow\b/i },
+  { key: "dumbbell_lunge", pattern: /affond|lunge/i },
+  { key: "plank", pattern: /plank/i },
+  { key: "squat", pattern: /squat|accosciat/i },
+];
+
+function matchExercise(text: string): keyof typeof HEVY_EXERCISE_CATALOG | null {
+  for (const { key, pattern } of EXERCISE_PATTERNS) {
+    if (pattern.test(text)) return key;
+  }
+  return null;
+}
+
+function strengthSets(session: PlannedSession, exerciseKey: string): HevySet[] {
+  const rpe = session.intensity.rpe ?? 7;
+
+  if (exerciseKey === "plank") {
+    return [
+      { type: "normal", duration_seconds: 45, rpe },
+      { type: "normal", duration_seconds: 45, rpe },
+    ];
+  }
+
+  const reps = rpe >= 8 ? 6 : 8;
+  return Array.from({ length: 3 }, () => ({ type: "normal" as const, reps, rpe }));
+}
+
+/**
+ * Derives Hevy exercises from the strength session blocks when the plan
+ * contains exercise names; otherwise falls back to a full-body template.
+ */
 export function buildHevyRoutine(session: PlannedSession): HevyRoutinePayload {
   const notes =
     session.successCriteria ??
     `Sessione ${session.type} da health-trainer (RPE target ${session.intensity.rpe ?? 7}/10).`;
 
-  // Default functional exercises if custom blocks not specified
-  const exercises: HevyExercise[] = [
-    {
-      exercise_template_id: HEVY_EXERCISE_CATALOG.squat.id,
-      notes: "Riscaldamento progressivo + serie target",
-      rest_seconds: 120,
-      sets: [
-        { type: "warmup", reps: 10, weight_kg: 20 },
-        { type: "normal", reps: 8, weight_kg: 50 },
-        { type: "normal", reps: 8, weight_kg: 50 },
-      ],
-    },
-    {
-      exercise_template_id: HEVY_EXERCISE_CATALOG.bench_press.id,
-      notes: "Controlla la discesa (3s) e spingi esplosivo",
-      rest_seconds: 90,
-      sets: [
-        { type: "normal", reps: 8, weight_kg: 40 },
-        { type: "normal", reps: 8, weight_kg: 40 },
-      ],
-    },
-    {
-      exercise_template_id: HEVY_EXERCISE_CATALOG.barbell_row.id,
-      notes: "Schiena neutra, retrazione scapolare",
-      rest_seconds: 90,
-      sets: [
-        { type: "normal", reps: 10, weight_kg: 35 },
-        { type: "normal", reps: 10, weight_kg: 35 },
-      ],
-    },
-    {
-      exercise_template_id: HEVY_EXERCISE_CATALOG.plank.id,
-      notes: "Core compatto",
-      rest_seconds: 60,
-      sets: [
-        { type: "normal", duration_seconds: 45 },
-        { type: "normal", duration_seconds: 45 },
-      ],
-    },
-  ];
+  const texts = session.blocks.flatMap((block) =>
+    block.steps.flatMap((step) => [step.target ?? "", step.notes ?? ""]),
+  );
+
+  const found: Array<keyof typeof HEVY_EXERCISE_CATALOG> = [];
+  for (const text of texts) {
+    for (const part of text.split(/[,;+]/)) {
+      const key = matchExercise(part.trim());
+      if (key && !found.includes(key)) found.push(key);
+    }
+  }
+
+  const exerciseKeys =
+    found.length > 0 ? found : (["squat", "bench_press", "barbell_row", "plank"] as const);
+
+  const exercises: HevyExercise[] = exerciseKeys.map((key) => {
+    const catalogEntry = HEVY_EXERCISE_CATALOG[key];
+    return {
+      exercise_template_id: catalogEntry.id,
+      notes:
+        found.length > 0
+          ? `Derivato dalla sessione "${session.title}"`
+          : `Template full-body per "${session.title}" (nessun esercizio esplicito nel piano)`,
+      rest_seconds: key === "plank" ? 60 : 120,
+      sets: strengthSets(session, key),
+    };
+  });
 
   return {
     routine: {
@@ -142,9 +166,9 @@ export async function exportHevyRoutine(
 ): Promise<{ success: boolean; message: string; routineId?: string; payload: HevyRoutinePayload }> {
   if (!apiKey) {
     return {
-      success: true,
+      success: false,
       message:
-        "Payload routine Hevy generato con successo (modalità offline / anteprima senza chiave API Hevy Pro).",
+        "Chiave API Hevy non configurata. Imposta HEVY_API_KEY per esportare la routine su Hevy Pro.",
       payload,
     };
   }
@@ -167,11 +191,29 @@ export async function exportHevyRoutine(
     };
   }
 
-  const result = (await response.json()) as { routine?: { id?: string } };
+  let result: { routine?: { id?: string } };
+  try {
+    result = (await response.json()) as { routine?: { id?: string } };
+  } catch {
+    return {
+      success: false,
+      message: "Hevy API ha restituito una risposta non valida.",
+      payload,
+    };
+  }
+
+  if (!result.routine?.id) {
+    return {
+      success: false,
+      message: "Hevy API non ha restituito l'ID della routine creata.",
+      payload,
+    };
+  }
+
   return {
     success: true,
     message: "Routine esportata con successo su Hevy!",
-    routineId: result.routine?.id,
+    routineId: result.routine.id,
     payload,
   };
 }

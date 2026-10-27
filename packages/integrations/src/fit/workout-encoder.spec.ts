@@ -7,6 +7,8 @@ import {
   encodeWorkoutToFit,
   paceToSpeedMs,
   parsePaceStringToSecKm,
+  parseTextTarget,
+  sessionToWorkoutDef,
 } from "./workout-encoder";
 
 describe("workout-encoder", () => {
@@ -94,6 +96,75 @@ describe("workout-encoder", () => {
     expect(steps[4]?.durationTime).toBe(600);
     expect(steps[4]?.intensity).toBe("cooldown");
     expect(steps[4]?.targetHrZone).toBe(1);
+  });
+
+  it("rejects FIT export for strength and mobility sessions", () => {
+    const strength: PlannedSession = {
+      id: "strength_1",
+      date: "2026-10-27",
+      sport: "strength",
+      type: "full_body_strength",
+      title: "Palestra",
+      durationMin: 45,
+      intensity: { mode: "rpe", rpe: 7 },
+      blocks: [],
+      equipment: [],
+      location: "gym",
+      alternatives: [],
+      contraindications: [],
+      status: "planned",
+    };
+
+    expect(() => sessionToWorkoutDef(strength)).toThrow(/non supportato/i);
+    expect(() => encodeSessionWorkoutFit(strength)).toThrow(/non supportato/i);
+  });
+
+  it("parses textual pace and heart-rate targets", () => {
+    const pace = parseTextTarget("Passo 4:20-4:35/km (Z4)");
+    expect(pace.target.type).toBe("speed");
+    if (pace.target.type === "speed") {
+      expect(pace.target.minSpeedMs).toBeCloseTo(paceToSpeedMs(275), 4);
+      expect(pace.target.maxSpeedMs).toBeCloseTo(paceToSpeedMs(260), 4);
+    }
+
+    const zone = parseTextTarget("Zona 2 aerobica costante");
+    expect(zone.target).toEqual({ type: "heartRateZone", zone: 2 });
+
+    const cadence = parseTextTarget("Cadenza 85-95 rpm");
+    expect(cadence.target).toEqual({ type: "cadence", minRpm: 85, maxRpm: 95 });
+  });
+
+  it("maps a running pace target into the encoded FIT step", () => {
+    const session: PlannedSession = {
+      id: "sess_pace",
+      date: "2026-10-27",
+      sport: "running",
+      type: "intervals",
+      title: "Ripetute",
+      durationMin: 40,
+      intensity: { mode: "rpe", rpe: 8 },
+      blocks: [
+        {
+          repeat: 1,
+          steps: [{ kind: "work", distanceM: 1000, target: "Passo 4:20-4:35/km" }],
+        },
+      ],
+      equipment: [],
+      location: "outdoor",
+      alternatives: [],
+      contraindications: [],
+      status: "planned",
+    };
+
+    const { messages, errors } = new Decoder(
+      Stream.fromByteArray(encodeSessionWorkoutFit(session)),
+    ).read();
+
+    expect(errors).toEqual([]);
+    const step = messages.workoutStepMesgs?.[0];
+    expect(step?.targetType).toBe("speed");
+    expect(step?.customTargetSpeedLow).toBeCloseTo(paceToSpeedMs(275), 2);
+    expect(step?.customTargetSpeedHigh).toBeCloseTo(paceToSpeedMs(260), 2);
   });
 
   it("rejects invalid workout definitions", () => {

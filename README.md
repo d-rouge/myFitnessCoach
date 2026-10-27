@@ -2,21 +2,24 @@
 
 Personal trainer AI multi-sport: raccoglie anamnesi, obiettivi, disponibilità, attrezzatura e dati da device/app, poi costruisce e adatta macrociclo, microciclo e piano giornaliero.
 
-**Stato:** Fase 1 implementata ma **non rilasciabile**. WS-0 (fondamenta) è chiuso:
-autenticazione JWT unica, config sicura, validazione Zod e upload FIT funzionante.
-Restano **1 problema bloccante**, 7 gravi e 6 medi
-([`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md)): versioning baseline, semantica
-review/check-in, export e backup.
+**Stato:** Fase 1 implementata e **Onda 1 chiusa**. WS-0 (autenticazione JWT unica,
+config sicura, validazione Zod, upload FIT) e Onda 1 (baseline/versioning, semantica
+review/check-in, export FIT/Hevy, backup/restore/wipe) sono completati e verificati a
+runtime. Restano i P1 di Onda 2 (safety F1-11, generatore F1-12), i P2 (timezone, UI
+auth/Hevy, AI coach, scheduler) e l'e2e con Mongo reale
+([`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md)).
+
 Componenti presenti:
 - **L0 Onboarding & Baseline:** Wizard 6 step (`OnboardingWizard.tsx`) con obiettivi e persistenza Mongo (`athlete_baselines`).
 - **L1–L3 Piani & Esecuzione:** Generatore deterministico macro/micro ciclo (`generateMacroPlan`, `generateMicroPlan`), safety critic per il ginocchio, board settimanale e card "Oggi".
-- **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` (non persistito), attività manuale e upload FIT con validazione firma/dimensione.
+- **Feedback & Adattamento:** Morning check-in (`MorningCheckinCard.tsx`), motore `computeDailyAdjustment` con sessione adattata persistita (durata, RPE, blocchi, note), attività manuale e upload FIT con validazione firma/dimensione.
 - **L4 Review Settimanale:** `computeWeeklyReview`, aderenza, carico, dolore, verdetto e avanzamento (`WeeklyReviewCard.tsx`).
 - **AI Coach:** provider deterministico offline-first, prompt `coach-advice-v1`, audit `ai_runs`.
-- **Export & Portabilità:** FIT dinamico (mapping da correggere), Hevy (payload hardcoded), backup/restore/wipe (non completi).
+- **Export & Portabilità:** FIT per corsa/bici/nuoto con target strutturati (forza/mobilità rifiutate), Hevy con esercizi derivati e chiave obbligatoria, backup completo con restore idempotente e wipe totale.
 
-117 test unitari verdi, typecheck e lint puliti, build verificata. **Nessun test e2e** con
-Mongo reale né verifica multi-utente.
+130 test unitari verdi, typecheck e lint puliti, build verificata. **Nessun test e2e** con
+Mongo reale né verifica multi-utente: le verifiche di Onda 1 sono state fatte a runtime
+su un database temporaneo (poi eliminato).
 
 ## Documenti
 
@@ -76,7 +79,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (117 test)
+npm test                 # unit + contract test (130 test)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict
 npm run spike:garmin     # spike Garmin Personal API

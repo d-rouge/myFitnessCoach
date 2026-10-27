@@ -4,7 +4,12 @@ import {
   createAiRunRecord,
   DeterministicCoachProvider,
 } from "@health-trainer/ai";
-import { getCurrentBaseline, getCurrentMicroPlan, getRecentCheckins } from "@health-trainer/db";
+import {
+  COLLECTIONS,
+  getCurrentBaseline,
+  getCurrentMicroPlan,
+  getRecentCheckins,
+} from "@health-trainer/db";
 import type { PlannedSession } from "@health-trainer/domain";
 import {
   BadRequestException,
@@ -98,7 +103,7 @@ export class AiService {
     });
 
     try {
-      await db.collection("ai_runs").insertOne(runRecord);
+      await db.collection(COLLECTIONS.aiRuns).insertOne(runRecord);
     } catch {
       // non-fatal if logging fails
     }

@@ -68,3 +68,30 @@ export async function getRecentCheckins(db: Db, userId: string, limit = 14): Pro
     return checkin as Checkin;
   });
 }
+
+/** Returns the check-ins whose date falls inside the reviewed week. */
+export async function getCheckinsInRange(
+  db: Db,
+  userId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Checkin[]> {
+  const collection = db.collection<StoredCheckin>(COLLECTIONS.checkins);
+  const docs = await collection
+    .find({ userId, date: { $gte: startDate, $lte: endDate } })
+    .sort({ date: 1 })
+    .toArray();
+
+  return docs.map((doc) => {
+    const {
+      _id: _,
+      userId: _u,
+      createdAt: _c,
+      updatedAt: _up,
+      ...checkin
+    } = doc as unknown as StoredCheckin & {
+      _id: unknown;
+    };
+    return checkin as Checkin;
+  });
+}

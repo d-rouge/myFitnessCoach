@@ -155,14 +155,18 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 
 > ⚠️ **La Fase 1 non è completata.** La revisione del 27 ottobre 2026
 > ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato 5 problemi bloccanti, 7 gravi e
-> 7 medi. Il loop principale resta rotto dal versioning della baseline e dai flussi
-> review/check-in/export; i test unitari sono verdi ma non esiste alcun test end-to-end
-> con MongoDB reale. Le checkbox sotto sono state riallineate: quelle non verificate
-> sono di nuovo `[ ]`.
+> 7 medi. Dopo WS-0 e Onda 1 restano aperti safety/generatore (Onda 2) e l'uso reale;
+> i test unitari sono verdi ma non esiste alcun test end-to-end con MongoDB reale.
+> Le checkbox sotto sono state riallineate: quelle non verificate sono di nuovo `[ ]`.
 >
 > **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
 > validazione Zod e body limit FIT sono chiusi (F1-01, F1-02, F1-04, F1-05, F1-14).
-> Restano **1 P0** (baseline/versioning, F1-03), i P1 e i P2 di Onda 1/2.
+>
+> **Onda 1 (27 ottobre 2026):** chiusi baseline/versioning (F1-03), review e check-in
+> (F1-06, F1-07, F1-15, F1-16), export FIT/Hevy (F1-08, F1-09) e backup/restore/wipe
+> (F1-10). Restano i P1 di Onda 2 (safety F1-11, generatore F1-12) e i P2
+> (timezone F1-13, UI auth/Hevy F1-17, AI coach F1-18, scheduler F1-19), più l'e2e
+> con Mongo reale (WS-9).
 
 **Implementato ma non verificato end-to-end.** Dettaglio e piano di fix in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
@@ -171,13 +175,13 @@ Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo schelet
 - **1.3 Piano:** Feasibility check 5k con proiezioni realistiche, generatore macrociclo e microciclo deterministico (`generateMacroPlan`, `generateMicroPlan`), safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio), Board multisport e Card "Oggi" con varianti espresse (15 min, 30 min, cyclette).
 - **1.4 Esecuzione e feedback:** Check-in mattutino rapido (`MorningCheckinCard.tsx`), motore di adattamento giornaliero real-time (`computeDailyAdjustment`), inserimento attività manuale (`/api/activities/manual`) e upload file `.FIT` con analisi e confronto automatico pianificato vs effettivo (`compareSessionWithActivity`).
 - **1.5 Integrazioni:** Client Garmin Personal con token cache e sync metriche/attività; Yazio client v22 con sync nutrizione e peso; card stato integrazioni e verifica credenziali.
-- **1.6 Export:** Export dinamico `.FIT` scaricabile per qualsiasi sessione pianificata (`/api/export/workouts/session/:id.fit`), export routine palestra verso Hevy Pro (`/api/export/workouts/hevy/export`), export backup dell'utente (`/api/export/backup`) e restore (`/api/export/restore`). _(Mapping FIT e Hevy da correggere; restore non idempotente: F1-08, F1-09, F1-10.)_
-- **1.7 Review:** Motore di review settimanale deterministico (`computeWeeklyReview`), calcolo aderenza %, carico, eventi dolore e verdetto del coach (`continue`, `progress`, `deload`) con avanzamento al microciclo successivo (`/api/review/advance-week`, `WeeklyReviewCard.tsx`). _(`adjusted` conta come completata e `progress` non applica il +10%: F1-06; review vecchie riusate: F1-15.)_
+- **1.6 Export:** Export `.FIT` per corsa/bici/nuoto (`/api/export/workouts/session/:id.fit`), export routine palestra verso Hevy Pro (`/api/export/workouts/hevy/export`), backup completo (`/api/export/backup`) e restore idempotente (`/api/export/restore`). _(F1-08, F1-09, F1-10 chiusi in WS-4/WS-5; l'export Hevy con chiave reale non è ancora stato provato.)_
+- **1.7 Review:** Motore di review settimanale deterministico (`computeWeeklyReview`), aderenza basata sulle sole sessioni `completed`, eventi dolore limitati alla settimana valutata, verdetto (`continue`, `progress`, `deload`) applicato al microciclo successivo (`/api/review/advance-week`, `WeeklyReviewCard.tsx`). _(F1-06, F1-15, F1-16 chiusi in WS-3.)_
 - **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
-- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, endpoint `/api/export/backup`, restore e cancellazione dati (`DELETE /api/export/me`). _(Restore e wipe incompleti: F1-10; autenticazione JWT e default sicuri chiusi in WS-0: F1-01, F1-02.)_
+- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0.)_
 
-**Verde (verificato il 27 ottobre 2026 dopo WS-0):** 117 test, typecheck dei workspace e
-lint Biome passano; build API e Web completata. **Non coperto:** nessun test e2e con
+**Verde (verificato il 27 ottobre 2026 dopo Onda 1):** 130 test, typecheck dei workspace
+e lint Biome passano; build completa. **Non coperto:** nessun test e2e con
 Mongo reale, nessun test multi-utente, nessun import `.FIT` su Garmin Connect, nessun
 export Hevy con chiave reale.
 
@@ -222,7 +226,7 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Inserimento attività manuale (`POST /api/activities/manual`).
 - [x] Upload `.FIT` e parsing con estrazione metriche (`POST /api/activities/upload-fit`). _(Corpo JSON fino a 15 MB, firma `.FIT` ai byte 8–11 e limite 10 MB validati in WS-0. `.TCX` non è supportato.)_
 - [x] Confronto dati device vs pianificato (`compareSessionWithActivity`).
-- [ ] Adattamento giornaliero (`computeDailyAdjustment`: conferma/riduzione/swap/riposo con aggiornamento immediato della sessione). _(La sessione adattata viene calcolata ma non persistita: F1-07.)_
+- [x] Adattamento giornaliero (`computeDailyAdjustment`: conferma/riduzione/swap/riposo con aggiornamento immediato della sessione). _(WS-3: durata, RPE, blocchi e note vengono persistiti con `replacePlannedSession`.)_
 
 #### 1.5 Integrazioni
 
@@ -235,14 +239,14 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 
 #### 1.6 Export
 
-- [ ] Export routine palestra → Hevy (mapping esercizi, creazione routine `POST /api/export/workouts/hevy/export`). _(Esercizi e pesi hardcoded, `HEVY_API_KEY` ignorata, `success: true` anche senza chiave: F1-09.)_
-- [x] Export workout corsa/bici/nuoto → `.FIT` scaricabile dinamico (`GET /api/export/workouts/session/:id.fit`) + istruzioni import Garmin. _(⚠️ forza/mobilità vengono mappati su corsa e i target testuali vanno persi: F1-08. Import su Garmin Connect non verificato.)_
-- [ ] Export backup JSON completo (`GET /api/export/backup`) e ripristino (`POST /api/export/restore`). _(Il restore duplica, ignora metà collezioni e si fida del `userId` del body: F1-10.)_
+- [x] Export routine palestra → Hevy (mapping esercizi, creazione routine `POST /api/export/workouts/hevy/export`). _(WS-4: esercizi derivati dai blocchi, chiave obbligatoria, sessione mai inventata. Export con chiave reale non ancora provato.)_
+- [x] Export workout corsa/bici/nuoto → `.FIT` scaricabile dinamico (`GET /api/export/workouts/session/:id.fit`) + istruzioni import Garmin. _(WS-4: forza/mobilità rifiutate con 400; passo, potenza, cadenza e zone HR mappati. Import su Garmin Connect non verificato.)_
+- [x] Export backup JSON completo (`GET /api/export/backup`) e ripristino (`POST /api/export/restore`). _(WS-5: backup `0.3.0` con `ai_runs`, restore idempotente e limitato all'utente autenticato.)_
 
 #### 1.7 Review
 
 - [x] Review settimanale (aderenza %, carico totale, episodi di dolore).
-- [ ] Decisioni deterministiche: continua / progredisci (+10% volume) / scarico (-30% volume) / cambia macro. _(`progress` viene deciso ma non applicato al microciclo successivo: F1-06.)_
+- [x] Decisioni deterministiche: continua / progredisci (+10% volume) / scarico (-30% volume) / cambia macro. _(WS-3: `progress` e `deload` applicati al microciclo successivo.)_
 - [x] Rigenerazione micro e avanzamento alla settimana successiva con contesto completo (`POST /api/review/advance-week`).
 - [x] Visualizzazione review nella UI (`WeeklyReviewCard.tsx`).
 
@@ -258,17 +262,17 @@ Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, d
 - [x] Credenziali isolate e protette in `secrets/`.
 - [x] Sanitizzazione log.
 - [x] Portabilità dati: Export backup JSON completo.
-- [ ] Cancellazione totale dati / GDPR wipe (`DELETE /api/export/me`). _(Non elimina `users` né `ai_runs` e usa il fallback `user_marco`: F1-10.)_
+- [x] Cancellazione totale dati / GDPR wipe (`DELETE /api/export/me`). _(WS-5: elimina anche `users` e `ai_runs`; dopo il wipe `/api/me` risponde 401.)_
 
 ### Criteri di accettazione
 
 - [ ] Uso reale per **14 giorni consecutivi**: non è stato fatto. L'architettura è predisposta, ma non esiste evidenza d'uso.
 - [ ] Almeno **80%** delle sessioni tracciate (device o check-in): non misurato su dati reali.
 - [ ] Garmin e Yazio sincronizzano senza intervento manuale: non esiste scheduler, il sync è manuale.
-- [ ] Il piano si adatta a un dato reale (sonno/HRV/dolore/tempo): il calcolo esiste, ma l'adattamento non viene persistito (F1-07).
-- [ ] Export Hevy crea una routine valida: non verificato con chiave reale; payload hardcoded (F1-09).
-- [ ] Export `.FIT` importabile in Garmin Connect: verificato solo il decode con l'SDK, non l'import su Garmin Connect (F1-08).
-- [ ] Backup esportato e ripristinato su un ambiente pulito: non verificato; il restore non è idempotente (F1-10).
+- [ ] Il piano si adatta a un dato reale (sonno/HRV/dolore/tempo): l'adattamento viene persistito (verificato con check-in sintetico), manca l'uso su 14 giorni reali.
+- [ ] Export Hevy crea una routine valida: payload derivato dalla sessione, ma non verificato con chiave reale.
+- [ ] Export `.FIT` importabile in Garmin Connect: decode e target verificati con l'SDK, import su Garmin Connect non ancora provato.
+- [x] Backup esportato e ripristinato su un ambiente pulito: verificato in WS-5 (wipe → restore → baseline v5, doppio restore idempotente).
 - [ ] Nessun piano viola i vincoli di sicurezza: `assessSafety` non è invocata prima della generazione (F1-11).
 
 ### Fuori scope (rimandato)

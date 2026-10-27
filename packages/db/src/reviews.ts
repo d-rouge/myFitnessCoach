@@ -45,6 +45,29 @@ export async function getLatestReview(db: Db, userId: string): Promise<Review | 
   return review as Review;
 }
 
+/** Returns the review that covers exactly the given week, if it exists. */
+export async function getReviewForWeek(
+  db: Db,
+  userId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Review | null> {
+  const collection = db.collection<StoredReview>(COLLECTIONS.reviews);
+  const doc = await collection.findOne({ userId, startDate, endDate });
+  if (!doc) return null;
+
+  const {
+    _id: _,
+    userId: _u,
+    createdAt: _c,
+    updatedAt: _up,
+    ...review
+  } = doc as unknown as StoredReview & {
+    _id: unknown;
+  };
+  return review as Review;
+}
+
 export async function getReviewsHistory(db: Db, userId: string, limit = 12): Promise<Review[]> {
   const collection = db.collection<StoredReview>(COLLECTIONS.reviews);
   const cursor = collection.find({ userId }).sort({ startDate: -1 }).limit(limit);

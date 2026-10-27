@@ -18,10 +18,12 @@ export {
 export {
   getBaselineHistory,
   getCurrentBaseline,
+  type NewBaseline,
   saveBaseline,
 } from "./baselines";
 export {
   getCheckin,
+  getCheckinsInRange,
   getRecentCheckins,
   type StoredCheckin,
   saveCheckin,
@@ -49,6 +51,7 @@ export {
   getCurrentMacroPlan,
   getCurrentMicroPlan,
   getMicroPlan,
+  replacePlannedSession,
   type StoredMacroPlan,
   type StoredMicroPlan,
   saveMacroPlan,
@@ -57,6 +60,7 @@ export {
 } from "./plans";
 export {
   getLatestReview,
+  getReviewForWeek,
   getReviewsHistory,
   type StoredReview,
   saveReview,

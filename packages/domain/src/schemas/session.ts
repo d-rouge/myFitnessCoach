@@ -39,6 +39,7 @@ export const PlannedSessionSchema = z.object({
   successCriteria: z.string().optional(),
   alternatives: z.array(SessionAlternativeSchema).default([]),
   contraindications: z.array(z.string()).default([]),
+  notes: z.string().max(2000).optional(),
   status: z.enum(["planned", "completed", "skipped", "adjusted"]).default("planned"),
 });
 

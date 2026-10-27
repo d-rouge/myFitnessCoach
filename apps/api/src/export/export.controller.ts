@@ -1,3 +1,4 @@
+import type { Env } from "@health-trainer/config";
 import {
   deleteUserData,
   exportUserData,
@@ -15,12 +16,14 @@ import {
   exportHevyRoutine,
 } from "@health-trainer/integrations";
 import {
+  BadGatewayException,
   BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   Header,
+  Inject,
   NotFoundException,
   Param,
   Post,
@@ -30,12 +33,16 @@ import {
 import type { Response } from "express";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
+import { APP_ENV } from "../config/env.module.js";
 import { MongoService } from "../database/mongo.service.js";
 import { type HevyExportInput, HevyExportSchema } from "./export.schemas.js";
 
 @Controller("export")
 export class ExportController {
-  constructor(private readonly mongo: MongoService) {}
+  constructor(
+    private readonly mongo: MongoService,
+    @Inject(APP_ENV) private readonly env: Env,
+  ) {}
 
   private async db() {
     return this.mongo.getDb();
@@ -94,6 +101,12 @@ export class ExportController {
       throw new NotFoundException(`Sessione ${sessionId} non trovata nel piano attivo.`);
     }
 
+    if (!["running", "cycling", "swimming"].includes(session.sport)) {
+      throw new BadRequestException(
+        `Export FIT non disponibile per lo sport "${session.sport}". Usa l'export Hevy per la palestra o scegli una sessione di corsa, bici o nuoto.`,
+      );
+    }
+
     const fitBytes = encodeSessionWorkoutFit(session);
     const safeTitle = session.title.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
 
@@ -116,34 +129,45 @@ export class ExportController {
     @CurrentUser() user: User,
     @Body(new ZodValidationPipe(HevyExportSchema)) body: HevyExportInput,
   ) {
+    // Resolve and validate the session first: a non-strength or missing session
+    // must fail with the real reason, not with a misleading "missing API key".
     const db = await this.db();
     const microPlan = await getCurrentMicroPlan(db, user.id);
-
-    let session = microPlan?.sessions.find((s) => s.id === body.sessionId);
-    if (!session && microPlan) {
-      session = microPlan.sessions.find((s) => s.type === "strength");
+    if (!microPlan) {
+      throw new NotFoundException("Nessun piano settimanale attivo trovato.");
     }
 
+    const session = body.sessionId
+      ? microPlan.sessions.find((s) => s.id === body.sessionId)
+      : microPlan.sessions.find((s) => s.type === "strength");
+
     if (!session) {
-      session = {
-        id: "strength_generic",
-        date: new Date().toISOString().slice(0, 10),
-        sport: "strength",
-        type: "strength",
-        title: "Scheda Forza e Stabilità",
-        durationMin: 45,
-        intensity: { mode: "rpe", rpe: 7 },
-        blocks: [],
-        equipment: [],
-        location: "gym",
-        alternatives: [],
-        contraindications: [],
-        status: "planned",
-      };
+      throw new NotFoundException(
+        body.sessionId
+          ? `Sessione ${body.sessionId} non trovata nel piano attivo.`
+          : "Nessuna sessione di forza trovata nel piano attivo.",
+      );
+    }
+
+    if (session.sport !== "strength") {
+      throw new BadRequestException(
+        "L'export Hevy è disponibile solo per le sessioni di forza (palestra).",
+      );
+    }
+
+    const apiKey = body.apiKey ?? this.env.HEVY_API_KEY;
+    if (!apiKey) {
+      throw new BadRequestException(
+        "Chiave API Hevy non configurata: imposta HEVY_API_KEY oppure inviala nella richiesta.",
+      );
     }
 
     const payload = buildHevyRoutine(session);
-    return exportHevyRoutine(payload, body.apiKey);
+    const result = await exportHevyRoutine(payload, apiKey);
+    if (!result.success) {
+      throw new BadGatewayException(result.message);
+    }
+    return result;
   }
 
   @Get("backup")
@@ -160,12 +184,18 @@ export class ExportController {
   }
 
   @Post("restore")
-  async restoreBackup(@Body() backup: UserDataBackup) {
-    if (!backup?.userId || !backup.data) {
+  async restoreBackup(@CurrentUser() user: User, @Body() backup: UserDataBackup) {
+    if (!backup?.data) {
       throw new BadRequestException("Payload backup non valido.");
     }
     const db = await this.db();
-    return restoreUserData(db, backup);
+    try {
+      return await restoreUserData(db, backup, user.id);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : "Ripristino backup non riuscito.",
+      );
+    }
   }
 
   @Delete("me")

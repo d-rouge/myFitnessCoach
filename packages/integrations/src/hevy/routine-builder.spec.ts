@@ -33,6 +33,25 @@ describe("Hevy Routine Builder", () => {
     expect(payload.routine.exercises[0].sets.length).toBeGreaterThan(0);
   });
 
+  it("derives exercises from the session blocks when present", () => {
+    const session: PlannedSession = {
+      ...sampleStrengthSession,
+      blocks: [
+        {
+          repeat: 3,
+          steps: [{ kind: "work", durationMin: 30, target: "Squat, panca, trazioni" }],
+        },
+      ],
+    };
+
+    const payload = buildHevyRoutine(session);
+    const ids = payload.routine.exercises.map((exercise) => exercise.exercise_template_id);
+
+    expect(ids).toContain(HEVY_EXERCISE_CATALOG.squat.id);
+    expect(ids).toContain(HEVY_EXERCISE_CATALOG.bench_press.id);
+    expect(ids).toContain(HEVY_EXERCISE_CATALOG.pull_up.id);
+  });
+
   it("builds sample full body routine for direct export", () => {
     const payload = buildSampleFullBodyHevyRoutine();
 
@@ -40,12 +59,12 @@ describe("Hevy Routine Builder", () => {
     expect(payload.routine.exercises.length).toBe(3);
   });
 
-  it("returns preview payload when no API key is provided", async () => {
+  it("does not claim success when no API key is provided", async () => {
     const payload = buildSampleFullBodyHevyRoutine();
     const result = await exportHevyRoutine(payload);
 
-    expect(result.success).toBe(true);
-    expect(result.message).toMatch(/anteprima senza chiave API/i);
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/chiave API Hevy non configurata/i);
     expect(result.payload.routine.title).toBe(payload.routine.title);
   });
 });

@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
 import type { PlanService } from "../plan/plan.service.js";
 import { CheckinService } from "./checkin.service.js";
+
+const applyAdjustment = vi.fn(async () => ({ success: true }));
 
 describe("CheckinService", () => {
   const mockPlanService = {
@@ -25,6 +27,7 @@ describe("CheckinService", () => {
       isRestDay: false,
     }),
     updateSession: async () => ({ success: true }),
+    applyAdjustment,
   } as unknown as PlanService;
 
   it("saves a valid morning check-in and calculates adaptation", async () => {
@@ -75,6 +78,11 @@ describe("CheckinService", () => {
 
     expect(result.adjustment?.decision).toBe("swap");
     expect(result.adjustment?.adjustedSession?.durationMin).toBeLessThanOrEqual(25);
+    expect(applyAdjustment).toHaveBeenCalledWith(
+      "user_marco",
+      "session_test",
+      expect.objectContaining({ status: "adjusted" }),
+    );
   });
 
   it("rejects invalid check-in data", async () => {

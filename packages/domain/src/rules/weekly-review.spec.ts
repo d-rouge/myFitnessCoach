@@ -3,7 +3,10 @@ import type { MicroPlan } from "../schemas/plan";
 import type { PlannedSession } from "../schemas/session";
 import { computeWeeklyReview } from "./weekly-review";
 
-const makeSession = (id: string, status: "planned" | "completed" | "skipped"): PlannedSession => ({
+const makeSession = (
+  id: string,
+  status: "planned" | "completed" | "skipped" | "adjusted",
+): PlannedSession => ({
   id,
   date: "2026-10-26",
   sport: "running",
@@ -76,6 +79,20 @@ describe("computeWeeklyReview", () => {
     expect(review.decision).toBe("deload");
     expect(review.painEventsCount).toBe(2);
     expect(review.decisionRationale).toMatch(/scarico/i);
+  });
+
+  it("does not count adjusted sessions as completed", () => {
+    const micro = makePlan([
+      makeSession("s1", "adjusted"),
+      makeSession("s2", "adjusted"),
+      makeSession("s3", "planned"),
+    ]);
+
+    const review = computeWeeklyReview({ userId: "u1", microPlan: micro });
+
+    expect(review.completedSessionsCount).toBe(0);
+    expect(review.adherencePct).toBe(0);
+    expect(review.decision).toBe("continue");
   });
 
   it("decides continue when adherence is lower than 60%", () => {

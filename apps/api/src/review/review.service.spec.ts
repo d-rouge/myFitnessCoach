@@ -1,56 +1,66 @@
+import type { MicroPlan } from "@health-trainer/domain";
 import type { Db } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
-import { ReviewService } from "./review.service.js";
+import { applyReviewDecision, ReviewService } from "./review.service.js";
+
+const mockMicroPlan: MicroPlan = {
+  id: "micro_1",
+  macroPlanId: "macro_1",
+  weekIndex: 1,
+  startDate: "2026-10-26",
+  endDate: "2026-11-01",
+  focus: "Test week",
+  weeklyVolumeMin: 70,
+  deload: false,
+  sessions: [
+    {
+      id: "sess_1",
+      date: "2026-10-26",
+      sport: "running",
+      type: "run",
+      title: "Corsa Facile",
+      durationMin: 30,
+      intensity: { mode: "rpe", rpe: 4 },
+      blocks: [],
+      equipment: [],
+      location: "outdoor",
+      alternatives: [],
+      contraindications: [],
+      status: "completed",
+    },
+    {
+      id: "sess_2",
+      date: "2026-10-28",
+      sport: "running",
+      type: "run",
+      title: "Corsa Media",
+      durationMin: 40,
+      intensity: { mode: "rpe", rpe: 6 },
+      blocks: [],
+      equipment: [],
+      location: "outdoor",
+      alternatives: [],
+      contraindications: [],
+      status: "completed",
+    },
+  ],
+  rationale: "Rationale",
+  flags: [],
+};
 
 describe("ReviewService", () => {
   let service: ReviewService;
   let mockMongo: MongoService;
-  let mockDb: Partial<Db>;
-
-  const mockMicroPlan = {
-    id: "micro_1",
-    userId: "user_marco",
-    macroPlanId: "macro_1",
-    weekIndex: 1,
-    weekStartDate: "2026-10-26",
-    focus: "Test week",
-    deload: false,
-    sessions: [
-      {
-        id: "sess_1",
-        dayIndex: 1,
-        type: "run",
-        title: "Corsa Facile",
-        durationMin: 30,
-        intensity: { rpe: 4 },
-        status: "completed",
-        contraindications: [],
-      },
-      {
-        id: "sess_2",
-        dayIndex: 3,
-        type: "run",
-        title: "Corsa Media",
-        durationMin: 40,
-        intensity: { rpe: 6 },
-        status: "completed",
-        contraindications: [],
-      },
-    ],
-  };
 
   beforeEach(() => {
-    mockDb = {
+    const mockDb: Partial<Db> = {
       collection: vi.fn().mockImplementation((name: string) => {
         if (name === "athlete_micro_plans") {
           return {
             find: () => ({
               sort: () => ({
-                limit: () => ({
-                  next: async () => mockMicroPlan,
-                  toArray: async () => [mockMicroPlan],
-                }),
+                limit: () => ({ next: async () => mockMicroPlan }),
               }),
             }),
             findOne: async () => mockMicroPlan,
@@ -61,24 +71,20 @@ describe("ReviewService", () => {
           return {
             find: () => ({
               sort: () => ({
-                limit: () => ({
-                  toArray: async () => [],
-                }),
+                toArray: async () => [],
               }),
             }),
           };
         }
-        if (name === "reviews") {
+        if (name === "weekly_reviews") {
           return {
             updateOne: vi.fn().mockResolvedValue({ acknowledged: true }),
             find: () => ({
               sort: () => ({
-                limit: () => ({
-                  next: async () => null,
-                  toArray: async () => [],
-                }),
+                limit: () => ({ next: async () => null, toArray: async () => [] }),
               }),
             }),
+            findOne: async () => null,
           };
         }
         return {
@@ -101,5 +107,43 @@ describe("ReviewService", () => {
     expect(review.plannedSessionsCount).toBe(2);
     expect(review.completedSessionsCount).toBe(2);
     expect(review.decision).toBe("progress");
+  });
+});
+
+describe("applyReviewDecision", () => {
+  const buildPlan = (): MicroPlan => ({
+    ...mockMicroPlan,
+    sessions: mockMicroPlan.sessions.map((session) => ({ ...session })),
+  });
+
+  it("adds 10% volume after a progress verdict", () => {
+    const plan = buildPlan();
+
+    applyReviewDecision(plan, "progress");
+
+    expect(plan.deload).toBe(false);
+    expect(plan.sessions[0]?.durationMin).toBe(33);
+    expect(plan.sessions[1]?.durationMin).toBe(44);
+    expect(plan.weeklyVolumeMin).toBe(77);
+  });
+
+  it("cuts 30% volume and lowers RPE after a deload verdict", () => {
+    const plan = buildPlan();
+
+    applyReviewDecision(plan, "deload");
+
+    expect(plan.deload).toBe(true);
+    expect(plan.sessions[0]?.durationMin).toBe(21);
+    expect(plan.sessions[0]?.intensity.rpe).toBe(2);
+    expect(plan.weeklyVolumeMin).toBe(49);
+  });
+
+  it("does not change volume after a continue verdict", () => {
+    const plan = buildPlan();
+
+    applyReviewDecision(plan, "continue");
+
+    expect(plan.sessions[0]?.durationMin).toBe(30);
+    expect(plan.weeklyVolumeMin).toBe(70);
   });
 });

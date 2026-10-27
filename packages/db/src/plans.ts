@@ -1,4 +1,4 @@
-import type { MacroPlan, MicroPlan } from "@health-trainer/domain";
+import type { MacroPlan, MicroPlan, PlannedSession } from "@health-trainer/domain";
 import type { Db } from "mongodb";
 import { COLLECTIONS } from "./collections.js";
 
@@ -138,8 +138,11 @@ export async function updatePlannedSession(
   if (patch.status) {
     updateFields["sessions.$.status"] = patch.status;
   }
-  if (patch.notes) {
+  if (patch.notes !== undefined) {
     updateFields["sessions.$.notes"] = patch.notes;
+  }
+  if (patch.chosenAlternative) {
+    updateFields["sessions.$.chosenAlternative"] = patch.chosenAlternative;
   }
 
   const result = await collection.updateOne(
@@ -147,5 +150,31 @@ export async function updatePlannedSession(
     { $set: updateFields },
   );
 
-  return result.modifiedCount > 0;
+  return result.matchedCount > 0;
+}
+
+/**
+ * Replaces every editable field of one planned session (used by automatic
+ * check-in adaptations, which must persist duration, intensity and blocks).
+ */
+export async function replacePlannedSession(
+  db: Db,
+  userId: string,
+  sessionId: string,
+  session: PlannedSession,
+): Promise<boolean> {
+  const collection = db.collection<StoredMicroPlan>(COLLECTIONS.microPlans);
+  const now = new Date().toISOString();
+
+  const result = await collection.updateOne(
+    { userId, "sessions.id": sessionId },
+    {
+      $set: {
+        "sessions.$": { ...session, id: sessionId },
+        updatedAt: now,
+      },
+    },
+  );
+
+  return result.matchedCount > 0;
 }
