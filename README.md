@@ -184,7 +184,8 @@ L'API include il modulo `auth` con:
   `email_verified`, `exp` e allowlist email (`GOOGLE_ALLOWED_EMAILS`, obbligatoria se
   `GOOGLE_CLIENT_ID` è impostata). La prima login Google verificata crea l'account; se
   esiste già un account locale con la stessa email, i due metodi condividono lo stesso
-  `userId`.
+  `userId`. Il flusso GIS attuale usa solo il client ID pubblico; `GOOGLE_CLIENT_SECRET`
+  è opzionale e resta supportato per futuri scambi server-side.
 - Dev login (`POST /api/auth/dev-login`) **opt-in** con `ENABLE_DEV_ENDPOINTS=true`
   (default `false`); quando disabilitato risponde 403.
 - `JWT_SECRET` obbligatorio e di almeno 32 caratteri fuori da `NODE_ENV=test`: senza
@@ -197,6 +198,23 @@ L'API include il modulo `auth` con:
 - La chiave API Hevy può essere inserita dalla board della sessione di forza: resta nel
   `localStorage` del browser e viene inviata solo con l'export (fallback server
   `HEVY_API_KEY`).
+
+### Configurare Google (opzionale)
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials) crea un
+   **OAuth client ID** di tipo *Web application*.
+2. Aggiungi `http://localhost:5173` tra le **Authorized JavaScript origins** (e lo stesso
+   host/porta se cambi la porta della web app).
+3. Nel `.env` di root imposta:
+   ```bash
+   GOOGLE_CLIENT_ID=<client-id>.apps.googleusercontent.com
+   GOOGLE_ALLOWED_EMAILS=tua-email@gmail.com
+   # opzionale, non usato dal flusso GIS attuale
+   GOOGLE_CLIENT_SECRET=
+   ```
+4. Riavvia `npm run dev`. Il pulsante **Continua con Google** si abilita e la prima
+   login verificata dall'allowlist crea l'account. Se l'email esiste già come account
+   locale, Google accede a quello stesso account.
 
 ## Test end-to-end
 

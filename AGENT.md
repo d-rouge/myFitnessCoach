@@ -277,7 +277,10 @@ dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accett
   `ENABLE_LOCAL_AUTH` (default `true`) abilita o disabilita i due endpoint.
 - **Google e linking.** La prima login Google verificata e in allowlist crea l'account;
   se esiste già un account locale con la stessa email, Google accede a quello stesso
-  `userId` invece di duplicarlo.
+  `userId` invece di duplicarlo. Servono `GOOGLE_CLIENT_ID` e `GOOGLE_ALLOWED_EMAILS`;
+  il client secret non è usato dal flusso GIS ID-token attuale ed è opzionale. In UI il
+  pulsante Google è sempre visibile e resta disabilitato finché mancano client ID o
+  allowlist.
 - **Auth UI.** `/api/auth/status` espone `localAuthEnabled`, `googleClientId` e
   `devLoginEnabled`; la login screen offre accesso/registrazione locale, Google Identity
   Services se configurato e dev login solo se abilitato. Il logout imposta

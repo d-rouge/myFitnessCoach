@@ -57,8 +57,13 @@ export class AuthService {
     return secret;
   }
 
+  /**
+   * The current Google flow validates a GIS ID token against the public client
+   * id, so the client secret is not required. It stays supported for future
+   * server-side OAuth exchanges.
+   */
   isGoogleAuthConfigured(): boolean {
-    return Boolean(this.env.GOOGLE_CLIENT_ID && this.env.GOOGLE_CLIENT_SECRET);
+    return Boolean(this.env.GOOGLE_CLIENT_ID);
   }
 
   /** Public OAuth client id, needed by the browser to start Google Sign-In. */

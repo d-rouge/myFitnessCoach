@@ -40,7 +40,7 @@ export interface HealthReportInput {
 export function buildHealthReport(input: HealthReportInput): HealthReport {
   const { env, mongo } = input;
 
-  const googleConfigured = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  const googleConfigured = Boolean(env.GOOGLE_CLIENT_ID);
   const llmConfigured = Boolean(env.LLM_PROVIDER && env.LLM_API_KEY);
 
   const status = mongo.ok ? "ok" : "degraded";

@@ -1179,7 +1179,11 @@ function LoginScreen() {
     onError: fail,
   });
 
-  const googleReady = Boolean(status.data?.googleConfigured && status.data.googleClientId);
+  const googleReady = Boolean(
+    status.data?.googleConfigured &&
+      status.data.googleClientId &&
+      status.data.allowedEmailsCount > 0,
+  );
   const localReady = Boolean(status.data?.localAuthEnabled);
   const localPending = localLogin.isPending || localRegister.isPending;
 
@@ -1302,25 +1306,41 @@ function LoginScreen() {
           </>
         ) : null}
 
-        {googleReady && status.data?.googleClientId ? (
-          <>
-            {localReady ? (
-              <div className="mt-5 flex items-center gap-3">
-                <span className="h-px flex-1 bg-white/10" />
-                <span className="text-[11px] uppercase tracking-widest text-slate-500">oppure</span>
-                <span className="h-px flex-1 bg-white/10" />
-              </div>
-            ) : null}
-            <div className="mt-5">
+        {localReady ? (
+          <div className="mt-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-white/10" />
+            <span className="text-[11px] uppercase tracking-widest text-slate-500">oppure</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+        ) : null}
+
+        {status.data ? (
+          <div className="mt-5">
+            {googleReady && status.data.googleClientId ? (
               <GoogleSignInButton
                 clientId={status.data.googleClientId}
                 onCredential={(idToken) => googleLogin.mutate(idToken)}
               />
-            </div>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="w-full cursor-not-allowed rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-400 opacity-70"
+              >
+                Continua con Google
+              </button>
+            )}
             {googleLogin.isPending ? (
               <p className="mt-2 text-center text-xs text-slate-400">Verifico l&apos;account…</p>
             ) : null}
-          </>
+            {!googleReady ? (
+              <p className="mt-2 text-center text-[11px] leading-4 text-slate-500">
+                {status.data.googleConfigured
+                  ? "Google è configurato ma la allowlist è vuota: aggiungi la tua email a GOOGLE_ALLOWED_EMAILS e riavvia l'API."
+                  : "Google non configurato: imposta GOOGLE_CLIENT_ID e GOOGLE_ALLOWED_EMAILS nel .env e riavvia l'API."}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {status.data?.devLoginEnabled ? (
@@ -1339,13 +1359,6 @@ function LoginScreen() {
             Nessun metodo di login configurato. Imposta <code>ENABLE_LOCAL_AUTH=true</code> per
             email e password, oppure <code>GOOGLE_CLIENT_ID</code>,{" "}
             <code>GOOGLE_CLIENT_SECRET</code> e <code>GOOGLE_ALLOWED_EMAILS</code> per Google.
-          </p>
-        ) : null}
-
-        {status.data?.googleConfigured && status.data.allowedEmailsCount === 0 ? (
-          <p className="mt-4 rounded-xl bg-amber-400/10 p-3 text-xs leading-5 text-amber-200 ring-1 ring-amber-400/30">
-            Google è configurato ma la allowlist è vuota: nessun account potrà accedere finché non
-            imposti <code>GOOGLE_ALLOWED_EMAILS</code>.
           </p>
         ) : null}
 

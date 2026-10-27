@@ -139,7 +139,7 @@ da Google, mantenendo Google come metodo alternativo:
 | Login | `POST /api/auth/login` (200) con verifica scrypt e timing-safe; 401 generico `Email o password non validi.` |
 | Storage | Hash `scrypt$<salt>$<key>` in `auth_credentials` (indici unique su `userId` ed `email`); nessun materiale password nel documento pubblico `users` |
 | Google | La prima login verificata e in allowlist crea l'account; con email già presente collega lo stesso `userId` invece di duplicarlo |
-| UI | Login screen con tab Accedi / Crea account, gestione errori API in italiano, Google e dev login invariati |
+| UI | Login screen con tab Accedi / Crea account, gestione errori API in italiano, pulsante Google sempre visibile (disabilitato con istruzioni finché `GOOGLE_CLIENT_ID`/`GOOGLE_ALLOWED_EMAILS` mancano) e dev login invariato |
 | Integrazioni | Garmin/Yazio sync, analyze e overview usano l'`userId` del token; rimosso `PERSONAL_USER_ID` hardcoded |
 | Wipe | `DELETE /api/export/me` elimina anche `auth_credentials` |
 
