@@ -1080,7 +1080,7 @@ export function OnboardingWizard({
                         <input
                           type="text"
                           inputMode="numeric"
-                          placeholder="es. 25:30"
+                          placeholder={locale === "it" ? "es. 25:30" : "e.g. 25:30"}
                           value={
                             baseline.profile.capacity.recent5kSec
                               ? format5k(baseline.profile.capacity.recent5kSec)

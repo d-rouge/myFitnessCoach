@@ -371,27 +371,30 @@ function Card({
 }
 
 function FeasibilityResult({ result }: { result: FiveKFeasibility }) {
+  const { t } = useI18n();
   const warningLabels: Record<string, string> = {
-    no_5k_reference:
-      "Serve una corsa di almeno 3 km negli ultimi 56 giorni, oppure un tempo 5K inserito a mano.",
-    no_running_volume: "Nessuna corsa con distanza nelle ultime 4 settimane.",
-    no_target_date: "Aggiungi una data obiettivo alla baseline.",
-    target_date_passed: "La data obiettivo è già passata: aggiornala.",
-    plan_not_started: "Il piano non è ancora iniziato.",
-    insufficient_completed_sessions: "Servono più sedute completate.",
-    long_horizon: "Orizzonte oltre 26 settimane: stima puramente indicativa.",
+    no_5k_reference: t.baseline.feasibilityWarnings.missing_recent_effort,
+    no_running_volume: t.baseline.feasibilityWarnings.insufficient_recent_volume,
+    target_date_passed: t.baseline.feasibilityWarnings.target_date_passed,
+    no_target_date: t.baseline.noTargetDate,
+    long_horizon: t.baseline.longHorizon,
+    plan_not_started: t.baseline.planNotStarted,
+    insufficient_completed_sessions: t.baseline.insufficientData,
   };
   const warnings = result.warnings;
+  const formatTime = (seconds: number) =>
+    `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
   if (!result.available || !result.projection) {
     return (
       <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-xs">
-        <p className="font-bold text-amber-200">Proiezione 5K non disponibile</p>
+        <p className="font-bold text-amber-200">{t.baseline.feasibilityUnavailable}</p>
         <p className="mt-1 text-slate-300">
           {warnings.includes("plan_not_started")
-            ? "Il piano non è ancora iniziato. Registra la prima seduta completata: da lì parte il conteggio per la stima."
+            ? t.baseline.planNotStarted
             : warnings.includes("insufficient_completed_sessions")
-              ? `Servono almeno ${result.sessionsRequired} sedute completate dall'inizio del piano. Finora: ${result.sessionsCompleted}.`
-              : "Non ci sono abbastanza dati per stimare la fattibilità: la stima non usa numeri inventati."}
+              ? t.baseline.waitingForSessions(result.sessionsRequired, result.sessionsCompleted)
+              : t.baseline.insufficientData}
         </p>
         {warnings.length > 0 ? (
           <ul className="mt-2 list-disc space-y-1 pl-4 text-slate-300">
@@ -405,33 +408,30 @@ function FeasibilityResult({ result }: { result: FiveKFeasibility }) {
   }
 
   const { projection } = result;
-  const formatTime = (seconds: number) =>
-    `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
-
   return (
     <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-bold text-white">Proiezione 5K</span>
+        <span className="font-bold text-white">{t.baseline.feasibilityTitle}</span>
         <span className="rounded-full bg-white/5 px-2.5 py-0.5 font-bold uppercase text-slate-300">
-          Confidenza: {projection.confidence}
+          {t.baseline.confidence}: {t.baseline.confidenceLabel[projection.confidence]}
         </span>
       </div>
       <p className="mt-2 text-slate-300">{projection.rationale}</p>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl bg-white/5 p-2.5">
-          <p className="text-[10px] uppercase text-slate-400">Ottimistico</p>
+          <p className="text-[10px] uppercase text-slate-400">{t.baseline.optimistic}</p>
           <p className="font-mono text-base font-bold text-emerald-400">
             {formatTime(projection.bestSec)}
           </p>
         </div>
         <div className="rounded-xl bg-lime-400/10 p-2.5">
-          <p className="text-[10px] uppercase text-lime-300">Proiettato</p>
+          <p className="text-[10px] uppercase text-lime-300">{t.baseline.projected}</p>
           <p className="font-mono text-base font-bold text-lime-300">
             {formatTime(projection.projectedSec)}
           </p>
         </div>
         <div className="rounded-xl bg-white/5 p-2.5">
-          <p className="text-[10px] uppercase text-slate-400">Prudente</p>
+          <p className="text-[10px] uppercase text-slate-400">{t.baseline.conservative}</p>
           <p className="font-mono text-base font-bold text-slate-300">
             {formatTime(projection.worstSec)}
           </p>
@@ -442,6 +442,7 @@ function FeasibilityResult({ result }: { result: FiveKFeasibility }) {
 }
 
 function MethodologyResult({ evaluation }: { evaluation: MethodologyEvaluation }) {
+  const { t } = useI18n();
   const { decision, envelope } = evaluation;
   const structure = decision.weeklyStructure;
 
@@ -450,12 +451,12 @@ function MethodologyResult({ evaluation }: { evaluation: MethodologyEvaluation }
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-wider text-slate-400">
-            Metodologia proposta dal modello
+            {t.baseline.methodologyTitle}
           </p>
           <p className="text-sm font-bold text-white">{decision.methodology}</p>
         </div>
         <span className="rounded-full bg-sky-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-sky-200">
-          Confidenza: {decision.confidence}
+          {t.baseline.confidence}: {t.baseline.confidenceLabel[decision.confidence]}
         </span>
       </div>
 
@@ -463,23 +464,23 @@ function MethodologyResult({ evaluation }: { evaluation: MethodologyEvaluation }
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="rounded-xl bg-white/5 p-2.5">
-          <p className="text-[10px] uppercase text-slate-400">Sedute</p>
+          <p className="text-[10px] uppercase text-slate-400">{t.baseline.sessionsCount}</p>
           <p className="mt-1 font-mono text-base font-bold text-white">{structure.sessions}</p>
         </div>
         <div className="rounded-xl bg-white/5 p-2.5">
-          <p className="text-[10px] uppercase text-slate-400">Qualità</p>
+          <p className="text-[10px] uppercase text-slate-400">{t.baseline.qualitySessions}</p>
           <p className="mt-1 font-mono text-base font-bold text-white">
             {structure.qualitySessions}
           </p>
         </div>
         <div className="rounded-xl bg-white/5 p-2.5">
-          <p className="text-[10px] uppercase text-slate-400">Lungo</p>
+          <p className="text-[10px] uppercase text-slate-400">{t.baseline.longRunMin}</p>
           <p className="mt-1 font-mono text-base font-bold text-white">
             {structure.longSessionMin}′
           </p>
         </div>
         <div className="rounded-xl bg-white/5 p-2.5">
-          <p className="text-[10px] uppercase text-slate-400">Forza</p>
+          <p className="text-[10px] uppercase text-slate-400">{t.baseline.strengthSessions}</p>
           <p className="mt-1 font-mono text-base font-bold text-white">
             {structure.strengthSessions}
           </p>
@@ -488,35 +489,36 @@ function MethodologyResult({ evaluation }: { evaluation: MethodologyEvaluation }
 
       <dl className="mt-3 space-y-1.5 rounded-xl bg-white/[0.03] p-3 text-[11px] text-slate-300">
         <div>
-          <dt className="text-slate-400">Periodizzazione</dt>
+          <dt className="text-slate-400">{t.baseline.periodization}</dt>
           <dd>
             {decision.periodization
-              ? `${decision.periodization.model}: ${decision.periodization.loadWeeks} carico / ${decision.periodization.deloadWeeks} scarico · taper ${decision.periodization.taperWeeks} sett.`
-              : "non specificata"}
+              ? `${decision.periodization.model}: ${decision.periodization.loadWeeks} / ${decision.periodization.deloadWeeks} · taper ${decision.periodization.taperWeeks}`
+              : t.baseline.notSpecified}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-400">Fasi</dt>
+          <dt className="text-slate-400">{t.baseline.phases}</dt>
           <dd>
             {decision.phases
               ? decision.phases
                   .map((phase) => `${phase.name} (${phase.startWeek}-${phase.endWeek})`)
                   .join(" · ")
-              : "non specificate"}
+              : t.baseline.notSpecified}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-400">Evidenza dai dati</dt>
+          <dt className="text-slate-400">{t.baseline.evidence}</dt>
           <dd>{decision.evidence.join(" · ")}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Alternative scartate</dt>
+          <dt className="text-slate-400">{t.baseline.rejectedAlternatives}</dt>
           <dd>{decision.alternatives.map((item) => `${item.name}: ${item.whyNot}`).join(" · ")}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Limiti verificati</dt>
+          <dt className="text-slate-400">{t.baseline.verifiedLimits}</dt>
           <dd>
-            {envelope.reasons.join(" · ")} · orizzonte {envelope.horizonWeeks ?? "n/d"} settimane
+            {envelope.reasons.join(" · ")} · {t.baseline.horizon}{" "}
+            {envelope.horizonWeeks ? t.baseline.horizonWeeks(envelope.horizonWeeks) : "n/d"}
           </dd>
         </div>
       </dl>

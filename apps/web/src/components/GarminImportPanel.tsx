@@ -54,7 +54,7 @@ function formatDuration(seconds: number): string {
  * invalidato subito, così il numero non resta vecchio se il sync è parziale.
  */
 export function GarminImportPanel() {
-  const { locale } = useI18n();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const summary = useQuery({
     queryKey: ["garmin-activities-summary"],
@@ -76,13 +76,9 @@ export function GarminImportPanel() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-sky-300">
-            {locale === "it" ? "Import dati Garmin" : "Garmin data import"}
+            {t.integrations.importTitle}
           </p>
-          <p className="mt-1 text-[11px] text-slate-400">
-            {locale === "it"
-              ? "Sincronizza gli ultimi 90 giorni: il totale ore e la capacità vengono ricalcolati dalle attività reali."
-              : "Sync the last 90 days: total hours and capacity are recomputed from real activities."}
-          </p>
+          <p className="mt-1 text-[11px] text-slate-400">{t.integrations.importHint}</p>
         </div>
         <button
           type="button"
@@ -90,30 +86,26 @@ export function GarminImportPanel() {
           disabled={sync.isPending}
           className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60"
         >
-          {sync.isPending
-            ? locale === "it"
-              ? "Sincronizzazione…"
-              : "Syncing…"
-            : locale === "it"
-              ? "Sincronizza Garmin · 90 giorni"
-              : "Sync Garmin · 90 days"}
+          {sync.isPending ? t.integrations.syncing : t.integrations.syncGarmin}
         </button>
       </div>
 
       {summary.isLoading ? (
-        <p className="mt-2 text-[11px] text-slate-400">
-          {locale === "it" ? "Caricamento attività…" : "Loading activities…"}
-        </p>
+        <p className="mt-2 text-[11px] text-slate-400">{t.common.loading}</p>
       ) : null}
       {summary.isError ? (
-        <p className="mt-2 text-[11px] text-rose-300">{summary.error.message}</p>
+        <p className="mt-2 text-[11px] text-rose-300">
+          {t.integrations.error}: {summary.error.message}
+        </p>
       ) : null}
-      {sync.isError ? <p className="mt-2 text-[11px] text-rose-300">{sync.error.message}</p> : null}
+      {sync.isError ? (
+        <p className="mt-2 text-[11px] text-rose-300">
+          {t.integrations.error}: {sync.error.message}
+        </p>
+      ) : null}
       {sync.data ? (
         <p className="mt-2 text-[11px] text-emerald-300">
-          {locale === "it"
-            ? `${sync.data.activities} attività sincronizzate.`
-            : `${sync.data.activities} activities synced.`}
+          {t.integrations.syncedActivities(sync.data.activities)}
         </p>
       ) : null}
 
@@ -121,13 +113,13 @@ export function GarminImportPanel() {
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="rounded-xl bg-white/5 p-2.5">
             <p className="text-[10px] uppercase tracking-wider text-slate-400">
-              {locale === "it" ? "Attività (90 giorni)" : "Activities (90 days)"}
+              {t.integrations.activities90d}
             </p>
             <p className="mt-1 text-lg font-bold text-white">{data.totalActivities}</p>
           </div>
           <div className="rounded-xl bg-white/5 p-2.5">
             <p className="text-[10px] uppercase tracking-wider text-slate-400">
-              {locale === "it" ? "Totale ore" : "Total hours"}
+              {t.integrations.totalHours}
             </p>
             <p className="mt-1 text-lg font-bold text-white">
               {formatDuration(data.durationSeconds)}
@@ -136,7 +128,7 @@ export function GarminImportPanel() {
           {data.bySport.length > 0 ? (
             <div className="sm:col-span-2 rounded-xl bg-white/5 p-2.5">
               <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                {locale === "it" ? "Per sport" : "By sport"}
+                {t.integrations.bySport}
               </p>
               <p className="mt-1 text-[11px] text-slate-300">
                 {data.bySport

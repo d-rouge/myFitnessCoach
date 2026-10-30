@@ -252,6 +252,9 @@ export const it: TranslationDictionary = {
     referenceRun: "Corsa di riferimento",
     runningVolume: "Volume corsa",
     horizon: "Orizzonte",
+    horizonWeeks: (weeks) => `${weeks} settimane`,
+    noTargetDate: "Nessuna data obiettivo: aggiungila alla baseline.",
+    longHorizon: "Orizzonte oltre 26 settimane: la stima è puramente indicativa.",
     methodologyTitle: "Metodologia proposta dal modello",
     reevaluateMethodology: "Rivaluta Metodologia",
     reevaluating: "Analisi in corso…",
@@ -260,6 +263,9 @@ export const it: TranslationDictionary = {
     longRunMin: "Lungo",
     strengthSessions: "Forza",
     periodization: "Periodizzazione",
+    phases: "Fasi",
+    notSpecified: "non specificata",
+    confidence: "Confidenza",
     evidence: "Evidenza dai dati",
     rejectedAlternatives: "Alternative scartate",
     risks: "Riski",
@@ -443,6 +449,13 @@ export const it: TranslationDictionary = {
   integrations: {
     garminTitle: "Garmin Connect",
     yazioTitle: "Yazio Nutrizione",
+    importTitle: "Import dati Garmin",
+    importHint:
+      "Sincronizza gli ultimi 90 giorni: il totale ore e la capacità vengono ricalcolati dalle attività reali.",
+    activities90d: "Attività (90 giorni)",
+    totalHours: "Totale ore",
+    bySport: "Per sport",
+    syncedActivities: (count) => `${count} attività sincronizzate.`,
     garminSubtitle:
       "Sincronizzazione diretta di allenamenti, frequenza cardiaca, sonno, HRV e body battery.",
     yazioSubtitle: "Macronutrienti, apporto calorico, idratazione e registrazioni del peso.",

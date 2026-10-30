@@ -251,6 +251,9 @@ export type TranslationDictionary = {
     referenceRun: string;
     runningVolume: string;
     horizon: string;
+    horizonWeeks: (weeks: number) => string;
+    noTargetDate: string;
+    longHorizon: string;
     methodologyTitle: string;
     reevaluateMethodology: string;
     reevaluating: string;
@@ -259,6 +262,9 @@ export type TranslationDictionary = {
     longRunMin: string;
     strengthSessions: string;
     periodization: string;
+    phases: string;
+    notSpecified: string;
+    confidence: string;
     evidence: string;
     rejectedAlternatives: string;
     risks: string;
@@ -421,6 +427,12 @@ export type TranslationDictionary = {
   integrations: {
     garminTitle: string;
     yazioTitle: string;
+    importTitle: string;
+    importHint: string;
+    activities90d: string;
+    totalHours: string;
+    bySport: string;
+    syncedActivities: (count: number) => string;
     garminSubtitle: string;
     yazioSubtitle: string;
     syncGarmin: string;
