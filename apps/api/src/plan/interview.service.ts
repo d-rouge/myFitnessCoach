@@ -119,20 +119,33 @@ export class InterviewService {
     };
 
     try {
-      const response = await this.provider.generate({
-        task: "chat",
-        system: [
-          INTERVIEW_SYSTEM_PROMPT,
-          INTERVIEW_USER_INSTRUCTION,
-          `Esempio di risposta JSON: ${INTERVIEW_RESPONSE_EXAMPLE}`,
-        ].join("\n\n"),
-        user: JSON.stringify(payload),
-        schema: InterviewTurnSchema,
-        model: this.settings.model,
-        temperature: 0.5,
-        maxTokens: 1600,
-      });
-      return response.data;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const response = await this.provider.generate({
+            task: "chat",
+            system: [
+              INTERVIEW_SYSTEM_PROMPT,
+              INTERVIEW_USER_INSTRUCTION,
+              `Esempio di risposta JSON: ${INTERVIEW_RESPONSE_EXAMPLE}`,
+            ].join("\n\n"),
+            user: JSON.stringify(payload),
+            schema: InterviewTurnSchema,
+            model: this.settings.model,
+            temperature: 0.5,
+            maxTokens: 1600,
+          });
+          return response.data;
+        } catch (error) {
+          // Findings con forma inattesa o JSON troncato sono transitori: un
+          // secondo tentativo evita di interrompere l'intervista.
+          if (error instanceof LlmProviderError && error.retryable && attempt === 1) {
+            this.logger.warn(`Intervista: risposta non valida, nuovo tentativo (${error.message})`);
+            continue;
+          }
+          throw error;
+        }
+      }
+      throw new ServiceUnavailableException("Intervista LLM non disponibile.");
     } catch (error) {
       if (error instanceof LlmProviderError) {
         throw new ServiceUnavailableException(`Intervista LLM non disponibile: ${error.message}`);

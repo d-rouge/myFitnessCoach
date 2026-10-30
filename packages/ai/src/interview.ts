@@ -17,7 +17,7 @@ export const INTERVIEW_USER_INSTRUCTION = `Ecco contesto, findings già raccolti
 Rispondi con un unico oggetto JSON valido, senza testo fuori dal JSON.
 Chiavi richieste:
 - reply (messaggio da mostrare all'atleta),
-- findings (oggetto con i dati nuovi o aggiornati emersi dalla risposta; se concordate una data, usa 'targetDate' in formato YYYY-MM-DD),
+- findings (oggetto con i dati nuovi o aggiornati emersi dalla risposta; se concordate una data, usa 'targetDate' in formato YYYY-MM-DD). Usa valori semplici: stringa, numero, booleano o null; evita oggetti annidati se non indispensabili.
 - questions (array di {id, text, kind: "text"|"single_choice"|"boolean", options?}, massimo 2),
 - readyToPlan (boolean).
 Se è il primo turno, presentati in una frase, riassumi in modo utile ciò che hai visto nei dati e fai la prima domanda.

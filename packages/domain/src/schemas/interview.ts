@@ -7,12 +7,25 @@ export const InterviewQuestionSchema = z.object({
   options: z.array(z.string().min(1).max(120)).max(8).optional(),
 });
 
-export const InterviewFindingValueSchema = z.union([
-  z.string().max(500),
-  z.number(),
-  z.boolean(),
-  z.array(z.string().max(200)).max(10),
-]);
+/** Valore JSON accettato nei findings: il modello può annidare oggetti/array. */
+export type InterviewFindingValue =
+  | string
+  | number
+  | boolean
+  | null
+  | InterviewFindingValue[]
+  | { [key: string]: InterviewFindingValue };
+
+export const InterviewFindingValueSchema: z.ZodType<InterviewFindingValue> = z.lazy(() =>
+  z.union([
+    z.string().max(500),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(InterviewFindingValueSchema).max(10),
+    z.record(z.string().min(1).max(60), InterviewFindingValueSchema),
+  ]),
+);
 
 export const InterviewFindingsSchema = z.record(
   z.string().min(1).max(60),
