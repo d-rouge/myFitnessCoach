@@ -1,24 +1,24 @@
-# Integrazioni — specifiche operative
+# Integrations — operational specifications
 
-**Versione:** 1.7  
-**Data:** 26 ottobre 2026  
-**Riferimenti:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
+**Version:** 1.7  
+**Date:** 26 October 2026  
+**References:** [`PIANO.md`](PIANO.md) · [`FASI.md`](FASI.md) · [`../AGENT.md`](../AGENT.md)
 
-> Le API non ufficiali (Yazio, Zepp) possono cambiare o violare i ToS. In questo progetto sono usate in **modalità personale**, isolate dietro un adapter e con fallback manuale. Non diventano dipendenze critiche.
+> Unofficial APIs (Yazio, Zepp) may change or violate the ToS. In this project they are used in **personal mode**, isolated behind an adapter and with manual fallback. They do not become critical dependencies.
 
-## 0. Stato implementazione (26 ottobre 2026)
+## 0. Implementation status (26 October 2026)
 
-| Provider | Stato | Dove |
+| Provider | Status | Where |
 |---|---|---|
-| Garmin Personal | **client + mapper + sync persistente + UI + FIT analysis/brief**: 3 attività e 7 giorni di metriche in Mongo; FIT reale parsato (17.492 record, 44 lap, 42 split); test con 6 attività, sonno, HRV, passi, stress, Body Battery, RHR, SpO₂, `.FIT` 529 KB; peso 0 record | `packages/integrations/src/garmin/`, `packages/integrations/src/fit/`, `apps/api/src/integrations/garmin-sync.service.ts`, `docs/FIT.md` |
-| Garmin `.FIT` export | non iniziato | — |
-| Yazio | **client v22 + mapper + sync persistente + UI**; **test reale OK**: 7 giorni di macro e peso, 0 errori, sync idempotente | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
-| Zepp | non iniziato | — |
-| Hevy | non iniziato | — |
-| Health Connect | non iniziato (fase 3) | — |
-| Google Drive backup | non iniziato | — |
+| Garmin Personal | **client + mapper + persistent sync + UI + FIT analysis/brief**: 3 activities and 7 days of metrics in Mongo; real FIT parsed (17,492 records, 44 laps, 42 splits); test with 6 activities, sleep, HRV, steps, stress, Body Battery, RHR, SpO₂, `.FIT` 529 KB; weight 0 records | `packages/integrations/src/garmin/`, `packages/integrations/src/fit/`, `apps/api/src/integrations/garmin-sync.service.ts`, `docs/FIT.md` |
+| Garmin `.FIT` export | not started | — |
+| Yazio | **client v22 + mapper + persistent sync + UI**; **real test OK**: 7 days of macros and weight, 0 errors, idempotent sync | `packages/integrations/src/yazio/`, `apps/api/src/integrations/yazio-sync.service.ts`, `docs/spikes/yazio.md` |
+| Zepp | not started | — |
+| Hevy | not started | — |
+| Health Connect | not started (phase 3) | — |
+| Google Drive backup | not started | — |
 
-Comandi utili:
+Useful commands:
 
 ```bash
 npm run spike:garmin              # stampa un report redatto
@@ -28,7 +28,7 @@ npm run test -w @health-trainer/integrations
 
 ---
 
-## 1. Contratto comune degli adapter
+## 1. Common adapter contract
 
 ```ts
 export interface ProviderAdapter<TConfig, TRaw, TCanonical> {
@@ -50,86 +50,87 @@ export interface ProviderAdapter<TConfig, TRaw, TCanonical> {
 }
 ```
 
-Regole:
+Rules:
 
-- **Idempotenza:** ogni item ha `(source, externalId)`.
+- **Idempotency:** each item has `(source, externalId)`.
 - **Provenance:** `source`, `fetchedAt`, `confidence`.
-- **Nessun adapter scrive direttamente nel DB:** restituisce dati canonici; il service li persiste.
-- **Nessun adapter logga token o payload sanitari.**
-- **Errori tipizzati:** `AuthExpired`, `RateLimited`, `ProviderUnavailable`, `InvalidResponse`, `TermsBlocked`.
-- **Fixture:** ogni adapter ha risposte registrate per i test di contratto.
+- **No adapter writes directly to the DB:** it returns canonical data; the service persists it.
+- **No adapter logs tokens or health payloads.**
+- **Typed errors:** `AuthExpired`, `RateLimited`, `ProviderUnavailable`, `InvalidResponse`, `TermsBlocked`.
+- **Fixtures:** each adapter has recorded responses for contract tests.
 
 ---
 
 ## 2. Garmin Personal API
 
-### 2.1 Cosa è
+### 2.1 What it is
 
-API **personale, read-only, pull**, pensata per applicazioni personali. Non è per applicazioni commerciali multi-utente.
+A **personal, read-only, pull** API intended for personal applications. It is not for multi-user commercial applications.
 
-### 2.2 Autenticazione
+### 2.2 Authentication
 
-1. Creare la chiave su `https://connect.garmin.com/app/settings/personalApiToken`.
-2. Scegliere scadenza: 30 / 90 / 180 / 365 giorni.
-3. La chiave è mostrata **una sola volta**.
-4. Scambiarla con un token:
+1. Create the key at `https://connect.garmin.com/app/settings/personalApiToken`.
+2. Choose expiration: 30 / 90 / 180 / 365 days.
+3. The key is shown **only once**.
+4. Exchange it for a token:
 
 ```http
 POST https://personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token
 Authorization: ApiKey <PERSONAL_API_KEY>
 ```
 
-Risposta: JWT `access_token` con `exp` (24 ore). **Nessun refresh token**: si ripete lo scambio con la chiave.
+Response: JWT `access_token` with `exp` (24 hours). **No refresh token**: repeat the exchange with the key.
 
-### 2.3 Endpoint utili
+### 2.3 Useful endpoints
 
-| Dato | Endpoint |
+| Data | Endpoint |
 |---|---|
-| Attività (lista) | `GET /activitylist-service/activities/search/activities?start=0&limit=20&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` |
-| Dettaglio attività | `GET /activity-service/activity/{activityId}` |
+| Activities (list) | `GET /activitylist-service/activities/search/activities?start=0&limit=20&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` |
+| Activity detail | `GET /activity-service/activity/{activityId}` |
 | Download `.FIT` | `GET /download-service/files/activity/{activityId}` (ZIP) |
-| Sonno | `GET /sleep-service/sleep/dailySleep?date=YYYY-MM-DD` |
-| Sonno (range) | `GET /sleep-service/sleep/dailySleepSummariesByDate?startDate=…&endDate=…` |
+| Sleep | `GET /sleep-service/sleep/dailySleep?date=YYYY-MM-DD` |
+| Sleep (range) | `GET /sleep-service/sleep/dailySleepSummariesByDate?startDate=…&endDate=…` |
 | HRV | `GET /hrv-service/hrv/{date}` |
 | HRV (range) | `GET /hrv-service/hrv/daily/{start}/{end}` |
 | RHR / summary | `GET /usersummary-service/v2/dailysummaries?startDate=…&endDate=…` |
-| Passi | `GET /usersummary-service/stats/steps/daily/{start}/{end}` |
+| Steps | `GET /usersummary-service/stats/steps/daily/{start}/{end}` |
 | Stress | `GET /usersummary-service/stats/stress/daily/{start}/{end}` |
 | Body Battery | `GET /wellness-service/wellness/bodyBattery/reports/daily?startDate=…&endDate=…` |
-| Peso/misure | `GET /weight-service/weight/range/{start}/{end}?includeAll=true` |
+| Weight/measurements | `GET /weight-service/weight/range/{start}/{end}?includeAll=true` |
 | Food log | `GET /nutrition-service/food/logs/{date}` |
-| Profilo | `GET /userprofile-service/userprofile/settings` |
+| Profile | `GET /userprofile-service/userprofile/settings` |
 
-> I path sono quelli usati dal client ufficiale `garmin/connect-personal-api-python`. Verificare sempre nella Swagger docs e con risposte reali.
+> The paths are those used by the official client `garmin/connect-personal-api-python`. Always verify in the Swagger docs and with real responses.
 
-### 2.4 Implementazione attuale
+### 2.4 Current implementation
 
-- `packages/integrations/src/garmin/personal-client.ts`: token exchange, cache con scadenza, retry singolo su 401, errori tipizzati (`AuthExpiredError`, `RateLimitedError`), timeout.
-- In sviluppo l'API legge la chiave da `GARMIN_PERSONAL_API_KEY` oppure da `secrets/garmin-key.txt` (ignorato da git). In produzione solo env/secret manager.
+- `packages/integrations/src/garmin/personal-client.ts`: token exchange, cache with expiration, single retry on 401, typed errors (`AuthExpiredError`, `RateLimitedError`), timeout.
+- In development, the API reads the key from `GARMIN_PERSONAL_API_KEY` or from `secrets/garmin-key.txt` (ignored by git). In production, only env/secret manager.
 - Wrapper: `getProfileSettings`, `searchActivities`, `getActivity`, `downloadActivity`, `getDailySleep`, `getHrv`, `getDailySummaries`, `getWeightMeasurements`, `getSteps`, `getStress`, `healthCheck`.
-- Test: `personal-client.spec.ts` con fetch mockato (token raw/JSON, cache, 401, 429, download, health check).
-- Spike: `scripts/spike-garmin.ts`, output redatto; non salva token né valori clinici.
+- Test: `personal-client.spec.ts` with mocked fetch (raw/JSON token, cache, 401, 429, download, health check).
+- Spike: `scripts/spike-garmin.ts`, redacted output; it does not save tokens or clinical values.
 
-**Verificato con chiave reale (26 ottobre 2026):**
+**Verified with a real key (26 October 2026):**
+File: docs/INTEGRAZIONI.md (part 2)
 
-- Il token endpoint restituisce **406** se si invia `Accept: application/json`; senza `Accept` restituisce **200** con un **JWT in testo**, non JSON. Il client gestisce entrambi.
-- Il download attività restituisce **406** con `Accept: application/octet-stream`; senza `Accept` restituisce uno ZIP valido (529 KB nel test).
-- 6 attività in 14 giorni; sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR presenti; peso 0 record (nessuna bilancia Garmin); idratazione/fitness age raggiungibili ma senza dati.
-- Nessun rate limit osservato in un singolo run.
-- **Sync persistente verificato:** 3 attività e 7 giorni di metriche in `activities` / `metrics_daily`; secondo sync idempotente (stessi conteggi).
+- The token endpoint returns **406** if `Accept: application/json` is sent; without `Accept` it returns **200** with a **plain-text JWT**, not JSON. The client handles both.
+- The activity download returns **406** with `Accept: application/octet-stream`; without `Accept` it returns a valid ZIP (529 KB in the test).
+- 6 activities in 14 days; sleep, HRV, steps, stress, daily summary, Body Battery, RHR, SpO₂, HR zones present; weight 0 records (no Garmin scale); hydration/fitness age reachable but without data.
+- No rate limit observed in a single run.
+- **Persistent sync verified:** 3 activities and 7 days of metrics in `activities` / `metrics_daily`; second sync idempotent (same counts).
 
-**Non ancora verificato:** rate limit su 24–48h di polling, comportamento con attività manuali/indoor, salvataggio del `.FIT` originale.
+**Not yet verified:** rate limit over 24–48h of polling, behavior with manual/indoor activities, saving of the original `.FIT`.
 
-### 2.5 Persistenza e sync
+### 2.5 Persistence and sync
 
-Collezioni:
+Collections:
 
-| Collezione | Contenuto | Chiave |
+| Collection | Content | Key |
 |---|---|---|
-| `activities` | attività canoniche | `(userId, source, externalId)` unico |
-| `metrics_daily` | metriche giornaliere canoniche | `(userId, date, source)` unico |
-| `sync_runs` | audit di ogni sync | `runId`, stato, stats, errori |
-| `sync_state` | ultimo sync per provider | `(userId, provider)` unico |
+| `activities` | canonical activities | `(userId, source, externalId)` unique |
+| `metrics_daily` | canonical daily metrics | `(userId, date, source)` unique |
+| `sync_runs` | audit of every sync | `runId`, status, stats, errors |
+| `sync_state` | last sync per provider | `(userId, provider)` unique |
 
 Endpoint:
 
@@ -138,57 +139,57 @@ POST /api/integrations/garmin/sync?days=7
 GET  /api/integrations/garmin/overview?days=7
 ```
 
-Flusso:
+Flow:
 
 1. `searchActivities` + `getDailySummaries` + `getBodyBattery` + `getWeightMeasurements`.
-2. Per ogni giorno: `getDailySleep`, `getHrv`, `getDailyHeartRate`, `getSpo2` (concorrenza 3, errori per giorno non bloccanti).
+2. For each day: `getDailySleep`, `getHrv`, `getDailyHeartRate`, `getSpo2` (concurrency 3, non-blocking per-day errors).
 3. `mapGarminActivities` / `buildGarminDailyMetrics`.
-4. Upsert idempotente in Mongo.
-5. `sync_runs` + `sync_state`; l'overview legge da Mongo e non chiama Garmin.
+4. Idempotent upsert in Mongo.
+5. `sync_runs` + `sync_state`; the overview reads from Mongo and does not call Garmin.
 
-UI: pulsante “Sincronizza ora”, ultimo sync, 3 attività recenti, tabella metriche a 7 giorni.
+UI: “Sync now” button, last sync, 3 recent activities, 7-day metrics table.
 
-### 2.6 Sync scheduling (da fare)
+### 2.6 Sync scheduling (to do)
 
-- **Attività:** ogni 30–60 minuti (o all'apertura dell'app).
-- **Salute:** 1–2 volte al giorno (sonno/HRV/RHR al mattino).
-- **Peso:** 1 volta al giorno.
-- **Backfill:** all'onboarding, ultimi 30–90 giorni (attività e peso). Personal API consente range; rispettare rate limit.
-- **Cursore:** `lastActivityStartDate` e `lastHealthDate`.
-- **Dedupe:** `externalId = activityId`; conservare `source: "garmin"`.
-- **Token cache:** salvarlo cifrato con `expiresAt`; rinnovare 1 ora prima.
-- **Chiave in scadenza:** reminder a 7 giorni; stato `expiring` in UI.
+- **Activities:** every 30–60 minutes (or when the app opens).
+- **Health:** 1–2 times a day (sleep/HRV/RHR in the morning).
+- **Weight:** once a day.
+- **Backfill:** at onboarding, last 30–90 days (activities and weight). Personal API allows ranges; respect rate limit.
+- **Cursor:** `lastActivityStartDate` and `lastHealthDate`.
+- **Dedupe:** `externalId = activityId`; keep `source: "garmin"`.
+- **Token cache:** store it encrypted with `expiresAt`; renew 1 hour before.
+- **Expiring key:** 7-day reminder; `expiring` status in UI.
 
-> Oggi il sync è manuale (endpoint/UI); lo scheduler automatico è il passo successivo.
+> Today sync is manual (endpoint/UI); the automatic scheduler is the next step.
 
-- **Attività:** ogni 30–60 minuti (o all'apertura dell'app).
-- **Salute:** 1–2 volte al giorno (sonno/HRV/RHR al mattino).
-- **Peso:** 1 volta al giorno.
-- **Backfill:** all'onboarding, ultimi 30–90 giorni (attività e peso). Personal API consente range; rispettare rate limit.
-- **Cursore:** `lastActivityStartDate` e `lastHealthDate`.
-- **Dedupe:** `externalId = activityId`; conservare `source: "garmin"`.
-- **Token cache:** salvarlo cifrato con `expiresAt`; rinnovare 1 ora prima.
-- **Chiave in scadenza:** reminder a 7 giorni; stato `expiring` in UI.
+- **Activities:** every 30–60 minutes (or when the app opens).
+- **Health:** 1–2 times a day (sleep/HRV/RHR in the morning).
+- **Weight:** once a day.
+- **Backfill:** at onboarding, last 30–90 days (activities and weight). Personal API allows ranges; respect rate limit.
+- **Cursor:** `lastActivityStartDate` and `lastHealthDate`.
+- **Dedupe:** `externalId = activityId`; keep `source: "garmin"`.
+- **Token cache:** store it encrypted with `expiresAt`; renew 1 hour before.
+- **Expiring key:** 7-day reminder; `expiring` status in UI.
 
-### 2.7 Errori
+### 2.7 Errors
 
-| Codice | Significato | Azione |
+| Code | Meaning | Action |
 |---|---|---|
-| 401 | token scaduto/revocato | nuovo token dalla chiave; se fallisce, chiave scaduta |
-| 403 | chiave non valida o permesso | chiedere nuova chiave |
-| 429 | rate limit | backoff esponenziale + jitter |
-| 5xx | Garmin down | retry con backoff; non marcare la connessione come rotta |
+| 401 | expired/revoked token | new token from the key; if it fails, expired key |
+| 403 | invalid key or permission | request a new key |
+| 429 | rate limit | exponential backoff + jitter |
+| 5xx | Garmin down | retry with backoff; do not mark the connection as broken |
 
-### 2.8 Limiti
+### 2.8 Limits
 
-- **Nessun push di workout.**
-- **Nessun webhook:** solo polling.
-- **Chiave personale:** non usarla per più utenti. Per la fase test: Garmin Startup o chiavi personali separate (con UX chiara).
-- **Scadenza:** la chiave va ruotata; il token dura 24h.
+- **No workout push.**
+- **No webhook:** polling only.
+- **Personal key:** do not use it for multiple users. For the test phase: Garmin Startup or separate personal keys (with clear UX).
+- **Expiration:** the key must be rotated; the token lasts 24h.
 
-### 2.9 Mapping canonico
+### 2.9 Canonical mapping
 
-| Garmin | Canonico |
+| Garmin | Canonical |
 |---|---|
 | `activityId` | `activities.externalId` |
 | `activityType.typeKey` | `activities.sport` (`running`, `cycling`, `swimming`, `strength_training`, …) |
@@ -199,48 +200,47 @@ UI: pulsante “Sincronizza ora”, ultimo sync, 3 attività recenti, tabella me
 | `avgPower`, `normPower` | `activities.avgPower`, `normalizedPower` |
 | `elevationGain` | `activities.elevationM` |
 | `calories` | `activities.calories` |
-| sonno/HRV/RHR/peso | `metrics_daily` con `source: "garmin"` |
+| sleep/HRV/RHR/weight | `metrics_daily` with `source: "garmin"` |
 
-### 2.10 FIT analysis e brief per LLM
+### 2.10 FIT analysis and brief for LLM
 
-Un LLM non legge il `.FIT` binario. La pipeline è:
+An LLM cannot read the binary `.FIT`. The pipeline is:
 
 ```text
 ZIP/.FIT → fit-file-parser → messaggi → ActivityAnalysis → brief compatto → LLM
 ```
 
 - Parser: `packages/integrations/src/fit/parser.ts` (`fit-file-parser` + `fflate`).
-- Analisi: summary, lap/split filtrati, zone HR, deriva HR, negative split, variabilità passo, miglior/peggior split.
-- Brief: `ActivityAnalysis.brief`, ~1–3 KB, senza record a 1 Hz.
+- Analysis: summary, filtered lap/split, HR zones, HR drift, negative split, pace variability, best/worst split.
+- Brief: `ActivityAnalysis.brief`, ~1–3 KB, without 1 Hz records.
 - Storage: `activity_analyses` (unique `userId+source+externalId`).
 - API:
   ```text
   POST /api/integrations/garmin/activities/:activityId/analyze
   GET  /api/integrations/garmin/activities/:activityId/analysis
   ```
-- UI: pulsante **Analizza FIT** sulle attività Garmin, con brief espandibile.
-- Dettagli: [`FIT.md`](FIT.md).
+- UI: **Analyze FIT** button on Garmin activities, with expandable brief.
+- Details: [`FIT.md`](FIT.md).
 
-Validato su un’attività reale: FIT ~1,3 MB, 17.492 record, 44 lap, 42 split utili, brief ~2 KB.
+Validated on a real activity: FIT ~1.3 MB, 17,492 records, 44 laps, 42 useful splits, brief ~2 KB.
 
 ---
 
 ## 3. Garmin workout export (`.FIT`)
 
-### 3.1 Perché `.FIT`
+### 3.1 Why `.FIT`
 
-La Personal API è read-only. Il modo più affidabile per portare un workout pianificato su Garmin, senza partner program, è generare un file `.FIT` di **workout** e importarlo.
+The Personal API is read-only. The most reliable way to bring a planned workout to Garmin, without a partner program, is to generate a **workout** `.FIT` file and import it.
 
-### 3.2 Generazione
+### 3.2 Generation
+Use the official Garmin SDK: `@garmin/fitsdk` (Encoder). Required messages:
 
-Usare il SDK ufficiale Garmin: `@garmin/fitsdk` (Encoder). Messaggi necessari:
+- `FILE_ID` with `type: "workout"`;
+- `WORKOUT` with `sport`, `numValidSteps`, `wktName`;
+- `WORKOUT_STEP` for each step: `messageIndex`, `durationType`, `durationValue`, `targetType`, `targetValue`, `intensity`, `notes`;
+- optional `WORKOUT_SESSION` if required by the device.
 
-- `FILE_ID` con `type: "workout"`;
-- `WORKOUT` con `sport`, `numValidSteps`, `wktName`;
-- `WORKOUT_STEP` per ogni step: `messageIndex`, `durationType`, `durationValue`, `targetType`, `targetValue`, `intensity`, `notes`;
-- eventuale `WORKOUT_SESSION` se richiesto dal dispositivo.
-
-Esempio di step:
+Example step:
 
 ```ts
 encoder.onMesg(Profile.MesgNum.WORKOUT_STEP, {
@@ -254,38 +254,38 @@ encoder.onMesg(Profile.MesgNum.WORKOUT_STEP, {
 });
 ```
 
-> I nomi dei campi vanno verificati nel Profile del SDK. L'encoder ignora i campi sconosciuti: testare il file su Garmin Connect prima di considerarlo valido.
+> Field names must be verified in the SDK Profile. The encoder ignores unknown fields: test the file on Garmin Connect before considering it valid.
 
 ### 3.3 Import
 
 1. Garmin Connect web → **Training & Planning → Workouts → Import**.
-2. Selezionare il `.FIT`.
-3. Aprire il workout e inviarlo al dispositivo.
-4. Alternativa offline: copiare il `.FIT` nella cartella `NewFiles` del dispositivo via USB.
+2. Select the `.FIT`.
+3. Open the workout and send it to the device.
+4. Offline alternative: copy the `.FIT` to the device's `NewFiles` folder via USB.
 
-### 3.4 Automazione futura
+### 3.4 Future automation
 
-- **Garmin Training API** (Startup/Enterprise): push di workout strutturati, calendario, sync.
-- **Non** usare login simulato/username-password come percorso principale: viola i ToS, richiede MFA, si rompe.
+- **Garmin Training API** (Startup/Enterprise): push structured workouts, calendar, sync.
+- **Do not** use simulated login/username-password as the main path: it violates the ToS, requires MFA, and breaks.
 
-### 3.5 Sport supportati
+### 3.5 Supported sports
 
-| Sport | Step | Target |
+| Sport | Steps | Target |
 |---|---|---|
-| Corsa | warm-up, ripetute, recuperi, cool-down | pace, HR, RPE |
-| Bici | interval, sweet spot, endurance | power, HR |
-| Nuoto | serie, recuperi | distanza, pace/100m, HR |
-| Palestra | non esportare su Garmin; usare Hevy | — |
+| Running | warm-up, intervals, recoveries, cool-down | pace, HR, RPE |
+| Cycling | interval, sweet spot, endurance | power, HR |
+| Swimming | sets, recoveries | distance, pace/100m, HR |
+| Gym | do not export to Garmin; use Hevy | — |
 
 ---
 
-## 4. Yazio (API non ufficiale v22)
+## 4. Yazio (unofficial API v22)
 
-### 4.1 Cosa è
+### 4.1 What it is
 
-Documentazione community di API reverse-engineered: <https://github.com/saganos/yazio_public_api>. Nessuna API ufficiale.
+Community documentation for reverse-engineered APIs: <https://github.com/saganos/yazio_public_api>. No official API.
 
-### 4.2 Autenticazione
+### 4.2 Authentication
 
 ```http
 POST https://yzapi.yazio.com/v22/oauth/token
@@ -301,65 +301,65 @@ Content-Type: application/json
 ```
 
 - Token `expires_in` ≈ 172800 s (48h).
-- `refresh_token` per rinnovare.
-- **User-Agent gate:** l'API risponde `403 {"error":"version_blocked"}` se il client non invia una versione app riconosciuta. Default: `YAZIO/26.30.1 (...) Ktor`; configurabile con `YAZIO_USER_AGENT`.
-- Le `client_id`/`client_secret` sono quelle dell'app mobile (pubbliche, non per-utente); configurabili via env.
-- Il client usa **v22** e, se il token endpoint non è disponibile, **v20**.
-- **Google/social login:** l'API non espone un grant Google. Servono o una password impostata sull'account, oppure un **refresh token importato** (`{ "refreshToken": "..." }`) catturato dall'app ufficiale.
-- Credenziali in sviluppo: `secrets/yazio.json` oppure env. In produzione solo env/secret manager.
+- `refresh_token` to renew.
+- **User-Agent gate:** the API returns `403 {"error":"version_blocked"}` if the client does not send a recognized app version. Default: `YAZIO/26.30.1 (...) Ktor`; configurable with `YAZIO_USER_AGENT`.
+- The `client_id`/`client_secret` are those of the mobile app (public, not per-user); configurable via env.
+- The client uses **v22** and, if the token endpoint is not available, **v20**.
+- **Google/social login:** the API does not expose a Google grant. You need either a password set on the account, or an **imported refresh token** (`{ "refreshToken": "..." }`) captured from the official app.
+- Credentials in development: `secrets/yazio.json` or env. In production only env/secret manager.
 
-### 4.3 Endpoint utili
+### 4.3 Useful endpoints
 
-| Dato | Endpoint |
+| Data | Endpoint |
 |---|---|
-| Profilo | `GET /v22/user` |
-| Nutrienti giornalieri (range) | `GET /v22/user/consumed-items/nutrients-daily?start=YYYY-MM-DD&end=YYYY-MM-DD` |
-| Diario del giorno | `GET /v22/user/consumed-items?date=YYYY-MM-DD` |
-| Summary giornaliero | `GET /v22/user/widgets/daily-summary?date=YYYY-MM-DD` |
-| Ultimo peso | `GET /v22/user/bodyvalues/weight/last?date=YYYY-MM-DD` |
-| Obiettivi | `GET /v22/user/goals/unmodified?date=YYYY-MM-DD` |
-| Esercizi registrati | `GET /v22/user/exercises?date=YYYY-MM-DD` |
-| Acqua | `GET /v22/user/water-intake?date=YYYY-MM-DD` |
-| Impostazioni | `GET /v22/user/settings` |
+| Profile | `GET /v22/user` |
+| Daily nutrients (range) | `GET /v22/user/consumed-items/nutrients-daily?start=YYYY-MM-DD&end=YYYY-MM-DD` |
+| Daily diary | `GET /v22/user/consumed-items?date=YYYY-MM-DD` |
+| Daily summary | `GET /v22/user/widgets/daily-summary?date=YYYY-MM-DD` |
+| Latest weight | `GET /v22/user/bodyvalues/weight/last?date=YYYY-MM-DD` |
+| Goals | `GET /v22/user/goals/unmodified?date=YYYY-MM-DD` |
+| Logged exercises | `GET /v22/user/exercises?date=YYYY-MM-DD` |
+| Water | `GET /v22/user/water-intake?date=YYYY-MM-DD` |
+| Settings | `GET /v22/user/settings` |
 
-> `nutrients-daily` è la fonte preferita per i macro: restituisce i totali esatti per giorno. Il summary resta utile per goals, acqua, passi e peso.
+> `nutrients-daily` is the preferred source for macros: it returns exact daily totals. The summary remains useful for goals, water, steps, and weight.
 
-> Lo swagger non espone una storia peso completa, solo l'ultimo valore. Per il trend: polling giornaliero e storage locale.
+> Swagger does not expose a complete weight history, only the latest value. For the trend: daily polling and local storage.
 
-### 4.4 Implementazione attuale
+### 4.4 Current implementation
 
-- `packages/integrations/src/yazio/client.ts`: v22, JSON token, User-Agent gate, login password, refresh token import, retry 401, fallback v20, errori tipizzati, timeout.
-- `packages/integrations/src/yazio/mapper.ts`: `nutrients-daily`, summary extras (goals/acqua/passi/peso), fallback ai pasti, peso.
+- `packages/integrations/src/yazio/client.ts`: v22, JSON token, User-Agent gate, password login, imported refresh token, 401 retry, v20 fallback, typed errors, timeout.
+- `packages/integrations/src/yazio/mapper.ts`: `nutrients-daily`, summary extras (goals/water/steps/weight), fallback to meals, weight.
 - Sync: `POST /api/integrations/yazio/sync?days=7`; overview: `GET /api/integrations/yazio/overview?days=7`; check: `POST /api/integrations/yazio/check`.
-- Persistenza: `nutrition_daily` e `metrics_daily` (source `yazio`), audit in `sync_runs` / `sync_state`.
-- UI: card “Nutrizione Yazio” con verifica, sync e tabella kcal/macro/acqua/peso.
-- Test di contratto e mapper con fixture sintetiche (25 test integrations totali).
-- **Verificato con account reale (26 ottobre 2026):** login password su v22, `nutrients-daily`, summary, goals, peso; 7 giorni sincronizzati senza errori; nessun 2FA bloccante.
+- Persistence: `nutrition_daily` and `metrics_daily` (source `yazio`), audit in `sync_runs` / `sync_state`.
+- UI: “Yazio Nutrition” card with verification, sync, and kcal/macro/water/weight table.
+- Contract and mapper tests with synthetic fixtures (25 integration tests total).
+- **Verified with a real account (October 26, 2026):** password login on v22, `nutrients-daily`, summary, goals, weight; 7 days synchronized without errors; no blocking 2FA.
 
 ### 4.5 Sync
 
-- 1–2 volte al giorno, dopo i pasti principali.
-- `date` nel fuso dell'utente.
-- Salvare `nutrition_daily` con `source: "yazio"` e `confidence: "high"` (dati inseriti dall'utente).
-- Peso: `metrics_daily` con `source: "yazio"`.
-- Oggi il sync è manuale (endpoint/UI); lo scheduler automatico è il passo successivo.
+- 1–2 times a day, after main meals.
+- `date` in the user's time zone.
+- Store `nutrition_daily` with `source: "yazio"` and `confidence: "high"` (user-entered data).
+- Weight: `metrics_daily` with `source: "yazio"`.
+- Currently, sync is manual (endpoint/UI); the automatic scheduler is the next step.
 
-### 4.6 Rischi e mitigazioni
+### 4.6 Risks and mitigations
 
-| Rischio | Mitigazione |
+| Risk | Mitigation |
 |---|---|
-| API non ufficiale / ToS | uso personale; feature flag; documentazione; no multi-utente senza valutazione |
-| Login Google senza password | refresh token importato dall'app ufficiale; oppure password impostata |
-| User-Agent bloccato (`version_blocked`) | aggiornare `YAZIO_USER_AGENT` a una versione app corrente |
-| 2FA / login bloccato | messaggio chiaro; fallback manuale |
-| Token scaduto/revocato | refresh automatico; se fallisce, re-import del refresh token |
-| Rate limit | backoff; 1–2 sync/giorno |
-| Rottura endpoint | adapter isolato; test di contratto; fallback manuale |
-| Credenziali/token | cifratura AES-GCM; mai log; accesso minimo; `secrets/` ignorato |
+| Unofficial API / ToS | personal use; feature flag; documentation; no multi-user without assessment |
+| Google login without password | refresh token imported from the official app; or a password set |
+| Blocked User-Agent (`version_blocked`) | update `YAZIO_USER_AGENT` to a current app version |
+| 2FA / blocked login | clear message; manual fallback |
+| Expired/revoked token | automatic refresh; if it fails, re-import the refresh token |
+| Rate limit | backoff; 1–2 syncs/day |
+| Endpoint failure | isolated adapter; contract tests; manual fallback |
+| Credentials/tokens | AES-GCM encryption; never log; least access; `secrets/` ignored |
 
 ---
 
-## 5. Zepp / Huami (peso)
+## 5. Zepp / Huami (weight)
 
 ### 5.1 Endpoint
 
@@ -368,67 +368,67 @@ GET https://{host}/users/{userId}/members/-1/weightRecords
 Header: apptoken: <app_token>
 ```
 
-- `host` regionale (es. `api-mifit-us3.zepp.com`).
-- `app_token`, `user_id` e host si ottengono da una cattura HTTPS dell'app Zepp (proxy).
-- TTL token ≈ 30 giorni.
-- Il payload contiene record di peso e, se la bilancia lo supporta, composizione corporea.
+- Regional `host` (e.g. `api-mifit-us3.zepp.com`).
+- `app_token`, `user_id`, and host are obtained from an HTTPS capture of the Zepp app (proxy).
+- Token TTL ≈ 30 days.
+- The payload contains weight records and, if the scale supports it, body composition.
 
 ### 5.2 Sync
 
-- 1 volta al giorno.
+- Once a day.
 - `source: "zepp"`.
-- Se il token scade: stato `reauth_required` e istruzioni per rifare la cattura.
-- **Non** è una dipendenza critica: se manca, il peso arriva da Garmin/Yazio/manuale.
+- If the token expires: `reauth_required` status and instructions to redo the capture.
+- It is **not** a critical dependency: if missing, weight comes from Garmin/Yazio/manual.
 
-### 5.3 Alternativa Android
+### 5.3 Android alternative
 
-- Zepp app → **Health Connect** → nostra app.
-- Più pulito, niente token non ufficiali.
-- Verificare che Zepp scriva il peso in Health Connect (dipende da versione/app).
+- Zepp app → **Health Connect** → our app.
+- Cleaner, no unofficial tokens.
+- Verify that Zepp writes weight to Health Connect (depends on version/app).
 
-### 5.4 Rischi
+### 5.4 Risks
 
-- API non ufficiale, region-specific, token fragile.
-- Cattura proxy richiede un computer e CA installata.
+- Unofficial API, region-specific, fragile token.
+- Proxy capture requires a computer and installed CA.
 - ToS.
-- Per un prodotto multi-utente: **non usare**. Solo manuale o Health Connect.
+- For a multi-user product: **do not use**. Manual or Health Connect only.
 
 ---
 
 ## 6. Hevy
 
-### 6.1 Cosa è
+### 6.1 What it is
 
-API pubblica (beta) per utenti **Hevy Pro**. API key da `https://hevy.com/settings?developer`.
+Public API (beta) for **Hevy Pro** users. API key from `https://hevy.com/settings?developer`.
 
 ```http
 GET https://api.hevyapp.com/v1/routines
 Header: api-key: <UUID>
 ```
 
-### 6.2 Endpoint
+### 6.2 Endpoints
 
-| Metodo | Endpoint | Uso |
+| Method | Endpoint | Use |
 |---|---|---|
-| GET | `/v1/routines` | lista routine |
-| POST | `/v1/routines` | crea routine |
-| GET | `/v1/routines/{routineId}` | dettaglio |
-| PUT | `/v1/routines/{routineId}` | aggiorna |
-| GET | `/v1/exercise_templates` | catalogo esercizi |
-| POST | `/v1/exercise_templates` | crea esercizio custom |
-| GET | `/v1/exercise_templates/{id}` | dettaglio |
-| GET | `/v1/workouts` | lista workout (pagina max 10) |
-| POST | `/v1/workouts` | crea workout completato |
-| GET | `/v1/workouts/{id}` | dettaglio |
-| GET | `/v1/workouts/events` | eventi incrementali |
-| GET | `/v1/body_measurements` | misurazioni corporee |
-| POST | `/v1/body_measurements` | aggiungi misurazione |
-| GET | `/v1/exercise_history/{templateId}` | storico esercizio |
-| GET | `/v1/user/info` | profilo |
+| GET | `/v1/routines` | routine list |
+| POST | `/v1/routines` | create routine |
+| GET | `/v1/routines/{routineId}` | details |
+| PUT | `/v1/routines/{routineId}` | update |
+| GET | `/v1/exercise_templates` | exercise catalog |
+| POST | `/v1/exercise_templates` | create custom exercise |
+| GET | `/v1/exercise_templates/{id}` | details |
+| GET | `/v1/workouts` | workout list (page max 10) |
+| POST | `/v1/workouts` | create completed workout |
+| GET | `/v1/workouts/{id}` | details |
+| GET | `/v1/workouts/events` | incremental events |
+| GET | `/v1/body_measurements` | body measurements |
+| POST | `/v1/body_measurements` | add measurement |
+| GET | `/v1/exercise_history/{templateId}` | exercise history |
+| GET | `/v1/user/info` | profile |
 
-### 6.3 Export routine
+### 6.3 Routine export
 
-Payload (schema verificato):
+Payload (verified schema):
 
 ```json
 {
@@ -453,81 +453,81 @@ Payload (schema verificato):
 }
 ```
 
-Campi set supportati: `type` (`warmup|normal|failure|dropset`), `weight_kg`, `reps`, `distance_meters`, `duration_seconds`, `custom_metric`, `rep_range {start,end}`.
+Supported set fields: `type` (`warmup|normal|failure|dropset`), `weight_kg`, `reps`, `distance_meters`, `duration_seconds`, `custom_metric`, `rep_range {start,end}`.
 
-### 6.4 Mapping esercizi
+### 6.4 Exercise mapping
 
-1. Scaricare `GET /v1/exercise_templates` (cache 7 giorni).
-2. Normalizzare i nomi (lowercase, senza equipment tra parentesi).
-3. Match esatto → fuzzy (Levenshtein/Jaro-Winkler) → manuale.
-4. Se manca: `POST /v1/exercise_templates` con nome, muscolo, equipment.
-5. Salvare in `hevy_mappings` per evitare ricalcoli.
+1. Download `GET /v1/exercise_templates` (7-day cache).
+2. Normalize names (lowercase, without equipment in parentheses).
+3. Exact match → fuzzy (Levenshtein/Jaro-Winkler) → manual.
+4. If missing: `POST /v1/exercise_templates` with name, muscle, equipment.
+5. Save in `hevy_mappings` to avoid recomputation.
 
-### 6.5 Import workout completati
+### 6.5 Import completed workouts
 
 - `GET /v1/workouts?page=1&pageSize=10` (max 10).
-- Incrementale con `GET /v1/workouts/events` se disponibile.
-- Mappare:
+- Incremental with `GET /v1/workouts/events` if available.
+- Map:
   - `title`, `start_time`, `end_time` → `session_logs`;
-  - esercizi/set → `strength_sets` (exercise, reps, weight, RPE);
-  - collegare alla sessione pianificata per data e tipo.
-- Se il workout è stato creato fuori piano: `session_logs` con `plannedSessionId: null`.
+  - exercises/sets → `strength_sets` (exercise, reps, weight, RPE);
+  - link to the planned session by date and type.
+- If the workout was created outside the plan: `session_logs` with `plannedSessionId: null`.
 
-### 6.6 Rate limit e stabilità
+### 6.6 Rate limit and stability
 
-- Non chiamare a `xx:00`; usare minuti casuali.
-- Cache dei template.
-- Backoff su 429/5xx.
-- L'API è beta: non garantisce stabilità. Prevedere export CSV/fallback e documentare il requisito Pro.
+- Do not call at `xx:00`; use random minutes.
+- Template cache.
+- Backoff on 429/5xx.
+- The API is beta: it does not guarantee stability. Provide CSV export/fallback and document the Pro requirement.
 
 ---
 
 ## 7. Android Health Connect
 
-### 7.1 Cosa leggere
+### 7.1 What to read
 
-| Tipo | Permesso | Uso |
+| Type | Permission | Use |
 |---|---|---|
-| Passi | `READ_STEPS` | attività giornaliera |
-| Sonno | `READ_SLEEP` | readiness |
-| Frequenza cardiaca | `READ_HEART_RATE` | attività/recupero |
-| Peso | `READ_WEIGHT` | trend |
-| Esercizio | `READ_EXERCISE` | sessioni |
-| Nutrizione | `READ_NUTRITION` | macro (se disponibile) |
-| Distanza | `READ_DISTANCE` | corsa/bici |
-| Calorie | `READ_TOTAL_CALORIES_BURNED` | bilancio |
+| Steps | `READ_STEPS` | daily activity |
+| Sleep | `READ_SLEEP` | readiness |
+| Heart rate | `READ_HEART_RATE` | activity/recovery |
+| Weight | `READ_WEIGHT` | trend |
+| Exercise | `READ_EXERCISE` | sessions |
+| Nutrition | `READ_NUTRITION` | macros (if available) |
+| Distance | `READ_DISTANCE` | running/cycling |
+| Calories | `READ_TOTAL_CALORIES_BURNED` | balance |
 
 ### 7.2 Sync
 
-- All'apertura dell'app + background periodico (WorkManager / Expo background task).
-- Delta tramite `lastModifiedTime` o `metadata.clientRecordId`.
-- Dedupe con Garmin/Yazio/manuale.
-- Se il permesso viene revocato: stato `permission_missing`, nessun crash.
+- When the app opens + periodic background (WorkManager / Expo background task).
+- Delta via `lastModifiedTime` or `metadata.clientRecordId`.
+- Dedupe with Garmin/Yazio/manual.
+- If permission is revoked: `permission_missing` status, no crash.
 
 ### 7.3 Play Store
 
-- Dichiarazione "Health data" nella Play Console.
-- Privacy policy pubblica.
-- Permessi minimi.
-- Nessuna condivisione con terzi non dichiarata.
+- "Health data" declaration in Play Console.
+- Public privacy policy.
+- Minimum permissions.
+- No undeclared sharing with third parties.
 
 ### 7.4 Expo
 
-- `react-native-health-connect` (o modulo nativo).
-- Config plugin per permessi e `HealthConnect` activity.
-- Se il background sync non è affidabile: modulo nativo o Kotlin per il solo layer health.
+- `react-native-health-connect` (or native module).
+- Config plugin for permissions and `HealthConnect` activity.
+- If background sync is unreliable: native module or Kotlin for the health layer only.
 
 ---
 
-## 8. Backup su Google Drive
+## 8. Google Drive backup
 
 ### 8.1 Scope
 
-- `https://www.googleapis.com/auth/drive.file` → accesso solo ai file creati dall'app.
-- Cartella `HealthTrainer/Backups` (o `appDataFolder` se si vuole invisibile).
-- L'utente può vedere/cancellare i backup dal Drive.
+- `https://www.googleapis.com/auth/drive.file` → access only to files created by the app.
+- Folder `HealthTrainer/Backups` (or `appDataFolder` if it should be invisible).
+- The user can view/delete backups from Drive.
 
-### 8.2 Formato
+### 8.2 Format
 
 ```
 health-trainer-backup-v1.zip
@@ -550,21 +550,21 @@ health-trainer-backup-v1.zip
 }
 ```
 
-### 8.3 Cifratura
+### 8.3 Encryption
 
-- Passphrase utente → Argon2id → chiave AES-256-GCM.
-- Alternativa: `age` con chiave pubblica.
-- Il file su Drive è cifrato; il manifest interno resta leggibile solo dopo decrypt.
-- Test di restore con passphrase errata.
+- User passphrase → Argon2id → AES-256-GCM key.
+- Alternative: `age` with public key.
+- The file on Drive is encrypted; the internal manifest remains readable only after decryption.
+- Restore test with wrong passphrase.
 
 ### 8.4 Restore
 
-1. Scarica ZIP.
-2. Decifra.
-3. Valida manifest e checksum.
-4. Migra schema se necessario.
-5. Importa in transazione.
-6. Ricostruisci indici e cache.
+1. Download ZIP.
+2. Decrypt.
+3. Validate manifest and checksum.
+4. Migrate schema if necessary.
+5. Import in a transaction.
+6. Rebuild indexes and cache.
 
 ---
 
@@ -572,131 +572,130 @@ health-trainer-backup-v1.zip
 
 ### 9.1 Provider
 
-| Provider | Stato | Note |
+| Provider | Status | Notes |
 |---|---|---|
-| **DeepSeek (nativo)** | **cablato** | base `https://api.deepseek.com`, formato OpenAI, JSON output |
-| OpenAI | previsto | structured outputs |
-| Anthropic | previsto | tool use/JSON |
-| Google | previsto | Gemini |
-| OpenRouter | previsto | multi-modello |
-| Ollama | previsto | privacy, no costi |
+| **DeepSeek (native)** | **wired** | base `https://api.deepseek.com`, OpenAI format, JSON output |
+| OpenAI | planned | structured outputs |
+| Anthropic | planned | tool use/JSON |
+| Google | planned | Gemini |
+| OpenRouter | planned | multi-model |
+| Ollama | planned | privacy, no costs |
 
-Oggi solo DeepSeek ha un client: `LLM_PROVIDER` con un valore diverso resta sul
-provider deterministico invece di fallire a runtime.
+Today only DeepSeek has a client: `LLM_PROVIDER` with a different value stays on the
+deterministic provider instead of failing at runtime.
 
 ### 9.1.1 DeepSeek
 
-Verificato sulla documentazione ufficiale il 27 ottobre 2026.
+Verified against the official documentation on October 27, 2026.
 
-| Voce | Valore |
+| Item | Value |
 |---|---|
-| Base URL (formato OpenAI) | `https://api.deepseek.com` |
-| Modello ragionamento | `deepseek-v4-pro` (`LLM_MODEL`) |
-| Modello veloce | `deepseek-flash` (`LLM_MODEL_FAST`) |
-| Contesto | 1M token; output massimo 384K |
+| Base URL (OpenAI format) | `https://api.deepseek.com` |
+| Reasoning model | `deepseek-v4-pro` (`LLM_MODEL`) |
+| Fast model | `deepseek-flash` (`LLM_MODEL_FAST`) |
+| Context | 1M tokens; maximum output 384K |
 | JSON output | `response_format: { type: "json_object" }` |
 | Thinking mode | `thinking: { type: "enabled" \| "disabled" }`, default enabled |
 
-Uso nel progetto:
+Usage in the project:
 
-| Scopo | Modello | Thinking | Perché |
+| Purpose | Model | Thinking | Why |
 |---|---|---|---|
-| `coach`, contesto semplice | `deepseek-flash` | no | task breve e frequente: conta la latenza |
-| `coach`, contesto delicato | `deepseek-flash` | sì (auto) | dolore, readiness bassa, finestra post-gara, carico in salita |
-| `planning` (macro, micro, critica) | `deepseek-v4-pro` | sempre | ragionamento sul metodo e sull'envelope |
+| `coach`, simple context | `deepseek-flash` | no | short, frequent task: latency matters |
+| `coach`, sensitive context | `deepseek-flash` | yes (auto) | pain, low readiness, post-race window, rising load |
+| `planning` (macro, micro, critique) | `deepseek-v4-pro` | always | reasoning about the method and the envelope |
 
-`LLM_THINKING=auto` (default) implementa la terza riga; `on`/`off` forzano il
-comportamento. Il thinking non è un interruttore di qualità generico: si accende
-quando c'è qualcosa da giudicare.
+`LLM_THINKING=auto` (default) implements the third row; `on`/`off` force the
+behavior. Thinking is not a generic quality switch: it turns on when there is
+something to judge.
 
-**Misure reali** (27 ottobre 2026, prompt coach completo):
+**Real measurements** (October 27, 2026, full coach prompt):
 
-| Configurazione | Latenza | Token in / out |
+| Configuration | Latency | Tokens in / out |
 |---|---|---|
 | flash, no thinking | 2,3–2,8 s | 433 / ~200 |
-| flash, thinking | 3,6 s | 101 / 496 (303 di reasoning) |
+| flash, thinking | 3,6 s | 101 / 496 (303 reasoning) |
 | v4-pro, thinking | 6,2 s | 509 / 387 |
 
-Per una card richiesta con un click 2-3 s sono accettabili, 6 s no: per questo il
-coach resta su flash e il thinking si accende solo sui casi delicati.
+For a card requested with one click, 2-3 s are acceptable, 6 s is not: this is why
+the coach stays on flash and thinking turns on only in sensitive cases.
 
-Vincoli della JSON mode, entrambi gestiti dal client:
+JSON mode constraints, both handled by the client:
 
-1. la parola "json" deve comparire nel prompt (il provider la aggiunge se manca);
-2. va mostrato un esempio del formato atteso (fatto nei prompt del coach);
-3. `max_tokens` va dimensionato, altrimenti il JSON si tronca.
+1. the word "json" must appear in the prompt (the provider adds it if missing);
+2. an example of the expected format must be shown (done in the coach prompts);
+3. `max_tokens` must be sized, otherwise the JSON is truncated.
 
-In thinking mode `temperature` viene ignorata dall'API: il provider **non la
-invia**, per non dare l'illusione di controllare la variabilità.
+In thinking mode `temperature` is ignored by the API: the provider **does not
+send it**, to avoid giving the illusion of controlling variability.
 
-Due difetti reali incontrati durante le prime chiamate, entrambi gestiti:
+Two real defects encountered during the first calls, both handled:
 
-1. **`content` vuoto** in JSON mode: comportamento documentato e intermittente.
-   Il provider riprova una volta (attesa 300 ms) prima di restituire un errore
-   ritentabile che riporta `finish_reason`.
-2. **JSON incapsulato in un blocco markdown** nonostante `response_format`.
-   `extractJson()` recupera l'oggetto (blocco ```` ```json ````, testo
-   introduttivo, oppure JSON puro).
+1. **Empty `content`** in JSON mode: documented and intermittent behavior.
+   The provider retries once (300 ms wait) before returning a retryable error
+   that reports `finish_reason`.
+2. **JSON wrapped in a markdown block** despite `response_format`.
+   `extractJson()` recovers the object (```` ```json ```` block, introductory
+   text, or pure JSON).
 
-Errori mappati su `LlmProviderError` con flag `retryable`, che il futuro loop
-Proposer/Critic userà per decidere se riprovare o passare al fallback:
+Errors mapped to `LlmProviderError` with a `retryable` flag, which the future
+Proposer/Critic loop will use to decide whether to retry or switch to fallback:
 
-| HTTP | Significato | `retryable` |
+| HTTP | Meaning | `retryable` |
 |---|---|---|
-| 401 / 403 | chiave non valida | no |
-| 402 | credito esaurito | no |
-| 429 | rate limit | sì |
-| 5xx | guasto lato provider | sì |
-| risposta vuota / JSON invalido / fuori schema | guasto transitorio | sì |
+| 401 / 403 | invalid key | no |
+| 402 | credit exhausted | no |
+| 429 | rate limit | yes |
+| 5xx | provider-side failure | yes |
+| empty response / invalid JSON / out of schema | transient failure | yes |
 
-La chiave non appare mai nei messaggi d'errore né nei log; i fallimenti vengono
-registrati in `ai_runs` con `success: false` e il messaggio troncato a 500
-caratteri.
+The key never appears in error messages or logs; failures are recorded in
+`ai_runs` with `success: false` and the message truncated to 500 characters.
 
-Verifica manuale, senza stampare la chiave:
+Manual check, without printing the key:
 
 ```bash
 npm run spike:deepseek          # solo flash, pochi token
 npm run spike:deepseek -- --all # flash + v4-pro con thinking
 ```
 
-### 9.2 Regole
+### 9.2 Rules
 
-- Chiavi cifrate; mai nel client (tranne modalità locale/BYOK su device, con Keystore).
-- Nessun training sui dati; usare endpoint/contratti no-training.
-- JSON schema strict; validator lato nostro.
+- Keys encrypted; never in the client (except local/BYOK mode on device, with Keystore).
+- No training on data; use no-training endpoints/contracts.
+- Strict JSON schema; validator on our side.
 - Timeout, retry, fallback.
-- Log: modello, versione prompt, token, costo, hash del contesto; **non** il contenuto sanitario completo.
-- Managed free: quota e modello economico; niente free tier arbitrari.
+- Logs: model, prompt version, tokens, cost, context hash; **not** the full health content.
+- Managed free: quota and cheap model; no arbitrary free tiers.
 
-### 9.3 Contesto minimo
+### 9.3 Minimum context
 
-- Base compattata (`athlete_brief`).
-- Trend aggregato.
-- Ultimi 3–7 giorni.
-- Vincoli calcolati.
-- Schema output.
+- Compacted base (`athlete_brief`).
+- Aggregated trend.
+- Last 3–7 days.
+- Calculated constraints.
+- Output schema.
 
-Non inviare foto o testi clinici completi senza consenso esplicito.
+Do not send photos or full clinical texts without explicit consent.
 
 ---
 
-## 10. Mapping canonico
+## 10. Canonical mapping
 
-| Fonte | Entità | Destinazione |
+| Source | Entity | Destination |
 |---|---|---|
-| Garmin | attività | `activities` |
-| Garmin | sonno, HRV, RHR, passi, stress, Body Battery | `metrics_daily` |
-| Garmin | peso/misure | `metrics_daily` |
+| Garmin | activity | `activities` |
+| Garmin | sleep, HRV, RHR, steps, stress, Body Battery | `metrics_daily` |
+| Garmin | weight/measurements | `metrics_daily` |
 | Yazio | summary/diary | `nutrition_daily` |
-| Yazio | peso | `metrics_daily` |
-| Zepp | peso/composizione | `metrics_daily` |
-| Hevy | workout completato | `session_logs` + `strength_sets` |
+| Yazio | weight | `metrics_daily` |
+| Zepp | weight/composition | `metrics_daily` |
+| Hevy | completed workout | `session_logs` + `strength_sets` |
 | Hevy | routine | `sessions` (export) |
-| Health Connect | tutti | `metrics_daily` / `activities` |
-| Manuale | tutto | stessa entità, `source: "manual"` |
+| Health Connect | all | `metrics_daily` / `activities` |
+| Manual | all | same entity, `source: "manual"` |
 
-### 10.1 Modello `strength_sets`
+### 10.1 `strength_sets` model
 
 ```json
 {
@@ -713,93 +712,93 @@ Non inviare foto o testi clinici completi senza consenso esplicito.
 }
 ```
 
-Serve per: export Hevy, confronto volume, progressione, report.
+Used for: Hevy export, volume comparison, progression, reports.
 
 ---
 
-## 11. Sync, retry, idempotenza
+## 11. Sync, retry, idempotency
 
-### 11.1 Regole
+### 11.1 Rules
 
-- Ogni sync ha un `sync_run` con `startedAt`, `finishedAt`, `status`, `stats`, `error`.
-- Upsert per chiave naturale.
-- Non cancellare dati se il provider restituisce meno dati del previsto: potrebbe essere un errore temporaneo.
-- Backoff esponenziale con jitter su 429/5xx.
-- Dead letter per job falliti dopo N tentativi.
-- Avviso in UI se un provider è scollegato da > 3 giorni.
+- Each sync has a `sync_run` with `startedAt`, `finishedAt`, `status`, `stats`, `error`.
+- Upsert by natural key.
+- Do not delete data if the provider returns less data than expected: it could be a temporary error.
+- Exponential backoff with jitter on 429/5xx.
+- Dead letter for jobs that fail after N attempts.
+- UI warning if a provider has been disconnected for > 3 days.
 
-### 11.2 Scheduler indicativo
+### 11.2 Indicative scheduler
 
-| Job | Frequenza | Note |
+| Job | Frequency | Notes |
 |---|---|---|
-| Garmin attività | 30–60 min | solo se connesso |
-| Garmin salute | 2×/giorno | mattina/sera |
-| Yazio | 1–2×/giorno | dopo i pasti |
-| Zepp peso | 1×/giorno | opzionale |
-| Hevy workout | 1×/giorno | incrementale |
-| Calcolo daily_state | 1×/giorno + eventi | per timezone |
-| Review settimanale | domenica 18:00 | locale |
-| Backup | giornaliero/settimanale | Android/Drive |
-| Pulizia token/raw | giornaliero | retention |
+| Garmin activities | 30–60 min | only if connected |
+| Garmin health | 2×/day | morning/evening |
+| Yazio | 1–2×/day | after meals |
+| Zepp weight | 1×/day | optional |
+| Hevy workout | 1×/day | incremental |
+| daily_state computation | 1×/day + events | by timezone |
+| Weekly review | Sunday 18:00 | local |
+| Backup | daily/weekly | Android/Drive |
+| Token/raw cleanup | daily | retention |
 
 ### 11.3 Timezone
 
-- Le date di richiesta ai provider sono locali.
-- I timestamp sono UTC.
-- Un'attività alle 23:30 locali non deve finire nel giorno successivo.
+- Request dates to providers are local.
+- Timestamps are UTC.
+- An activity at 23:30 local time must not end up in the following day.
 
 ---
 
-## 12. Sicurezza e ToS
+## 12. Security and ToS
 
-| Provider | Ufficiale? | Rischio | Strategia |
+| Provider | Official? | Risk | Strategy |
 |---|---|---|---|
-| Garmin Personal | sì | uso personale, chiave scadenza, read-only | ok per personale; Startup per multi-utente |
-| Garmin Training | sì | richiede programma | fase successiva |
-| Yazio | **no** | ToS, 2FA, rotture | feature flag, uso personale, fallback |
-| Zepp | **no** | ToS, token fragile | opzionale, HC su Android |
-| Hevy | sì (beta) | Pro, instabilità | fallback CSV, cache |
-| Health Connect | sì | permessi, Play policy | dichiarazione, minimo necessario |
-| Google Drive | sì | scope, revoca | `drive.file`, cifratura |
-| Strava | sì | **vietato AI** | non usare |
+| Garmin Personal | yes | personal use, key expiration, read-only | ok for personal use; Startup for multi-user |
+| Garmin Training | yes | requires program | next phase |
+| Yazio | **no** | ToS, 2FA, breakages | feature flag, personal use, fallback |
+| Zepp | **no** | ToS, fragile token | optional, HC on Android |
+| Hevy | yes (beta) | Pro, instability | CSV fallback, cache |
+| Health Connect | yes | permissions, Play policy | declaration, minimum necessary |
+| Google Drive | yes | scope, revocation | `drive.file`, encryption |
+| Strava | yes | **AI prohibited** | do not use |
 
-### 12.1 Credenziali
+### 12.1 Credentials
 
-- AES-256-GCM con master key in env/secret manager.
-- Su Android: Android Keystore.
-- Mai restituire al client; mostrare solo `last4`/stato.
-- Revoca immediata.
-- Audit log per accessi.
+- AES-256-GCM with master key in env/secret manager.
+- On Android: Android Keystore.
+- Never return to the client; show only `last4`/status.
+- Immediate revocation.
+- Audit log for accesses.
 
 ---
 
-## 13. Fixture e test di contratto
+## 13. Fixtures and contract tests
 
-Per ogni provider salvare in `packages/integrations/fixtures/<provider>/`:
+For each provider, save in `packages/integrations/fixtures/<provider>/`:
 
-- risposta login/token (redatta);
-- lista attività;
-- sonno/HRV;
-- peso;
-- workout Hevy;
-- errore 401/429.
+- login/token response (redacted);
+- activity list;
+- sleep/HRV;
+- weight;
+- Hevy workout;
+- 401/429 error.
 
-I test devono girare **senza rete** e verificare:
+Tests must run **without network** and verify:
 
-- mapping canonico;
-- gestione errori;
-- idempotenza;
+- canonical mapping;
+- error handling;
+- idempotency;
 - timezone;
-- unità.
+- units.
 
 ---
 
-## 14. Domande aperte da chiudere in Fase 0
+## 14. Open questions to close in Phase 0
 
-1. Garmin Personal: rate limit effettivo e dimensione massima delle risposte.
-2. Garmin `.FIT` workout: il file generato con `@garmin/fitsdk` viene importato senza errori? Su quali dispositivi?
-3. Yazio: l'account ha 2FA? Il refresh token dura davvero 48h? Ci sono rate limit?
-4. Zepp: il peso include composizione corporea? Che region/host?
-5. Hevy: la creazione di routine con custom template funziona? Ci sono limiti di routine (403)?
-6. Health Connect: Zepp/Garmin scrivono il peso? Con che latenza?
-7. Google Drive: `drive.file` basta per una cartella visibile? Serve `drive` completo?
+1. Garmin Personal: effective rate limit and maximum response size.
+2. Garmin `.FIT` workout: is the file generated with `@garmin/fitsdk` imported without errors? On which devices?
+3. Yazio: does the account have 2FA? Does the refresh token really last 48h? Are there rate limits?
+4. Zepp: does weight include body composition? Which region/host?
+5. Hevy: does creating routines with custom templates work? Are there routine limits (403)?
+6. Health Connect: do Zepp/Garmin write weight? With what latency?
+7. Google Drive: is `drive.file` enough for a visible folder? Is full `drive` needed?

@@ -1,123 +1,123 @@
-# FIT: lettura, interpretazione e brief per l'LLM
+# FIT: reading, interpretation and brief for the LLM
 
-**Scopo:** trasformare un file `.FIT` binario in dati strutturati e in un brief compatto che un LLM possa usare senza ricevere migliaia di record grezzi.
+**Purpose:** turn a binary `.FIT` file into structured data and a compact brief that an LLM can use without receiving thousands of raw records.
 
-## Perché serve un layer intermedio
+## Why an intermediate layer is needed
 
-Un `.FIT` non è testo: è un formato binario con messaggi (`session`, `lap`, `record`, `length`, `set`, `event`, …). Un LLM non può leggerlo in modo affidabile. La pipeline è quindi:
+A `.FIT` is not text: it is a binary format with messages (`session`, `lap`, `record`, `length`, `set`, `event`, …). An LLM cannot read it reliably. The pipeline is therefore:
 
 ```
 ZIP / .FIT
    ↓  fit-file-parser
-messaggi FIT strutturati
-   ↓  normalizzazione + aggregazione
+structured FIT messages
+   ↓  normalization + aggregation
 ActivityAnalysis (summary, laps, splits, zone, derived)
    ↓  buildActivityBrief
-brief compatto (Markdown/JSON) + summary
+compact brief (Markdown/JSON) + summary
    ↓
-contesto LLM
+LLM context
 ```
 
-I record a 1 Hz (migliaia) **non vengono inviati** al modello: servono solo per calcolare aggregati e anomalie.
+The 1 Hz records (thousands) **are not sent** to the model: they are only used to calculate aggregates and anomalies.
 
-## Cosa estraiamo
+## What we extract
 
-| Blocco FIT | Uso |
+| FIT block | Use |
 |---|---|
-| `sessions` | sport, durata, distanza, HR, potenza, cadenza, dislivello, calorie, training effect/load |
-| `laps` | split distance-based (su Garmin running: 1 km), HR, potenza, passo, dislivello |
-| `splits` | split automatici run/walk; filtriamo walk/stand e l’intera attività |
-| `records` | solo per deriva HR e fallback zone; non salvati nel brief |
-| `time_in_zone` | minuti in zona HR |
+| `sessions` | sport, duration, distance, HR, power, cadence, elevation gain/loss, calories, training effect/load |
+| `laps` | distance-based splits (on Garmin running: 1 km), HR, power, pace, elevation gain/loss |
+| `splits` | automatic run/walk splits; we filter out walk/stand and the entire activity |
+| `records` | only for HR drift and zone fallback; not saved in the brief |
+| `time_in_zone` | minutes in HR zone |
 | `activity_metrics` | VO2max, recovery time, training effect |
-| `lengths` | vasche nuoto (estensione futura) |
-| `sets` | serie palestra (estensione futura) |
+| `lengths` | swimming lengths (future extension) |
+| `sets` | gym sets (future extension) |
 
-## Normalizzazione
+## Normalization
 
-- `sessions` è un array; `session` singolare non è affidabile.
-- I timestamp sono `Date`; convertiamo in ISO.
-- La cadenza running nel FIT è in cicli/min: la portiamo a **passi/min** (`×2`).
-- Per la corsa preferiamo i **lap da 1 km** agli split automatici run/walk.
-- Escludiamo split con distanza troppo piccola, durata < 60 s o pari all’intera attività.
-- Le zone HR vengono da `time_in_zone` (`reference_mesg=session`); se assenti, fallback approssimativo dai record.
+- `sessions` is an array; singular `session` is not reliable.
+- Timestamps are `Date`; we convert them to ISO.
+- Running cadence in FIT is in cycles/min: we convert it to **steps/min** (`×2`).
+- For running we prefer **1 km laps** over automatic run/walk splits.
+- We exclude splits with too small a distance, duration < 60 s, or equal to the entire activity.
+- HR zones come from `time_in_zone` (`reference_mesg=session`); if absent, approximate fallback from records.
 
-## Cosa contiene il brief
+## What the brief contains
 
-Esempio sintetico:
+Synthetic example:
 
 ```md
-## Attività
+## Activity
 - Sport: running
-- Data: 2026-10-25
-- Durata: 45m 0s
-- Distanza: 10.00 km
-- Passo medio: 4:30/km
+- Date: 2026-10-25
+- Duration: 45m 0s
+- Distance: 10.00 km
+- Average pace: 4:30/km
 - HR: 165 / 182 bpm
-- Cadenza: 176 spm
-- Dislivello: +40 / -35 m
-- Calorie: 720 kcal
-- Training effect: 4.2 (anaerobico 0.8)
+- Cadence: 176 spm
+- Elevation gain/loss: +40 / -35 m
+- Calories: 720 kcal
+- Training effect: 4.2 (anaerobic 0.8)
 
-## Split
-| # | distanza | tempo | passo | HR |
+## Splits
+| # | distance | time | pace | HR |
 |---|---|---|---|---|
 | 1 | 1.00 km | 4:38 | 4:38/km | 158 |
 | 2 | 1.00 km | 4:32 | 4:32/km | 164 |
 | ... | ... | ... | ... | ... |
 
-## Zone HR
+## HR Zones
 Z1: 1 min · Z2: 5 min · Z3: 12 min · Z4: 20 min · Z5: 7 min
 
-## Osservazioni
-- Negative split: sì
-- Variabilità passo: 2.1%
-- Deriva HR: +3.4%
-- Miglior split: 4:25/km
-- Peggiore split: 4:41/km
-- Dislivello per km: 4.0 m/km
+## Observations
+- Negative split: yes
+- Pace variability: 2.1%
+- HR drift: +3.4%
+- Best split: 4:25/km
+- Worst split: 4:41/km
+- Elevation gain per km: 4.0 m/km
 ```
 
-Il brief è pensato per essere:
-- **compatto**: ~1–3 KB, non 17.000 record;
-- **strutturato**: sezioni stabili, facili da citare;
-- **spiegabile**: l’LLM può usare i numeri senza inventarli;
-- **non diagnostico**: descrive l’allenamento, non formula diagnosi.
+The brief is designed to be:
+- **compact**: ~1–3 KB, not 17,000 records;
+- **structured**: stable sections, easy to cite;
+- **explainable**: the LLM can use the numbers without inventing them;
+- **non-diagnostic**: it describes the workout, it does not make diagnoses.
 
-## API e persistenza
+## API and persistence
 
 ```text
 POST /api/integrations/garmin/activities/:activityId/analyze
 GET  /api/integrations/garmin/activities/:activityId/analysis
 ```
 
-- `analyze` scarica lo ZIP dell’attività da Garmin, estrae il `.FIT`, lo parsa, salva `ActivityAnalysis` e restituisce la versione compatta (`summary`, `derived`, `hrZones`, `brief`, conteggi).
-- Collezione Mongo: `activity_analyses` (unique `userId+source+externalId`).
-- UI: pulsante **Analizza FIT** su ogni attività Garmin; il brief è espandibile.
+- `analyze` downloads the activity ZIP from Garmin, extracts the `.FIT`, parses it, saves `ActivityAnalysis` and returns the compact version (`summary`, `derived`, `hrZones`, `brief`, counts).
+- Mongo collection: `activity_analyses` (unique `userId+source+externalId`).
+- UI: **Analyze FIT** button on each Garmin activity; the brief is expandable.
 
-## Validazione reale
+## Real-world validation
 
-Su un’attività Garmin reale:
+On a real Garmin activity:
 
-- FIT ~1,3 MB
-- 17.492 record
-- 44 lap
-- 42 split utilizzabili
-- 25 messaggi `time_in_zone`
-- brief finale ~2 KB, senza record grezzi
-- deriva HR, negative split, variabilità passo e miglior/peggior split calcolati
+- FIT ~1.3 MB
+- 17,492 records
+- 44 laps
+- 42 usable splits
+- 25 `time_in_zone` messages
+- final brief ~2 KB, without raw records
+- HR drift, negative split, pace variability and best/worst split calculated
 
-## Limiti attuali
+## Current limitations
 
-- Nuoto: parsing dei `lengths` non ancora esposto nel brief.
-- Palestra: `sets` non ancora normalizzati.
-- GPS/altimetria: usati solo per dislivello, non per analisi di percorso.
-- Zone HR: dipendono dalla configurazione del dispositivo.
-- Split: la scelta lap vs split è euristica per sport.
-- Non sostituisce un’analisi biomeccanica o clinica.
+- Swimming: parsing of `lengths` is not yet exposed in the brief.
+- Gym: `sets` not yet normalized.
+- GPS/elevation: used only for elevation gain/loss, not for route analysis.
+- HR zones: depend on the device configuration.
+- Splits: the lap vs split choice is heuristic per sport.
+- It does not replace a biomechanical or clinical analysis.
 
-## Prossimo passo
+## Next step
 
-1. Aggiungere `lengths` per il nuoto e `sets` per la palestra.
-2. Iniettare i brief delle ultime attività nel contesto del coach.
-3. Solo dopo, generare workout `.FIT` per l’export verso Garmin usando il FIT SDK encoder.
+1. Add `lengths` for swimming and `sets` for the gym.
+2. Inject the briefs of recent activities into the coach's context.
+3. Only then, generate `.FIT` workouts for export to Garmin using the FIT SDK encoder.

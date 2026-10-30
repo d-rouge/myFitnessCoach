@@ -1,515 +1,524 @@
-# Fasi di realizzazione
+# Implementation phases
 
-**Versione:** 1.9  
-**Data:** 26 ottobre 2026  
-**Riferimenti:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
+**Version:** 1.9  
+**Date:** 26 October 2026  
+**References:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
 ---
 
-## Principi
+## Principles
 
-1. **Risk-first:** prima si provano le integrazioni fragili (Garmin, Yazio, Zepp, Hevy, export `.FIT`), poi si costruisce la UI.
-2. **Vertical slice:** ogni fase produce qualcosa che usi davvero, non solo infrastruttura.
-3. **Nessuna assunzione sulle API:** ogni integrazione si chiude con risposte reali salvate in `docs/spikes/`.
-4. **Il dominio è testato prima dell'AI:** le regole si validano con unit test; l'LLM arriva dopo.
-5. **Local-first su Android:** il server non è necessario per allenarsi.
-6. **Ogni fase ha criteri di accettazione verificabili.**
+1. **Risk-first:** the fragile integrations are tested first (Garmin, Yazio, Zepp, Hevy, `.FIT` export), then the UI is built.
+2. **Vertical slice:** each phase produces something you actually use, not just infrastructure.
+3. **No assumptions about APIs:** every integration is closed out with real responses saved in `docs/spikes/`.
+4. **The domain is tested before the AI:** rules are validated with unit tests; the LLM comes later.
+5. **Local-first on Android:** the server is not required to train.
+6. **Every phase has verifiable acceptance criteria.**
 
-## Timeline indicativa
+## Indicative timeline
 
-| Fase | Durata | Risultato |
+| Phase | Duration | Outcome |
 |---|---|---|
-| 0 — Spike e fondamenta | 1 settimana | Integrazioni provate + scaffold |
-| 1 — Web MVP personale | 4–5 settimane | Loop completo sul web, uso quotidiano |
-| 2 — Multisport, export, automazioni | 2–3 settimane | Feedback per 4 sport + Hevy/Garmin + sync |
-| 3 — Android local-first | 4–6 settimane | App Android usabile, dati locali, backup |
-| 4 — Test con altri utenti | 3–4 settimane | 5–10 tester, multi-utente, compliance |
-| 5 — Consolidamento | continuo | Qualità, sport depth, optional |
+| 0 — Spikes and foundations | 1 week | Integrations tested + scaffold |
+| 1 — Personal Web MVP | 4–5 weeks | Complete loop on the web, daily use |
+| 2 — Multisport, export, automations | 2–3 weeks | Feedback for 4 sports + Hevy/Garmin + sync |
+| 3 — Android local-first | 4–6 weeks | Usable Android app, local data, backup |
+| 4 — Testing with other users | 3–4 weeks | 5–10 testers, multi-user, compliance |
+| 5 — Consolidation | ongoing | Quality, sport depth, optional |
 
-Totale primo prodotto Android usabile: **3–4 mesi** con una persona senior, meno se si taglia scope.
+Total for a first usable Android product: **3–4 months** with one senior person, less if scope is cut.
 
 ---
 
-## Fase 0 — Spike e fondamenta (1 settimana)
+## Phase 0 — Spikes and foundations (1 week)
 
-### Stato (26 ottobre 2026)
+### Status (26 October 2026)
 
-**Fatto:** scaffold npm workspaces, dominio, Garmin sync persistente, **FIT parser/analysis/brief**, Yazio v22 con test reale, generatore ed export workout `.FIT` (`garmin-export.md`), modulo `auth` (Google OAuth allowlist, dev login, `/api/me`, collezione `users`), modulo `export`, UI, CI, MongoDB locale, `.env.example`, 5 spike documentati con verdetto, repo git.
-**Verde:** `npm run build`, `npm test` (65 test), `npm run typecheck`, `npm run lint`. `npm run dev` avvia API su :3000 e web su :5173; con Mongo attivo `/api/health` risponde `ok`.
-**Fase 0 completata.** Pronti per la **Fase 1 — Web MVP personale**.
+**Done:** npm workspaces scaffold, domain, persistent Garmin sync, **FIT parser/analysis/brief**, Yazio v22 with real test, workout `.FIT` generator and export (`garmin-export.md`), `auth` module (Google OAuth allowlist, dev login, `/api/me`, `users` collection), `export` module, UI, CI, local MongoDB, `.env.example`, 5 documented spikes with verdict, git repo.
+**Green:** `npm run build`, `npm test` (65 tests), `npm run typecheck`, `npm run lint`. `npm run dev` starts the API on :3000 and the web app on :5173; with Mongo running `/api/health` responds `ok`.
+**Phase 0 completed.** Ready for **Phase 1 — Personal Web MVP**.
 
-> Nota: NestJS è alla versione **12 (ESM)**, con `type: module` e import `.js`. Non reintrodurre CommonJS o Nest 11.
+> Note: NestJS is at version **12 (ESM)**, with `type: module` and `.js` imports. Do not reintroduce CommonJS or Nest 11.
 
-### Obiettivo
+### Goal
 
-Dimostrare che le integrazioni chiave funzionano **davvero** e creare lo scheletro su cui costruire. Nessuna UI elaborata.
+Prove that the key integrations **actually** work and create the skeleton to build on. No elaborate UI.
 
-### Task
+### Tasks
 
 #### 0.1 Scaffold
 
-- [x] Monorepo npm workspaces (niente pnpm, niente Turborepo).
-- [x] `apps/api` NestJS con `EnvModule`, `HealthModule`, `IntegrationsModule`, `AuthModule`, `ExportModule`.
-- [ ] Moduli di dominio avanzati: `profile`, `plans`, `metrics`, `ai` (in Fase 1).
-- [x] `apps/web` React + Vite + Tailwind (shadcn/ui da aggiungere).
-- [x] `packages/domain` con schemi Zod (profilo, anamnesi, obiettivi, disponibilità, attrezzatura, check-in, sessione, piano, user).
-- [x] Regole pure: `readiness`, `load`, `feasibility`, `progression`, `safety`, `validator` + 20 test.
-- [x] `packages/integrations` con `ProviderAdapter`, client Garmin/Yazio, FIT parser/analyzer, workout FIT encoder + 32 test.
+- [x] npm workspaces monorepo (no pnpm, no Turborepo).
+- [x] `apps/api` NestJS with `EnvModule`, `HealthModule`, `IntegrationsModule`, `AuthModule`, `ExportModule`.
+- [ ] Advanced domain modules: `profile`, `plans`, `metrics`, `ai` (in Phase 1).
+- [x] `apps/web` React + Vite + Tailwind (shadcn/ui to be added).
+- [x] `packages/domain` with Zod schemas (profile, medical history, goals, availability, equipment, check-in, session, plan, user).
+- [x] Pure rules: `readiness`, `load`, `feasibility`, `progression`, `safety`, `validator` + 20 tests.
+- [x] `packages/integrations` with `ProviderAdapter`, Garmin/Yazio clients, FIT parser/analyzer, workout FIT encoder + 32 tests.
 - [x] `packages/config`, `packages/db`, `packages/ai`, `packages/ui`.
-- [x] MongoDB locale configurato su `127.0.0.1:27017` (nessun Docker).
-- [x] CI: workflow GitHub Actions (typecheck, lint, test, build).
-- [x] `.env.example` con tutte le variabili.
-- [x] Repository git locale: branch `main`, identità `d-rouge`, nessun remote.
+- [x] Local MongoDB configured on `127.0.0.1:27017` (no Docker).
+- [x] CI: GitHub Actions workflow (typecheck, lint, test, build).
+- [x] `.env.example` with all variables.
+- [x] Local git repository: `main` branch, `d-rouge` identity, no remote.
 
 #### 0.2 Garmin Personal
 
-- [x] Client Garmin: token exchange, cache 24h, retry su 401, gestione 429, endpoint attività/sonno/HRV/peso/passi/stress.
-- [x] Script `npm run spike:garmin` con output redatto, `--write` e `--download`.
-- [x] Creare una chiave personale reale su Garmin Connect.
-- [x] Pull di 14 giorni con la chiave reale: 6 attività, sonno, HRV, passi, stress, daily summary, Body Battery, RHR, SpO₂, zone HR; peso 0 record.
-- [x] Scaricare un `.FIT` di un'attività reale (ZIP 529 KB, valido).
-- [x] Misurare latenza (~2,9 s totale) e verificare errori/rate limit (nessun 429 nel singolo run).
-- [x] Salvare risposte reali (redatte) in `docs/spikes/garmin.md`.
-- [x] Gestire il workaround 406: niente header `Accept` su token/download; token raw JWT.
-- [x] Mapper canonico attività → `activities` e metriche → `metrics_daily`.
-- [x] Repository Mongo con upsert idempotente, indici e `sync_state`.
-- [x] `POST /api/integrations/garmin/sync?days=N` con audit in `sync_runs`.
-- [x] `GET /api/integrations/garmin/overview?days=N` per stato, attività e metriche.
-- [x] UI: pulsante “Sincronizza ora”, ultimo sync, attività recenti, tabella metriche.
-- [x] Test end-to-end reale: 3 attività e 7 giorni di metriche persistiti; secondo sync idempotente.
-- [ ] Verifica rate limit su 24–48h di polling continuo (monitoraggio in background).
-- [x] Parsing del `.FIT` e generazione `ActivityAnalysis`/brief.
-- [ ] Salvataggio del `.FIT` originale su object storage (oggi si parsa on demand).
+- [x] Garmin client: token exchange, 24h cache, retry on 401, 429 handling, activities/sleep/HRV/weight/steps/stress endpoints.
+- [x] `npm run spike:garmin` script with redacted output, `--write` and `--download`.
+- [x] Create a real personal key on Garmin Connect.
+- [x] 14-day pull with the real key: 6 activities, sleep, HRV, steps, stress, daily summary, Body Battery, RHR, SpO₂, HR zones; weight 0 records.
+- [x] Download a `.FIT` of a real activity (529 KB ZIP, valid).
+- [x] Measure latency (~2.9 s total) and check errors/rate limit (no 429 in the single run).
+- [x] Save real responses (redacted) in `docs/spikes/garmin.md`.
+- [x] Handle the 406 workaround: no `Accept` header on token/download; raw JWT token.
+- [x] Canonical mapper activities → `activities` and metrics → `metrics_daily`.
+- [x] Mongo repository with idempotent upsert, indexes and `sync_state`.
+- [x] `POST /api/integrations/garmin/sync?days=N` with audit in `sync_runs`.
+- [x] `GET /api/integrations/garmin/overview?days=N` for status, activities and metrics.
+- [x] UI: "Sync now" button, last sync, recent activities, metrics table.
+- [x] Real end-to-end test: 3 activities and 7 days of metrics persisted; second sync idempotent.
+- [ ] Verify rate limit over 24–48h of continuous polling (background monitoring).
+- [x] `.FIT` parsing and `ActivityAnalysis`/brief generation.
+- [ ] Saving the original `.FIT` to object storage (currently parsed on demand).
 
-#### 0.3 FIT: lettura, analisi, export
+#### 0.3 FIT: reading, analysis, export
 
-- [x] Parser FIT/ZIP (`fit-file-parser` + `fflate`).
-- [x] Normalizzazione `ActivityAnalysis`: summary, lap, split, zone HR, deriva HR, negative split, variabilità passo.
-- [x] Brief compatto per LLM (senza record a 1 Hz).
-- [x] Storage `activity_analyses` + endpoint `analyze`/`analysis` + UI “Analizza FIT”.
-- [x] Validazione reale: FIT ~1,3 MB, 17.492 record, 44 lap, 42 split, brief ~2 KB.
-- [x] Generare un workout `.FIT` strutturato (5×800m con warm-up Z2, interval @ 4:15-4:35/km, recovery 200m, repeat 5x, cooldown Z1).
-- [x] Valida con Decoder ufficiale `@garmin/fitsdk` (0 errori, magic bytes `.FIT`, messaggi conformi).
-- [x] Script `npm run export:workout` + endpoint `GET /api/export/workouts/sample-5x800m.fit` + card UI con download.
-- [x] Documentare il formato export e i limiti in `docs/spikes/garmin-export.md` (Go).
+- [x] FIT/ZIP parser (`fit-file-parser` + `fflate`).
+- [x] `ActivityAnalysis` normalization: summary, lap, split, HR zones, HR drift, negative split, pace variability.
+- [x] Compact brief for the LLM (without 1 Hz records).
+- [x] `activity_analyses` storage + `analyze`/`analysis` endpoints + "Analyze FIT" UI.
+- [x] Real validation: ~1.3 MB FIT, 17,492 records, 44 laps, 42 splits, ~2 KB brief.
+- [x] Generate a structured `.FIT` workout (5×800m with Z2 warm-up, interval @ 4:15-4:35/km, 200m recovery, repeat 5x, Z1 cooldown).
+File: docs/FASI.md (part 2)
+
+- [x] Validated with the official Decoder `@garmin/fitsdk` (0 errors, `.FIT` magic bytes, compliant messages).
+- [x] Script `npm run export:workout` + endpoint `GET /api/export/workouts/sample-5x800m.fit` + UI card with download.
+- [x] Document the export format and limits in `docs/spikes/garmin-export.md` (Go).
 
 #### 0.4 Yazio
 
-- [x] Client v22 con login/refresh, User-Agent gate, fallback v20, errori tipizzati.
-- [x] Supporto token import (`refreshToken`) per account Google/social.
-- [x] Mapper: somma macro dei pasti, obiettivi, acqua, passi, peso.
-- [x] Sync persistente in `nutrition_daily` / `metrics_daily` + audit.
-- [x] Endpoint `check` / `sync` / `overview` e card UI “Nutrizione Yazio”.
-- [x] Test di contratto + mapper con fixture.
-- [x] Login con account reale (password Yazio; supporto refresh token per Google già implementato).
-- [x] Pull reale: profilo, nutrients-daily, summary, diario, ultimo peso, obiettivi (7 giorni).
-- [x] Verificare 2FA/blocchi: nessun blocco; token/refresh gestiti.
-- [x] Verdetto e rischi in `docs/spikes/yazio.md` (Go).
+- [x] v22 client with login/refresh, User-Agent gate, v20 fallback, typed errors.
+- [x] Token import support (`refreshToken`) for Google/social accounts.
+- [x] Mapper: meal macro totals, goals, water, steps, weight.
+- [x] Persistent sync into `nutrition_daily` / `metrics_daily` + audit.
+- [x] `check` / `sync` / `overview` endpoints and UI card “Yazio Nutrition”.
+- [x] Contract tests + mapper with fixtures.
+- [x] Login with a real account (Yazio password; refresh token support for Google already implemented).
+- [x] Real pull: profile, nutrients-daily, summary, diary, latest weight, goals (7 days).
+- [x] Check 2FA/blocks: no block; tokens/refresh handled.
+- [x] Verdict and risks in `docs/spikes/yazio.md` (Go).
 
 #### 0.5 Zepp
 
-- [x] Analisi tecnica endpoint `GET /users/{userId}/members/-1/weightRecords`.
-- [x] Verificati vincoli di autenticazione proxy HTTPS e TTL di 30 giorni.
-- [x] Documentare verdetto (No-go web / fallback HC) in `docs/spikes/zepp.md`.
+- [x] Technical analysis of endpoint `GET /users/{userId}/members/-1/weightRecords`.
+- [x] Verified HTTPS proxy authentication constraints and 30-day TTL.
+- [x] Document verdict (No-go web / HC fallback) in `docs/spikes/zepp.md`.
 
 #### 0.6 Hevy
 
-- [x] Analisi della documentazione OpenAPI Hevy e contratti payload routine.
-- [x] Verifica prerequisito Hevy Pro per la chiave API sviluppatore.
-- [x] Documentare mapping e limiti in `docs/spikes/hevy.md` (Go con prerequisito).
+- [x] Analysis of Hevy OpenAPI documentation and routine payload contracts.
+- [x] Verify Hevy Pro prerequisite for the developer API key.
+- [x] Document mapping and limits in `docs/spikes/hevy.md` (Go with prerequisite).
 
-#### 0.7 Auth e dati
+#### 0.7 Auth and data
 
 - [x] `EnvModule`, `GET /api/health`, `GET /api/integrations/status`.
-- [x] Modulo `AuthModule` con supporto token Google ID, account locali email + password (scrypt) e dev login. _(Registrazione/login locali e linking Google per email: F1-24.)_
-- [x] Controllo allowlist email (`GOOGLE_ALLOWED_EMAILS`).
-- [x] `users` in Mongo con indici univoci, sessione JWT con HMAC-SHA256 e test unitari.
+- [x] `AuthModule` with Google ID token support, local email + password (scrypt) accounts, and dev login. _(Local signup/login and Google linking by email: F1-24.)_
+- [x] Email allowlist check (`GOOGLE_ALLOWED_EMAILS`).
+- [x] `users` in Mongo with unique indexes, JWT session with HMAC-SHA256, and unit tests.
 - [x] Endpoint `/api/me`.
-- [x] Frontend: visualizzazione atleta autenticato nella status page.
+- [x] Frontend: authenticated athlete display on the status page.
 
-### Criteri di accettazione
+### Acceptance criteria
 
-- [x] Tutti gli spike hanno un documento con risposte reali e un verdetto **go / no-go / workaround** (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`).
-- [x] Il monorepo parte con `npm install` e `npm run dev` (Mongo locale attivo).
-- [x] Auth base e allowlist email funzionano end-to-end con persistenza in `users` e `/api/me`.
-- [x] Almeno Garmin e Yazio restituiscono dati reali sincronizzati in Mongo.
-- [x] L'export workout `.FIT` è generato, conforme alle specifiche FIT, validato con Decoder e scaricabile.
+- [x] All spikes have a document with real answers and a **go / no-go / workaround** verdict (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`).
+- [x] The monorepo starts with `npm install` and `npm run dev` (local Mongo running).
+- [x] Base auth and email allowlist work end-to-end with persistence in `users` and `/api/me`.
+- [x] At least Garmin and Yazio return real data synchronized in Mongo.
+- [x] The `.FIT` workout export is generated, compliant with the FIT specifications, validated with Decoder, and downloadable.
 
-> Stato attuale: **Fase 0 completata**. Tutti i criteri di accettazione sono soddisfatti. 65 test verdi, typecheck e lint puliti. Pronti per la Fase 1 (Onboarding e prima vertical slice).
+> Current status: **Phase 0 completed**. All acceptance criteria are met. 65 green tests, clean typecheck and lint. Ready for Phase 1 (Onboarding and first vertical slice).
 
-### Rischi
+### Risks
 
-| Rischio | Mitigazione |
+| Risk | Mitigation |
 |---|---|
-| Garmin key/token non funziona | leggere FAQ ufficiale; usare il client Python come riferimento |
-| Yazio login bloccato (2FA) | documentare; fallback manuale |
-| Zepp token troppo fragile | rimandare; usare Health Connect in fase 3 |
-| Hevy non Pro | attivare Pro o rimandare export |
-| `.FIT` workout non importabile | verificare con un file generato da strumento noto; usare FIT SDK |
+| Garmin key/token does not work | read the official FAQ; use the Python client as reference |
+| Yazio login blocked (2FA) | document; manual fallback |
+| Zepp token too fragile | postpone; use Health Connect in phase 3 |
+| Hevy not Pro | activate Pro or postpone export |
+| `.FIT` workout not importable | verify with a file generated by a known tool; use FIT SDK |
 
 ---
 
-## Fase 1 — Web MVP personale (4–5 settimane)
+## Phase 1 — Personal Web MVP (4–5 weeks)
 
-### Stato (aggiornato al 27 ottobre 2026)
+### Status (updated October 27, 2026)
 
-> ⚠️ **La Fase 1 è funzionalmente completa ma non ancora validata su 14 giorni reali.**
-> La revisione del 27 ottobre 2026 ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) ha trovato
-> 5 problemi bloccanti, 7 gravi e 7 medi. Dopo WS-0, Onda 1 e Onda 2 restano aperti solo
-> un P2 rinviato (scheduler/credenziali F1-19) e l'uso reale. F1-18 (AI coach)
-> è chiuso: il coach consuma `RecentContext` e usa DeepSeek.
-> I test unitari (239) e l'e2e multi-utente su MongoDB reale (14 verifiche) sono verdi.
-> Le checkbox sotto sono state riallineate: quelle non verificate sono `[ ]`.
+> ⚠️ **Phase 1 is functionally complete but has not yet been validated over 14 real days.**
+> The October 27, 2026 review ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) found
+> 5 blocking issues, 7 serious, and 7 medium. After WS-0, Wave 1, and Wave 2, only
+> one postponed P2 (scheduler/credentials F1-19) and real-world use remain open. F1-18 (AI coach)
+> is closed: the coach consumes `RecentContext` and uses DeepSeek.
+> The unit tests (239) and the multi-user e2e on real MongoDB (14 checks) are green.
+> The checkboxes below have been realigned: those not verified are `[ ]`.
 >
-> **WS-0 (27 ottobre 2026):** guard JWT globale, `@CurrentUser()`, config sicura,
-> validazione Zod e body limit FIT sono chiusi (F1-01, F1-02, F1-04, F1-05, F1-14).
+> **WS-0 (October 27, 2026):** global JWT guard, `@CurrentUser()`, secure config,
+> Zod validation, and FIT body limit are closed (F1-01, F1-02, F1-04, F1-05, F1-14).
 >
-> **Onda 1 (27 ottobre 2026):** chiusi baseline/versioning (F1-03), review e check-in
-> (F1-06, F1-07, F1-15, F1-16), export FIT/Hevy (F1-08, F1-09) e backup/restore/wipe
+> **Wave 1 (October 27, 2026):** closed baseline/versioning (F1-03), review and check-in
+> (F1-06, F1-07, F1-15, F1-16), FIT/Hevy export (F1-08, F1-09), and backup/restore/wipe
 > (F1-10).
 >
-> **Onda 2 (27 ottobre 2026):** chiusi safety (F1-11), generatore (F1-12), timezone
-> (F1-13), UI auth/Hevy (F1-17) e documentazione (F1-20); aggiunto l'e2e multi-utente
-> con Mongo reale (WS-9). Resta rinviato F1-19 (scheduler e credenziali
-> cifrate); F1-18 è chiuso il 27 ottobre 2026.
+> **Wave 2 (October 27, 2026):** closed safety (F1-11), generator (F1-12), timezone
+> (F1-13), auth/Hevy UI (F1-17), and documentation (F1-20); the multi-user e2e
+> with real Mongo (WS-9) was added. F1-19 remains postponed (scheduler and encrypted
+> credentials); F1-18 was closed on October 27, 2026.
 >
-> **Prossimo blocco (27 ottobre 2026):** sostituire il generatore a regole come
-> *autore* del piano con la pipeline Proposer + Critic + Referee descritta in
-> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md). Il generatore resta come fallback.
-> Prerequisito riconosciuto: lo scarico post-gara oggi è una costante globale
-> (21 giorni, palestra inclusa) ed è sbagliato per atleti esperti e per gli sport
-> non d'impatto.
+> **Next block (October 27, 2026):** replace the rule-based generator as
+> the *author* of the plan with the Proposer + Critic + Referee pipeline described in
+> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md). The generator remains as a fallback.
+> Recognized prerequisite: post-race unloading is currently a global constant
+> (21 days, gym included) and is wrong for experienced athletes and for
+> non-impact sports.
 
-**Test:** 239 unitari + 14 verifiche e2e verdi (`npm run test:e2e`, database
-`health_trainer_e2e` temporaneo). Dettaglio e limiti residui in
+**Tests:** 239 unit + 14 green e2e checks (`npm run test:e2e`, temporary
+`health_trainer_e2e` database). Details and remaining limits in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
-- **1.1 Dominio e regole:** Schemi L0–L4 completi (baseline, preferenze, anamnesi, piani, sessioni, check-in, review), 85 unit test con casi limite e fixture di 4 personas (Marco principiante 5k, Giulia mezza+palestra, Luca dolore ginocchio, Sara ex agonista in rientro).
-- **1.2 Onboarding:** Wizard interattivo a 6 step (`OnboardingWizard.tsx`) con anamnesi completa — red flag, patologie note, farmaci, infortuni — e valutazione di sicurezza mostrata in tempo reale. Barra di salvataggio sticky: in modifica si salva da qualsiasi step; al primo onboarding la bozza resta in `sessionStorage` finché non si conclude, obiettivi, disponibilità, attrezzatura, demo persona selector e persistenza su MongoDB (`athlete_baselines`) + API `/api/baseline`. _(WS-6: red flag e infortuni inseribili dal wizard; il salvataggio è permesso, la generazione viene bloccata.)_
-- **1.3 Piano:** Feasibility check 5k con proiezioni realistiche, generatore macrociclo e microciclo deterministico (`generateMacroPlan`, `generateMicroPlan`), safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio), Board multisport e Card "Oggi" con varianti espresse (15 min, 30 min, cyclette).
-- **1.4 Esecuzione e feedback:** Check-in mattutino rapido (`MorningCheckinCard.tsx`), motore di adattamento giornaliero real-time (`computeDailyAdjustment`), inserimento attività manuale (`/api/activities/manual`) e upload file `.FIT` con analisi e confronto automatico pianificato vs effettivo (`compareSessionWithActivity`).
-- **1.5 Integrazioni:** Client Garmin Personal con token cache e sync metriche/attività; Yazio client v22 con sync nutrizione e peso; card stato integrazioni e verifica credenziali.
-- **1.6 Export:** Export `.FIT` per corsa/bici/nuoto (`/api/export/workouts/session/:id.fit`), export routine palestra verso Hevy Pro (`/api/export/workouts/hevy/export`), backup completo (`/api/export/backup`) e restore idempotente (`/api/export/restore`). _(F1-08, F1-09, F1-10 chiusi in WS-4/WS-5; l'export Hevy con chiave reale non è ancora stato provato.)_
-- **1.7 Review:** Motore di review settimanale deterministico (`computeWeeklyReview`), aderenza basata sulle sole sessioni `completed`, eventi dolore limitati alla settimana valutata, verdetto (`continue`, `progress`, `deload`) applicato al microciclo successivo (`/api/review/advance-week`, `WeeklyReviewCard.tsx`). _(F1-06, F1-15, F1-16 chiusi in WS-3.)_
-- **1.8 AI Coach:** Schemi e prompt versionati (`coach-advice-v1`), provider deterministico offline-first (`DeterministicCoachProvider`), tracciamento esecuzioni `ai_runs` con token, latenza e modello, endpoint `/api/ai/coach-advice` e card di coaching briefing integrata nella UI.
-- **1.9 Sicurezza & Privacy (GDPR):** Credenziali isolate in `secrets/`, password locali hashate con scrypt in `auth_credentials` (mai nel documento `users`), backup completo con `ai_runs`, restore per utente autenticato e cancellazione totale (`DELETE /api/export/me`, che rimuove anche le credenziali). _(F1-10 chiuso in WS-5; autenticazione JWT e default sicuri chiusi in WS-0; account locali F1-24.)_
+- **1.1 Domain and rules:** Complete L0–L4 schemas (baseline, preferences, medical history, plans, sessions, check-ins, review), 85 unit tests with edge cases and fixtures for 4 personas (Marco beginner 5k, Giulia half marathon + gym, Luca knee pain, Sara former competitive athlete returning).
+File: docs/FASI.md (part 3)
 
-**Verde (verificato il 27 ottobre 2026 dopo Onda 2):** 239 test unitari, 14 verifiche e2e
-su MongoDB reale, typecheck dei workspace, `typecheck:scripts` e lint Biome passano;
-build API e web complete. **Non coperto:** login Google con credenziali reali (la
-registrazione Google richiede client OAuth e allowlist), export Hevy con chiave reale,
-import `.FIT` su Garmin Connect, scheduler automatico, uso reale di 14 giorni.
+- **1.2 Onboarding:** Interactive 6-step wizard (`OnboardingWizard.tsx`) with complete medical history — red flags, known conditions, medications, injuries — and safety assessment shown in real time. Sticky save bar: when editing, you can save from any step; on first onboarding the draft remains in `sessionStorage` until it is completed, goals, availability, equipment, demo persona selector, and persistence on MongoDB (`athlete_baselines`) + API `/api/baseline`. _(WS-6: red flags and injuries can be entered from the wizard; saving is permitted, generation is blocked.)_
+- **1.3 Plan:** 5k feasibility check with realistic projections, deterministic macrocycle and microcycle generator (`generateMacroPlan`, `generateMicroPlan`), safety critic (automatic replacement of running with bike/swimming/mobility for knee pain), multisport Board and "Today" Card with express variants (15 min, 30 min, exercise bike).
+- **1.4 Execution and feedback:** Quick morning check-in (`MorningCheckinCard.tsx`), real-time daily adjustment engine (`computeDailyAdjustment`), manual activity entry (`/api/activities/manual`) and `.FIT` file upload with analysis and automatic planned vs actual comparison (`compareSessionWithActivity`).
+- **1.5 Integrations:** Garmin Personal client with token cache and metrics/activities sync; Yazio client v22 with nutrition and weight sync; integrations status card and credential verification.
+- **1.6 Export:** `.FIT` export for run/bike/swim (`/api/export/workouts/session/:id.fit`), gym routine export to Hevy Pro (`/api/export/workouts/hevy/export`), full backup (`/api/export/backup`) and idempotent restore (`/api/export/restore`). _(F1-08, F1-09, F1-10 closed in WS-4/WS-5; Hevy export with a real key has not yet been tested.)_
+- **1.7 Review:** Deterministic weekly review engine (`computeWeeklyReview`), adherence based only on `completed` sessions, pain events limited to the evaluated week, verdict (`continue`, `progress`, `deload`) applied to the next microcycle (`/api/review/advance-week`, `WeeklyReviewCard.tsx`). _(F1-06, F1-15, F1-16 closed in WS-3.)_
+- **1.8 AI Coach:** Versioned schemas and prompts (`coach-advice-v1`), deterministic offline-first provider (`DeterministicCoachProvider`), tracking of `ai_runs` executions with token, latency, and model, endpoint `/api/ai/coach-advice` and coaching briefing card integrated into the UI.
+- **1.9 Security & Privacy (GDPR):** Credentials isolated in `secrets/`, local passwords hashed with scrypt in `auth_credentials` (never in the `users` document), full backup with `ai_runs`, restore per authenticated user and complete deletion (`DELETE /api/export/me`, which also removes credentials). _(F1-10 closed in WS-5; JWT authentication and secure defaults closed in WS-0; local accounts F1-24.)_
 
-### Obiettivo
+**Green (verified on October 27, 2026 after Wave 2):** 239 unit tests, 14 e2e checks
+on real MongoDB, workspace typecheck, `typecheck:scripts` and Biome lint pass;
+API and web builds complete. **Not covered:** Google login with real credentials (Google
+registration requires OAuth client and allowlist), Hevy export with a real key,
+`.FIT` import to Garmin Connect, automatic scheduler, real 14-day use.
 
-Usare l'app ogni giorno per 2 settimane: piano, allenamento, check-in, review, dati Garmin/Yazio, export.
+### Goal
+
+Use the app every day for 2 weeks: plan, workout, check-in, review, Garmin/Yazio data, export.
 
 ### Task
 
-#### 1.1 Dominio e regole
+#### 1.1 Domain and rules
 
-- [x] Schemi Zod L0: profilo, anamnesi, obiettivi, disponibilità, attrezzatura, preferenze (`baseline.ts`, `preferences.ts`, etc.).
-- [x] Schemi L1–L4: piano, settimana, sessione, stato giornaliero, review (`plan.ts`, `daily-state.ts`, `review.ts`, `session.ts`).
+- [x] Zod L0 schemas: profile, medical history, goals, availability, equipment, preferences (`baseline.ts`, `preferences.ts`, etc.).
+- [x] L1–L4 schemas: plan, week, session, daily state, review (`plan.ts`, `daily-state.ts`, `review.ts`, `session.ts`).
 - [x] `readiness`, `load`, `progression`, `feasibility`, `safety`, `validator`.
-- [x] Unit test per ogni regola, con casi limite (99 test verdi in `packages/domain`).
-- [x] Fixture di 4 personas (Marco principiante 5k, Giulia intermedia mezza+palestra, Luca tendinopatia rotulea, Sara ex agonista ferma da 2 anni).
+- [x] Unit tests for each rule, with edge cases (99 green tests in `packages/domain`).
+- [x] Fixtures for 4 personas (Marco beginner 5k, Giulia intermediate half marathon + gym, Luca patellar tendinopathy, Sara former competitive athlete inactive for 2 years).
 
 #### 1.2 Onboarding
 
-- [x] Wizard 6 step, salvabile, mobile-friendly (`OnboardingWizard.tsx`).
-- [x] Anamnesi strutturata + testo libero + red flag. _(WS-6: il wizard permette red flag e infortuni; `assessSafety` li valuta e la generazione viene bloccata.)_
-- [x] **Salvataggio non vincolato all'ultimo step** (27 ottobre 2026): in modifica compare "Salva modifiche" in una barra sticky su ogni step, con indicatore "Modifiche non salvate" e conferma prima di annullare. Al primo onboarding le modifiche restano in una bozza di `sessionStorage` (dati sanitari: non sopravvive alla chiusura della scheda) e vengono ripristinate al ritorno.
-- [x] **Patologie note e farmaci** (27 ottobre 2026): selezione patologie e inserimento farmaci nel wizard, con valutazione `assessSafety` live. Le condizioni che richiedono parere medico bloccano la generazione; le croniche (asma, diabete, ipertensione controllata…) alzano la severità a cautela; i farmaci che modificano la risposta all'esercizio (beta-bloccanti, diuretici, anticoagulanti, ipoglicemizzanti) producono una nota esplicita.
-- [x] Obiettivo primario/secondario + data target.
-- [x] Disponibilità settimanale e durata massima per sessione.
-- [x] Attrezzatura, palestra, piscina, casa con selezione visuale.
-- [x] Foto opzionali (upload, EXIF strip, storage privato - rimandato alla fase mobile).
-- [x] Riepilogo baseline modificabile con persistenza Mongo (`athlete_baselines`) e modulo API `/api/baseline`. _(Senza baseline `GET /api/baseline` risponde 404, mai 200 con body vuoto: F1-21.)_
+- [x] 6-step wizard, saveable, mobile-friendly (`OnboardingWizard.tsx`).
+- [x] Structured medical history + free text + red flag. _(WS-6: the wizard allows red flags and injuries; `assessSafety` evaluates them and generation is blocked.)_
+- [x] **Saving not tied to the last step** (October 27, 2026): when editing, "Save changes" appears in a sticky bar on every step, with an "Unsaved changes" indicator and confirmation before discarding. On first onboarding, changes remain in a `sessionStorage` draft (health data: it does not survive closing the tab) and are restored on return.
+- [x] **Known conditions and medications** (October 27, 2026): selection of conditions and entry of medications in the wizard, with live `assessSafety` assessment. Conditions requiring medical advice block generation; chronic ones (asthma, diabetes, controlled hypertension…) raise severity to caution; medications that alter exercise response (beta-blockers, diuretics, anticoagulants, hypoglycemics) produce an explicit note.
+- [x] Primary/secondary goal + target date.
+- [x] Weekly availability and maximum duration per session.
+- [x] Equipment, gym, pool, home with visual selection.
+- [x] Optional photos (upload, EXIF strip, private storage - deferred to mobile phase).
+File: docs/FASI.md (part 4)
 
-#### 1.3 Piano
+- [x] Editable baseline summary with Mongo persistence (`athlete_baselines`) and `/api/baseline` API module. _(Without a baseline, `GET /api/baseline` responds 404, never 200 with an empty body: F1-21.)_
 
-- [x] Feasibility check con proposta di obiettivo realistico (`project5k` e card feasibility nel web).
-- [x] Generazione macro (fasi, settimane, target) deterministica da Baseline (`generateMacroPlan`).
-- [x] Generazione micro (sessioni, blocchi strutturati, alternative 15/30/basso impatto) da Baseline (`generateMicroPlan`).
-- [x] Validator + safety critic (sostituzione automatica corsa con bici/nuoto/mobilità per dolore al ginocchio). _(WS-6: `assessSafety` blocca la generazione su red flag assoluti o PAR-Q mancante; il critic resta attivo per il ginocchio.)_
-- [x] Diff e "perché" nella UI (focus fase, intensità RPE e criteri di successo).
-- [x] Board settimanale multisport (palestra, corsa, bici, nuoto, mobilità).
-- [x] Card "oggi" + alternative (15/30 min, cyclette/basso impatto) e salvataggio stato completamento (`PATCH /api/plan/sessions/:id`).
+#### 1.3 Plan
 
-#### 1.4 Esecuzione e feedback
+- [x] Feasibility check with realistic goal proposal (`project5k` and feasibility card in the web app).
+- [x] Deterministic macro generation (phases, weeks, targets) from Baseline (`generateMacroPlan`).
+- [x] Micro generation (sessions, structured blocks, 15/30/low-impact alternatives) from Baseline (`generateMicroPlan`).
+- [x] Validator + safety critic (automatic replacement of running with bike/swimming/mobility for knee pain). _(WS-6: `assessSafety` blocks generation on absolute red flags or missing PAR-Q; the critic remains active for the knee.)_
+- [x] Diff and "why" in the UI (phase focus, RPE intensity and success criteria).
+- [x] Weekly multisport board (gym, running, bike, swimming, mobility).
+- [x] "Today" card + alternatives (15/30 min, stationary bike/low impact) and completion state saving (`PATCH /api/plan/sessions/:id`).
 
-- [x] Check-in mattutino (sonno, energia, indolenzimento, dolore, tempo) con form rapido 20 secondi (`MorningCheckinCard.tsx`).
-- [x] Post-sessione (RPE, sensazioni, dolore, note) e registrazione completamento sessione.
-- [x] Inserimento attività manuale (`POST /api/activities/manual`).
-- [x] Upload `.FIT` e parsing con estrazione metriche (`POST /api/activities/upload-fit`). _(Corpo JSON fino a 15 MB, firma `.FIT` ai byte 8–11 e limite 10 MB validati in WS-0. `.TCX` non è supportato.)_
-- [x] Confronto dati device vs pianificato (`compareSessionWithActivity`).
-- [x] Adattamento giornaliero (`computeDailyAdjustment`: conferma/riduzione/swap/riposo con aggiornamento immediato della sessione). _(WS-3: durata, RPE, blocchi e note vengono persistiti con `replacePlannedSession`.)_
+#### 1.4 Execution and feedback
 
-#### 1.5 Integrazioni
+- [x] Morning check-in (sleep, energy, soreness, pain, time) with a quick 20-second form (`MorningCheckinCard.tsx`).
+- [x] Post-session (RPE, sensations, pain, notes) and session completion recording.
+- [x] Manual activity entry (`POST /api/activities/manual`).
+- [x] `.FIT` upload and parsing with metric extraction (`POST /api/activities/upload-fit`). _(JSON body up to 15 MB, `.FIT` signature at bytes 8–11 and 10 MB limit validated in WS-0. `.TCX` is not supported.)_
+- [x] Device data vs planned comparison (`compareSessionWithActivity`).
+- [x] Daily adjustment (`computeDailyAdjustment`: confirm/reduce/swap/rest with immediate session update). _(WS-3: duration, RPE, blocks and notes are persisted with `replacePlannedSession`.)_
 
-- [x] Garmin Personal: adapter pull, token cache. _(Lo stato integrazione usa la stessa risoluzione credenziali del client, incluso `secrets/garmin-key.txt`: F1-22.)_
-- [ ] Garmin: scheduler, backoff, reminder scadenza chiave. _(Non implementato: sync solo manuale.)_
-- [x] Yazio: adapter v22, refresh, nutrients-daily/summary/peso.
-- [x] Yazio: credenziali isolate in `secrets/`.
-- [x] Dedupe attività tramite chiavi uniche (userId, source, externalId).
-- [x] Pagina/card stato integrazioni (connesso/scaduto/errore). _(Garmin e Yazio leggono le metriche filtrate per `source`, senza date duplicate: F1-23.)_
+#### 1.5 Integrations
+
+- [x] Garmin Personal: pull adapter, token cache. _(The integration status uses the same credential resolution as the client, including `secrets/garmin-key.txt`: F1-22.)_
+- [ ] Garmin: scheduler, backoff, key expiration reminder. _(Not implemented: manual sync only.)_
+- [x] Yazio: v22 adapter, refresh, nutrients-daily/summary/weight.
+- [x] Yazio: credentials isolated in `secrets/`.
+- [x] Activity dedupe via unique keys (userId, source, externalId).
+- [x] Integrations status page/card (connected/expired/error). _(Garmin and Yazio read metrics filtered by `source`, with no duplicate dates: F1-23.)_
 
 #### 1.6 Export
 
-- [x] Export routine palestra → Hevy (mapping esercizi, creazione routine `POST /api/export/workouts/hevy/export`). _(WS-4: esercizi derivati dai blocchi, chiave obbligatoria, sessione mai inventata. Export con chiave reale non ancora provato.)_
-- [x] Export workout corsa/bici/nuoto → `.FIT` scaricabile dinamico (`GET /api/export/workouts/session/:id.fit`) + istruzioni import Garmin. _(WS-4: forza/mobilità rifiutate con 400; passo, potenza, cadenza e zone HR mappati. Import su Garmin Connect non verificato.)_
-- [x] Export backup JSON completo (`GET /api/export/backup`) e ripristino (`POST /api/export/restore`). _(WS-5: backup `0.3.0` con `ai_runs`, restore idempotente e limitato all'utente autenticato.)_
+- [x] Gym routine export → Hevy (exercise mapping, routine creation `POST /api/export/workouts/hevy/export`). _(WS-4: exercises derived from blocks, key required, session never invented. Export with a real key not yet tested.)_
+- [x] Running/bike/swim workout export → dynamic downloadable `.FIT` (`GET /api/export/workouts/session/:id.fit`) + Garmin import instructions. _(WS-4: strength/mobility rejected with 400; pace, power, cadence and HR zones mapped. Import into Garmin Connect not verified.)_
+- [x] Full JSON backup export (`GET /api/export/backup`) and restore (`POST /api/export/restore`). _(WS-5: `0.3.0` backup with `ai_runs`, idempotent restore limited to the authenticated user.)_
 
 #### 1.7 Review
 
-- [x] Review settimanale (aderenza %, carico totale, episodi di dolore).
-- [x] Decisioni deterministiche: continua / progredisci (+10% volume) / scarico (-30% volume) / cambia macro. _(WS-3: `progress` e `deload` applicati al microciclo successivo.)_
-- [x] Rigenerazione micro e avanzamento alla settimana successiva con contesto completo (`POST /api/review/advance-week`).
-- [x] Visualizzazione review nella UI (`WeeklyReviewCard.tsx`).
+- [x] Weekly review (adherence %, total load, pain episodes).
+- [x] Deterministic decisions: continue / progress (+10% volume) / deload (-30% volume) / change macro. _(WS-3: `progress` and `deload` applied to the next microcycle.)_
+- [x] Micro regeneration and advancement to the next week with full context (`POST /api/review/advance-week`).
+- [x] Review visualization in the UI (`WeeklyReviewCard.tsx`).
 
 #### 1.8 AI
 
-> **Stato reale (27 ottobre 2026):** nessun modello è collegato. Esiste solo
-> `DeterministicCoachProvider` (testi scritti a mano) e `/api/health` risponde
-> `llm: missing`. La generazione del piano è interamente deterministica e il
-> coach non consuma `RecentContext`. Il disegno di destinazione è in
+> **Current status (October 27, 2026):** no model is connected. Only
+> `DeterministicCoachProvider` exists (handwritten texts) and `/api/health` responds
+> `llm: missing`. Plan generation is entirely deterministic and the
+> coach does not consume `RecentContext`. The target design is in
 > [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md).
 
-- [x] Prompt versionati (`coach-advice-v1`) con validazione Zod schema (`CoachAdviceSchema`).
-- [x] Deterministic Coach Provider offline-first per esecuzione affidabile senza chiavi terze parti.
-- [x] Audit log `ai_runs` con token, latenza, modello e costo USD. _(Solo metadati: manca il payload di proposta e verdetto.)_
-- [x] Endpoint `POST /api/ai/coach-advice` e widget AI Coach nella dashboard.
-- [x] **Coach con contesto reale** (27 ottobre 2026, chiude F1-18): il payload include `recentContext` (ultima gara/sforzo, giorni trascorsi, finestra di recupero, carico 7/28, ACWR, flag) e il system prompt vieta di prescrivere carico durante la finestra. Verificato su dati reali: cita la maratona di 2 giorni fa e il rapporto acuto/cronico.
-- [x] **Collegamento DeepSeek nativo** (27 ottobre 2026): `DeepSeekProvider` con JSON mode, thinking selezionabile, mappatura errori `retryable`, timeout; `deepseek-v4-pro` per pianificazione e `deepseek-flash` per il coach; smoke test `npm run spike:deepseek`. Senza chiave resta il provider deterministico.
+- [x] Versioned prompts (`coach-advice-v1`) with Zod schema validation (`CoachAdviceSchema`).
+- [x] Offline-first Deterministic Coach Provider for reliable execution without third-party keys.
+- [x] `ai_runs` audit log with tokens, latency, model and USD cost. _(Metadata only: the proposal payload and verdict are missing.)_
+- [x] `POST /api/ai/coach-advice` endpoint and AI Coach widget in the dashboard.
+- [x] **Coach with real context** (October 27, 2026, closes F1-18): the payload includes `recentContext` (last race/effort, days elapsed, recovery window, 7/28 load, ACWR, flags) and the system prompt forbids prescribing load during the window. Verified on real data: it cites the marathon from 2 days ago and the acute/chronic ratio.
+- [x] **Native DeepSeek connection** (October 27, 2026): `DeepSeekProvider` with JSON mode, selectable thinking, `retryable` error mapping, timeout; `deepseek-v4-pro` for planning and `deepseek-flash` for the coach; smoke test `npm run spike:deepseek`. Without a key, the deterministic provider remains.
 
-#### 1.9 Sicurezza
+#### 1.9 Security
 
-- [x] Credenziali isolate e protette in `secrets/`.
-- [x] Sanitizzazione log.
-- [x] Portabilità dati: Export backup JSON completo.
-- [x] Cancellazione totale dati / GDPR wipe (`DELETE /api/export/me`). _(WS-5: elimina anche `users` e `ai_runs`; dopo il wipe `/api/me` risponde 401.)_
+- [x] Credentials isolated and protected in `secrets/`.
+- [x] Log sanitization.
+- [x] Data portability: Full JSON backup export.
+- [x] Total data deletion / GDPR wipe (`DELETE /api/export/me`). _(WS-5: also deletes `users` and `ai_runs`; after the wipe `/api/me` responds 401.)_
 
-#### 1.10 Architettura LLM (pianificata, non implementata)
+#### 1.10 LLM Architecture (planned, not implemented)
+File: docs/FASI.md (part 5)
 
-Piano completo e criteri in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md) §11.
-Ordine vincolante: ogni passo presuppone il precedente.
+Complete plan and criteria in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md) §11.
+Binding order: each step presupposes the previous one.
 
-- [x] **A. Dossier atleta** (`F1-25`) — `buildAthleteDossier()` deterministico, `GET /api/athlete/dossier`, usato da piano e coach tramite `AthleteService.getContext()`. Il dossier dichiara ciò che manca (`warnings`) e un test di copertura impedisce di aggiungere campi alla baseline senza passarlo di qui. _Restano da collegare al generatore a regole età, finestre orarie, orario preferito e obiettivi secondari: il dossier li espone, il generatore non li legge ancora._
-- [ ] **B. Schema e provenance** (`F1-26`) — `trainingModel`, `envelope` per modalità, `review`, `generatedBy`; `ai_runs` con il payload; migrazione compatibile dei piani esistenti.
-- [~] **C. Provider e loop** (`F1-27`) — **provider DeepSeek fatto** (JSON mode, thinking, errori ritentabili, timeout, smoke test). Restano `PlanProposer`, `PlanCritic`, Referee in codice, max 2 revisioni, fallback dichiarato.
-- [ ] **D. Valutazione avversariale** (`F1-28`) — `npm run eval:plans` con piani deliberatamente sbagliati che il Critic deve respingere; misurare i falsi negativi prima di ogni altra metrica.
-- [ ] **E. Confronto e memoria** (`F1-29`) — piano LLM e piano a regole affiancati per 2-3 settimane; poi `Reviewer` e `Daily Adjuster` che usano la memoria dei piani.
-- [ ] **Sostituire l'envelope a costante** (`F1-30`) — rimuovere i 21 giorni globali da `RECOVERY_RULES`, introdurre i vincoli per modalità (impatto, upper body, eccentriche pesanti, mobilità). Va fatto prima di dare un envelope al Proposer, altrimenti gli si passa un vincolo sbagliato.
+- [x] **A. Athlete dossier** (`F1-25`) — deterministic `buildAthleteDossier()`, `GET /api/athlete/dossier`, used by plan and coach via `AthleteService.getContext()`. The dossier declares what is missing (`warnings`) and a coverage test prevents adding fields to the baseline without passing through it. _Still to be connected to the rule-based generator: age, time windows, preferred time, and secondary goals—the dossier exposes them, but the generator does not read them yet._
+- [ ] **B. Schema and provenance** (`F1-26`) — `trainingModel`, `envelope` per modality, `review`, `generatedBy`; `ai_runs` with the payload; compatible migration of existing plans.
+- [~] **C. Provider and loop** (`F1-27`) — **DeepSeek provider done** (JSON mode, thinking, retryable errors, timeout, smoke test). Remaining: `PlanProposer`, `PlanCritic`, Referee in code, max 2 revisions, declared fallback.
+- [ ] **D. Adversarial evaluation** (`F1-28`) — `npm run eval:plans` with deliberately wrong plans that the Critic must reject; measure false negatives before any other metric.
+- [ ] **E. Comparison and memory** (`F1-29`) — LLM plan and rule-based plan side by side for 2-3 weeks; then `Reviewer` and `Daily Adjuster` using plan memory.
+- [ ] **Replace the constant envelope** (`F1-30`) — remove the global 21 days from `RECOVERY_RULES`, introduce per-modality constraints (impact, upper body, heavy eccentrics, mobility). This must be done before giving an envelope to the Proposer; otherwise, it will be passed the wrong constraint.
 
-### Criteri di accettazione
+### Acceptance criteria
 
-- [ ] Uso reale per **14 giorni consecutivi**: non è stato fatto. L'architettura è predisposta, ma non esiste evidenza d'uso.
-- [ ] Almeno **80%** delle sessioni tracciate (device o check-in): non misurato su dati reali.
-- [ ] Garmin e Yazio sincronizzano senza intervento manuale: non esiste scheduler, il sync è manuale.
-- [ ] Il piano si adatta a un dato reale (sonno/HRV/dolore/tempo): l'adattamento viene persistito (verificato con check-in sintetico), manca l'uso su 14 giorni reali.
-- [ ] Export Hevy crea una routine valida: payload derivato dalla sessione, ma non verificato con chiave reale.
-- [ ] Export `.FIT` importabile in Garmin Connect: decode e target verificati con l'SDK, import su Garmin Connect non ancora provato.
-- [x] Backup esportato e ripristinato su un ambiente pulito: verificato in WS-5 (wipe → restore → baseline v5, doppio restore idempotente).
-- [x] Nessun piano viola i vincoli di sicurezza: WS-6 blocca la generazione su red flag assoluti o PAR-Q mancante; verificato a runtime (save 201, generate 400 con messaggio).
-- [x] Isolamento multi-utente: WS-9 verifica 401 senza token, piani/check-in/backup separati, PATCH ed export FIT cross-utente respinti con 404.
-- [x] Risorse assenti senza body ambiguo: baseline, macro e micro rispondono 404, mai 200 con body vuoto (F1-14, F1-21).
+- [ ] Real use for **14 consecutive days**: not done. The architecture is prepared, but there is no evidence of use.
+- [ ] At least **80%** of sessions tracked (device or check-in): not measured on real data.
+- [ ] Garmin and Yazio sync without manual intervention: there is no scheduler; sync is manual.
+- [ ] The plan adapts to a real data point (sleep/HRV/pain/time): the adaptation is persisted (verified with a synthetic check-in); use over 14 real days is missing.
+- [ ] Hevy export creates a valid routine: payload derived from the session, but not verified with a real key.
+- [ ] `.FIT` export importable into Garmin Connect: decoding and targets verified with the SDK; import into Garmin Connect not yet tried.
+- [x] Backup exported and restored on a clean environment: verified in WS-5 (wipe → restore → baseline v5, idempotent double restore).
+- [x] No plan violates safety constraints: WS-6 blocks generation on absolute red flags or missing PAR-Q; verified at runtime (save 201, generate 400 with message).
+- [x] Multi-user isolation: WS-9 verifies 401 without token, separate plans/check-ins/backups, cross-user PATCH and FIT export rejected with 404.
+- [x] Missing resources without an ambiguous body: baseline, macro and micro return 404, never 200 with empty body (F1-14, F1-21).
 
-### Fuori scope (rimandato)
+### Out of scope (deferred)
 
 - Zepp.
-- Import workout Hevy completati.
-- Notifiche push.
-- Backup automatico su Drive.
-- Analisi foto.
+- Import of completed Hevy workouts.
+- Push notifications.
+- Automatic backup to Drive.
+- Photo analysis.
 
 ---
 
-## Fase 2 — Multisport, export, automazioni (2–3 settimane)
+## Phase 2 — Multisport, export, automations (2–3 weeks)
 
-### Obiettivo
+### Goal
 
-Rendere il feedback utile per tutti e quattro gli sport e ridurre l'input manuale.
+Make feedback useful for all four sports and reduce manual input.
 
-### Task
+### Tasks
 
-- [ ] Zepp peso: adapter non ufficiale + fallback manuale.
-- [ ] Import workout completati da Hevy e collegamento alle sessioni.
-- [ ] Feedback specifico:
-  - palestra: volume, reps, load, RPE, dolore;
-  - corsa: pace/HR vs target, RPE, dolore;
-  - bici: power/HR/durata vs target;
-  - nuoto: pace/100m, distanza, tecnica.
-- [ ] Adattamento automatico su nuovi dati (debounce, `inputsHash`).
-- [ ] Notifiche: check-in mattutino, pre-sessione, post-sessione, review.
-- [ ] PWA installabile.
-- [ ] Backup automatico su Google Drive (ZIP cifrato).
-- [ ] Review mensile e modifica del macro.
-- [ ] Migliorare il "perché" e il diff.
-- [ ] Token/expiry handling per tutti i provider.
-- [ ] Eval suite con 10 personas + revisione di un coach.
+- [ ] Zepp weight: unofficial adapter + manual fallback.
+- [ ] Import completed workouts from Hevy and link them to sessions.
+- [ ] Specific feedback:
+  - gym: volume, reps, load, RPE, pain;
+  - running: pace/HR vs target, RPE, pain;
+  - cycling: power/HR/duration vs target;
+  - swimming: pace/100m, distance, technique.
+- [ ] Automatic adaptation to new data (debounce, `inputsHash`).
+- [ ] Notifications: morning check-in, pre-session, post-session, review.
+- [ ] Installable PWA.
+- [ ] Automatic backup to Google Drive (encrypted ZIP).
+- [ ] Monthly review and macro modification.
+- [ ] Improve the "why" and the diff.
+- [ ] Token/expiry handling for all providers.
+- [ ] Eval suite with 10 personas + coach review.
 
-### Criteri di accettazione
+### Acceptance criteria
 
-- 4 settimane di dati con tutti e 4 gli sport.
-- Almeno un export Hevy e un export Garmin a settimana.
-- Sync automatico > 90% dei giorni.
-- Backup automatico settimanale + restore testato.
-- Review settimanale generata senza errori di schema.
-- Nessuna regressione di sicurezza.
+- 4 weeks of data with all 4 sports.
+- At least one Hevy export and one Garmin export per week.
+- Automatic sync > 90% of days.
+- Weekly automatic backup + tested restore.
+- Weekly review generated without schema errors.
+- No security regression.
 
 ---
 
-## Fase 3 — Android local-first (4–6 settimane)
+## Phase 3 — Android local-first (4–6 weeks)
 
-### Obiettivo
+### Goal
 
-App Android usabile ogni giorno, con dati locali e backup personale.
+Android app usable every day, with local data and personal backup.
 
-### Decisione tecnica
+### Technical decision
 
-**Expo/React Native** per condividere `packages/domain`, `packages/integrations` e i prompt. Se il sync Health Connect in background si dimostra instabile, isolare un modulo nativo o passare a Kotlin solo per il layer health.
+**Expo/React Native** to share `packages/domain`, `packages/integrations`, and the prompts. If background Health Connect sync proves unstable, isolate a native module or switch to Kotlin only for the health layer.
 
-### Task
+### Tasks
 
-#### 3.1 App e dati locali
+#### 3.1 App and local data
 
-- [ ] Expo app: login Google, onboarding, oggi, settimana, check-in, progressi.
-- [ ] SQLite locale con schema versionato e migrazioni.
-- [ ] Repository SQLite che implementa la stessa interfaccia del web.
-- [ ] Offline-first: tutte le funzioni base senza rete.
-- [ ] Coda `outbox` per export/backup/LLM.
+- [ ] Expo app: Google login, onboarding, today, week, check-in, progress.
+- [ ] Local SQLite with versioned schema and migrations.
+- [ ] SQLite repository implementing the same interface as the web.
+- [ ] Offline-first: all basic functions without network.
+- [ ] `outbox` queue for export/backup/LLM.
 
 #### 3.2 Health Connect
 
-- [ ] Permessi: passi, sonno, HR, peso, esercizio, nutrizione (dove disponibile).
-- [ ] Import periodico + sync all'apertura.
-- [ ] Dedupe con Garmin/Yazio/manuale.
-- [ ] Gestione permessi negati/revocati.
+- [ ] Permissions: steps, sleep, HR, weight, exercise, nutrition (where available).
+- [ ] Periodic import + sync on open.
+- [ ] Dedupe with Garmin/Yazio/manual.
+- [ ] Handling of denied/revoked permissions.
 - [ ] Play Store health data declaration.
 
-#### 3.3 Integrazioni dirette
+#### 3.3 Direct integrations
 
-- [ ] Garmin Personal (opzionale) con chiave su device/Keystore.
-- [ ] Yazio (API non ufficiale) con credenziali locali.
-- [ ] Hevy export diretto con API key locale.
-- [ ] Garmin `.FIT` export + condivisione file.
-- [ ] LLM: BYOK diretto o API managed con consenso.
+- [ ] Garmin Personal (optional) with key on device/Keystore.
+File: docs/FASI.md (part 6)
 
-#### 3.4 Foto e backup
+- [ ] Yazio (unofficial API) with local credentials.
+- [ ] Direct Hevy export with local API key.
+- [ ] Garmin `.FIT` export + file sharing.
+- [ ] LLM: direct BYOK or managed API with consent.
 
-- [ ] Camera guidata (fronte/lato/retro) + confronto.
-- [ ] Backup ZIP cifrato su Google Drive (`drive.file`).
-- [ ] Restore su dispositivo pulito.
-- [ ] Retention e rotazione backup.
+#### 3.4 Photos and backup
 
-#### 3.5 Notifiche
+- [ ] Guided camera (front/side/back) + comparison.
+- [ ] Encrypted ZIP backup to Google Drive (`drive.file`).
+- [ ] Restore on a clean device.
+- [ ] Backup retention and rotation.
 
-- [ ] Push locali per check-in e sessione.
-- [ ] Deep link alla schermata giusta.
+#### 3.5 Notifications
+
+- [ ] Local push notifications for check-in and session.
+- [ ] Deep link to the right screen.
 - [ ] Quiet hours.
 
-### Criteri di accettazione
+### Acceptance criteria
 
-- Uso quotidiano su Android per **2 settimane**.
-- Nessun dato di salute inviato al server (solo auth/backup metadata).
-- Health Connect importa almeno sonno, passi, HR e peso.
-- Backup e restore funzionano su un dispositivo nuovo.
-- L'app funziona in aereo mode per oggi/check-in.
-- Export Hevy e Garmin funzionano dal telefono.
+- Daily use on Android for **2 weeks**.
+- No health data sent to the server (only auth/backup metadata).
+- Health Connect imports at least sleep, steps, HR and weight.
+- Backup and restore work on a new device.
+- The app works in airplane mode for today/check-in.
+- Hevy and Garmin exports work from the phone.
 
 ---
 
-## Fase 4 — Test con altri utenti (3–4 settimane)
+## Phase 4 — Testing with other users (3–4 weeks)
 
-### Obiettivo
+### Goal
 
-Validare il prodotto con 5–10 persone, non solo con te.
+Validate the product with 5–10 people, not just yourself.
 
-### Task
+### Tasks
 
-- [ ] Auth multi-utente e isolamento dati.
-- [ ] Mongo multi-tenant (o Postgres, se si preferisce) + indici.
-- [ ] Consensi art. 9, privacy policy, DPIA, DPA.
-- [ ] Onboarding testers + supporto.
-- [ ] Garmin: Startup tier se si vuole evitare la chiave personale per tester; altrimenti ogni tester usa la propria.
-- [ ] Hevy Pro richiesto ai tester per l'export.
-- [ ] Yazio/Zepp: valutare se mantenere le API non ufficiali in multi-utente (probabilmente no).
-- [ ] Observability: Sentry, log, metriche di aderenza.
-- [ ] Raccolta feedback strutturata.
-- [ ] Fix dei bug e dei prompt.
-- [ ] Revisione di un coach su 20 piani.
+- [ ] Multi-user auth and data isolation.
+- [ ] Multi-tenant Mongo (or Postgres, if preferred) + indexes.
+- [ ] Art. 9 consents, privacy policy, DPIA, DPA.
+- [ ] Tester onboarding + support.
+- [ ] Garmin: Startup tier if you want to avoid the personal key for testers; otherwise each tester uses their own.
+- [ ] Hevy Pro required for testers for export.
+- [ ] Yazio/Zepp: evaluate whether to keep the unofficial APIs in multi-user (probably not).
+- [ ] Observability: Sentry, logs, adherence metrics.
+- [ ] Structured feedback collection.
+- [ ] Fix bugs and prompts.
+- [ ] Coach review of 20 plans.
 
-### Criteri di accettazione
+### Acceptance criteria
 
-- 5–10 tester per 4 settimane.
+- 5–10 testers for 4 weeks.
 - Retention D7 > 50%, D30 > 30%.
-- Almeno 70% delle sessioni tracciate.
-- Nessun evento di sicurezza non gestito.
-- Costo LLM < €3/utente/mese.
-- NPS qualitativo > 30 (o equivalent feedback).
+- At least 70% of sessions tracked.
+- No unhandled security incidents.
+- LLM cost < €3/user/month.
+- Qualitative NPS > 30 (or equivalent feedback).
 
 ---
 
-## Fase 5 — Consolidamento (continuo)
+## Phase 5 — Consolidation (continuous)
 
-Backlog non prioritario:
+Non-priority backlog:
 
-- Push automatico Garmin via Training API.
-- iOS/HealthKit (solo se serve).
-- Chat coach con tool read-only.
-- Analisi foto AI.
-- Multisport depth (piani bici/nuoto strutturati, triathlon).
-- Coach mode (professionista che segue più atleti).
-- Pagamenti/abbonamento.
-- Integrazioni Polar/Suunto/Whoop/Withings.
-- Sync multi-device.
+- Automatic Garmin push via Training API.
+- iOS/HealthKit (only if needed).
+- Coach chat with read-only tools.
+- AI photo analysis.
+- Multisport depth (structured bike/swim plans, triathlon).
+- Coach mode (professional following multiple athletes).
+- Payments/subscription.
+- Polar/Suunto/Whoop/Withings integrations.
+- Multi-device sync.
 
 ---
 
-## Definition of Done (per ogni task)
+## Definition of Done (for each task)
 
-- [ ] Codice TypeScript strict, niente `any` non giustificato.
-- [ ] Test unitari per la logica di dominio.
-- [ ] Test di contratto per l'integrazione (fixture registrate, no rete in CI).
-- [ ] Test e2e per il flusso utente, se applicabile.
-- [ ] Nessun segreto nel codice o nei log.
-- [ ] Migrazione/backup compatibile.
-- [ ] Documentazione aggiornata (`PIANO`, `FASI`, `INTEGRAZIONI`, `AGENT`).
-- [ ] Criteri di accettazione della fase verificati.
-- [ ] Verifica manuale su dati reali.
+- [ ] Strict TypeScript code, no unjustified `any`.
+- [ ] Unit tests for domain logic.
+- [ ] Contract tests for the integration (recorded fixtures, no network in CI).
+- [ ] E2E tests for the user flow, if applicable.
+- [ ] No secrets in code or logs.
+- [ ] Compatible migration/backup.
+- [ ] Updated documentation (`PIANO`, `FASI`, `INTEGRAZIONI`, `AGENT`).
+- [ ] Phase acceptance criteria verified.
+- [ ] Manual verification on real data.
 
-## Strategia di test
+## Testing strategy
 
-| Livello | Cosa | Strumento |
+| Level | What | Tool |
 |---|---|---|
-| Unit | regole, feasibility, validator | Vitest |
-| Contract | adapter Garmin/Yazio/Zepp/Hevy/FIT | Vitest + fixture JSON |
-| E2E | onboarding → piano → check-in → review | Playwright |
-| AI eval | 10 personas, assertion su schema/sicurezza | script + fixture |
-| Backup | export → wipe → import | test dedicato |
-| Device | Health Connect, export Hevy/Garmin | manuale su Android |
+| Unit | rules, feasibility, validator | Vitest |
+| Contract | Garmin/Yazio/Zepp/Hevy/FIT adapters | Vitest + JSON fixtures |
+| E2E | onboarding → plan → check-in → review | Playwright |
+| AI eval | 10 personas, assertions on schema/safety | script + fixtures |
+| Backup | export → wipe → import | dedicated test |
+| Device | Health Connect, Hevy/Garmin export | manual on Android |
 
-## Dipendenze esterne
+## External dependencies
 
-| Dipendenza | Serve per | Quando |
+| Dependency | Used for | When |
 |---|---|---|
-| Garmin Personal API key | sync web | Fase 0 |
-| Garmin account + dispositivo | test `.FIT` | Fase 0 |
-| Yazio account | sync nutrizione | Fase 0 |
-| Zepp account + scale | peso | Fase 0/2 |
-| Hevy Pro + API key | export palestra | Fase 0 |
-| Google Cloud OAuth | login, Drive backup | Fase 0 |
-| LLM API key | piani | Fase 1 |
-| Android device | Health Connect | Fase 3 |
-| Coach certificato | revisione piani | Fase 2/4 |
-| Consulenza legale | fase test | Fase 4 |
+| Garmin Personal API key | web sync | Phase 0 |
+| Garmin account + device | `.FIT` test | Phase 0 |
+| Yazio account | nutrition sync | Phase 0 |
+| Zepp account + scale | weight | Phase 0/2 |
+| Hevy Pro + API key | gym export | Phase 0 |
+| Google Cloud OAuth | login, Drive backup | Phase 0 |
+| LLM API key | plans | Phase 1 |
+| Android device | Health Connect | Phase 3 |
+| Certified coach | plan review | Phase 2/4 |
+| Legal consulting | testing phase | Phase 4 |
 
-## Cose che possono far slittare
+## Things that can cause delays
 
-- Garmin/Yazio/Zepp cambiano API o bloccano l'account.
-- Hevy richiede Pro o cambia lo schema.
-- Il formato `.FIT` di workout non viene importato come previsto.
-- Health Connect in background è troppo limitato su Expo.
-- L'LLM non produce piani validi senza molti repair.
-- Il tempo reale è meno di quello stimato.
+- Garmin/Yazio/Zepp change APIs or block the account.
+- Hevy requires Pro or changes the schema.
+- The workout `.FIT` format is not imported as expected.
+- Health Connect in the background is too limited on Expo.
+- The LLM does not produce valid plans without many repairs.
+- Actual time is less than estimated.
 
-In tutti questi casi: **tagliare scope, non qualità**. La sicurezza e il loop di coaching vengono prima delle feature.
+In all these cases: **cut scope, not quality**. Safety and the coaching loop come before features.

@@ -1,42 +1,34 @@
-# Metodologia scelta dall'LLM
+# Methodology chosen by the LLM
 
-## Principio
+## Principle
 
-La scelta della metodologia di allenamento è una decisione del modello, non di
-una tabella deterministica. L'LLM conosce la letteratura e le scuole
-(polarizzata, piramidale, soglia, run-walk, forza concorrente, ecc.) e va
-interrogato con un criterio esplicito:
+The choice of training methodology is a decision of the model, not of a deterministic table. The LLM knows the literature and the schools (polarized, pyramidal, threshold, run-walk, concurrent strength, etc.) and must be queried with an explicit criterion:
 
-> Dati questo atleta, questo obiettivo, questi vincoli e queste ultime due
-> settimane di allenamenti, qual è la metodologia più efficace e perché?
-> Confronta almeno due alternative, dichiara le assunzioni, i rischi e quali
-> dati cambierebbero la risposta.
+> Given this athlete, this goal, these constraints, and these last two
+> weeks of training, what is the most effective methodology and why?
+> Compare at least two alternatives, state the assumptions, the risks, and which
+> data would change the answer.
 
-La domanda va ripetuta durante l'avanzamento del piano: all'inizio, alla
-revisione settimanale e ogni volta che cambia un dato rilevante (gara, dolore,
-aderenza, carico, obiettivo). Con più dati la personalizzazione diventa più
-evidente, non più rigida.
+The question must be repeated as the plan progresses: at the start, at the weekly review, and whenever a relevant datum changes (race, pain, adherence, load, goal). With more data, personalization becomes more evident, not more rigid.
 
-Il livello deterministico non decide la metodologia. Serve a:
+The deterministic layer does not decide the methodology. It serves to:
 
-- calcolare i fatti (volumi, carichi, ACWR, recupero, tipi di seduta);
-- applicare i guardrail di sicurezza;
-- verificare l'aritmetica e i limiti della proposta;
-- generare le sedute una volta approvata la metodologia.
+- calculate the facts (volumes, loads, ACWR, recovery, session types);
+- apply safety guardrails;
+- verify the arithmetic and limits of the proposal;
+- generate sessions once the methodology is approved.
 
-## Dati che l'LLM deve ricevere
+## Data the LLM must receive
 
-- profilo, obiettivo, data target, esperienza, capacità attuale;
-- `trainingHistory` delle ultime due settimane: sedute, sport, tipo, durata,
-  distanza, passo, HR, training effect, carico, titolo;
-- sintesi: sedute per sport, easy/lungo/qualità/gara/forza, quota intensa,
-  seduta più lunga, trend vs le due settimane precedenti;
-- `recentContext`: carico 7/28 giorni, ACWR, recupero post-gara, flag;
-- piano corrente e review, se si sta rigenerando;
-- aderenza, RPE, dolore, readiness;
-- vincoli, attrezzatura, disponibilità, preferenze.
+- profile, goal, target date, experience, current capacity;
+- `trainingHistory` from the last two weeks: sessions, sport, type, duration, distance, pace, HR, training effect, load, title;
+- summary: sessions by sport, easy/long/quality/race/strength, intense share, longest session, trend vs the previous two weeks;
+- `recentContext`: 7/28-day load, ACWR, post-race recovery, flags;
+- current plan and review, if regenerating;
+- adherence, RPE, pain, readiness;
+- constraints, equipment, availability, preferences.
 
-## Output atteso
+## Expected output
 
 ```json
 {
@@ -58,79 +50,49 @@ Il livello deterministico non decide la metodologia. Serve a:
 }
 ```
 
-Regole:
+Rules:
 
-- niente citazioni bibliografiche inventate: si citano principi e nomi di
-  metodologie, non paper fittizi;
-- niente numeri fuori dall'envelope calcolato dal dominio;
-- se un dato manca, va dichiarato, non riempito;
-- la sicurezza (red flag, dolore acuto, post-gara) non è negoziabile.
+- no invented bibliographic citations: cite principles and names of methodologies, not fictitious papers;
+- no numbers outside the envelope calculated by the domain;
+- if a datum is missing, it must be declared, not filled in;
+- safety (red flags, acute pain, post-race) is non-negotiable.
 
-## Flusso ricorrente
+## Recurring flow
 
-1. Il dominio costruisce il contesto e l'envelope di sicurezza.
-2. L'LLM riceve contesto + domanda + envelope e sceglie la metodologia.
-3. Il dominio valida la proposta (aritmetica, tetti, sicurezza).
-4. Se valida, il generatore produce il piano con quella struttura.
-5. Alla review settimanale, con i nuovi dati, la stessa domanda viene posta di
-   nuovo: confermare, adattare o cambiare metodologia.
+1. The domain builds the context and the safety envelope.
+2. The LLM receives context + question + envelope and chooses the methodology.
+3. The domain validates the proposal (arithmetic, ceilings, safety).
+4. If valid, the generator produces the plan with that structure.
+5. At the weekly review, with the new data, the same question is asked again: confirm, adapt, or change methodology.
 
-## Perché non una tabella fissa
+## Why not a fixed table
 
-Una tabella può tradurre “50 km/settimana” in “polarizzata” ma non sa
-distinguere un atleta che corre 50 km da dieci anni da uno che li ha fatti una
-volta tre mesi fa, né leggere il tipo di sedute, il dolore, l'aderenza o la
-risposta individuale. L'LLM può farlo, a patto che i fatti siano calcolati e i
-limiti siano verificati.
+A table can translate "50 km/week" into "polarized" but cannot distinguish an athlete who has been running 50 km for ten years from one who did it once three months ago, nor read the type of sessions, pain, adherence, or individual response. The LLM can do this, provided the facts are calculated and the limits are verified.
 
-### Orizzonte e periodizzazione
+### Horizon and periodization
 
-L'orizzonte del piano deriva dalla data target concordata (o da quella della
-baseline). In intervista l'LLM può proporre una data più realistica e, dopo la
-conferma dell'atleta, la data viene salvata nella baseline: il piano e la
-scheda obiettivo leggono lo stesso orizzonte.
+The plan horizon derives from the agreed target date (or from the baseline date). In the interview, the LLM can propose a more realistic date and, after the athlete confirms, the date is saved in the baseline: the plan and the goal sheet read the same horizon.
 
-L'LLM sceglie anche la periodizzazione (`periodization`): modello, settimane di
-carico prima dello scarico, settimane di scarico per ciclo e taper. Il
-generatore applica quella struttura alle settimane (`3:1`, `2:1`, blocchi,
-ecc.). La struttura settimanale della metodologia vale per il primo blocco:
-la finestra di recupero se è attiva, altrimenti il primo mesociclo
-(carico + scarico). Dopo, la settimana riprende la progressione della fase,
-mentre il ritmo carico/scarico della periodizzazione continua. Se la
-metodologia è di recupero post-gara, vale solo per quella finestra.
+The LLM also chooses the periodization (`periodization`): model, load weeks before deload, deload weeks per cycle, and taper. The generator applies that structure to the weeks (`3:1`, `2:1`, blocks, etc.). The weekly structure of the methodology applies to the first block: the recovery window if active, otherwise the first mesocycle (load + deload). Afterwards, the week resumes the phase progression, while the load/deload rhythm of the periodization continues. If the methodology is post-race recovery, it applies only to that window.
 
-## Intervista e generazione
+## Interview and generation
 
-Il pulsante "Parla col coach" apre un'intervista, non un generatore immediato.
+The "Talk to the coach" button opens an interview, not an immediate generator.
 
-1. `POST /api/plan/interview` crea l'intervista e fa il primo turno. Il modello
-   riceve il dossier (ultime due settimane comprese) e fa al massimo due
-   domande mirate.
-2. `POST /api/plan/interview/:id/message` aggiunge la risposta, aggiorna i
-   `findings` e prosegue. L'intervista si chiude quando il modello dichiara
-   `readyToPlan` o dopo 6 risposte.
-3. `POST /api/plan/interview/:id/generate` rivaluta la metodologia **con i
-   findings raccolti**, poi genera il piano con quella struttura.
+1. `POST /api/plan/interview` creates the interview and performs the first turn. The model receives the dossier (including the last two weeks) and asks at most two targeted questions.
+2. `POST /api/plan/interview/:id/message` adds the response, updates the `findings`, and continues. The interview closes when the model declares `readyToPlan` or after 6 responses.
+3. `POST /api/plan/interview/:id/generate` re-evaluates the methodology **with the collected findings**, then generates the plan with that structure.
 
-Il piano generato conserva la metodologia (`macroPlan.methodology`) e la
-settimana porta il flag `methodology_guided`. Se l'obiettivo cambia, la
-metodologia precedente non viene riusata: serve una nuova analisi/intervista.
+The generated plan preserves the methodology (`macroPlan.methodology`) and the week carries the `methodology_guided` flag. If the goal changes, the previous methodology is not reused: a new analysis/interview is needed.
 
-Una metodologia scelta dentro la finestra post-gara vale solo per quella
-finestra (`applyThroughWeek`): dopo, la settimana riprende qualità, lungo e
-volume dalla fase del macrociclo. Altrimenti un recupero di 3 settimane
-condannerebbe tutto il piano a restare in recupero.
+A methodology chosen within the post-race window applies only to that window (`applyThroughWeek`): afterwards, the week resumes quality, long, and volume from the macrocycle phase. Otherwise a 3-week recovery would doom the entire plan to remain in recovery.
 
-Limite attuale: i findings influenzano la struttura (sedute, qualità, lungo,
-forza, pliometria) tramite la metodologia, ma il giorno lungo resta quello
-della disponibilità in baseline. Spostarlo in base alla risposta dell'atleta è
-il prossimo affinamento.
+Current limitation: findings influence the structure (sessions, quality, long, strength, plyometrics) via the methodology, but the long day remains the one from baseline availability. Moving it based on the athlete's response is the next refinement.
 
 ## MVP
-
-1. `trainingHistory` (fatto: ultime 2 settimane con tipo e trend).
-2. Endpoint/servizio che interroga l'LLM con il contesto e salva la
+1. `trainingHistory` (done: last 2 weeks with type and trend).
+2. Endpoint/service that queries the LLM with the context and saves the
    `MethodologyDecision`.
-3. Intervista a domande fisse per raccogliere i dati mancanti.
-4. Generazione del piano dalla metodologia scelta, con validazione.
-5. Rivalutazione alla review settimanale.
+3. Interview with fixed questions to collect the missing data.
+4. Generation of the plan from the chosen methodology, with validation.
+5. Re-evaluation at the weekly review.

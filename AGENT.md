@@ -1,141 +1,143 @@
 # AGENT.md
 
-Guida operativa per un agente che interviene su **health-trainer**. Leggere questo file prima di modificare qualsiasi cosa.
+Operational guide for an agent working on **health-trainer**. Read this file before modifying anything.
 
-**Aggiornato:** 27 ottobre 2026 (revisione Fase 1).
+**Updated:** October 27, 2026 (Phase 1 revision).
 
 ---
 
-## 0. Regola zero — documentazione sempre aggiornata
+## 0. Rule zero — documentation always up to date
 
-**Ogni avanzamento aggiorna la documentazione nello stesso commit/PR.** Non rimandare a "dopo".
+**Every step forward updates the documentation in the same commit/PR.** Don't postpone it to "later".
 
-| Se cambi... | Aggiorna... |
+| If you change... | Update... |
 |---|---|
-| Codice o stato di una fase | `docs/FASI.md` (checkbox e stato) + `README.md` (stato) |
-| Architettura, stack o una decisione | `docs/PIANO.md` + questo file |
-| Chi genera il piano, ruoli LLM, envelope, memoria | `docs/ARCHITETTURA-LLM.md` + `docs/FASI.md` |
-| Un'integrazione, endpoint, token o limite | `docs/INTEGRAZIONI.md` + fixture/test |
-| Un comando, un path o un invariante | `AGENT.md` |
-| Un'ipotesi non verificata | il documento di spike, con la dicitura **non verificato** |
+| Code or the state of a phase | `docs/FASI.md` (checkbox and status) + `README.md` (status) |
+| Architecture, stack or a decision | `docs/PIANO.md` + this file |
+| Who generates the plan, LLM roles, envelope, memory | `docs/ARCHITETTURA-LLM.md` + `docs/FASI.md` |
+| An integration, endpoint, token or limit | `docs/INTEGRAZIONI.md` + fixture/test |
+| A command, a path or an invariant | `AGENT.md` |
+| An unverified hypothesis | the spike document, marked **unverified** |
 
-Regole pratiche:
+Practical rules:
 
-- Se una cosa non è stata testata, scrivilo: **non spacciare un'ipotesi per fatto**.
-- Se un test viene rimosso o non eseguito, spiega perché.
-- Se una decisione cambia, aggiorna anche la tabella "Decisioni aperte" di `PIANO.md`.
-- Un task non è "Done" se la documentazione è disallineata.
+- If something hasn't been tested, write it down: **don't pass off a hypothesis as fact**.
+- If a test is removed or not run, explain why.
+- If a decision changes, also update the "Open decisions" table in `PIANO.md`.
+- A task isn't "Done" if the documentation is out of sync.
 
 ---
 
-## 0.1 Repository git
+## 0.1 Git repository
 
 - Branch: **`main`**
-- Identità **locale** del repo: `d-rouge <d-rouge@users.noreply.github.com>`
-- **Nessun remote configurato.** Non aggiungerlo, non fare `push`, `reset --hard`, `rebase` o force-push senza conferma esplicita.
-- Non committare `.env`, `node_modules`, `dist`, foto, `.FIT` o backup.
+- **Local** identity of the repo: `d-rouge <d-rouge@users.noreply.github.com>`
+- **No remote configured.** Don't add one, don't `push`, `reset --hard`, `rebase` or force-push without explicit confirmation.
+- Don't commit `.env`, `node_modules`, `dist`, photos, `.FIT` files or backups.
 
 ---
 
-## 1. Cos'è il progetto
+## 1. What the project is
 
-Un personal trainer AI multi-sport, inizialmente a **uso personale**, poi in test con pochi utenti.
+A multi-sport AI personal trainer, initially for **personal use**, then in testing with a few users.
 
-Il loop:
+The loop:
 
-> dati → interpretazione → piano → esecuzione → feedback → piano aggiornato
+> data → interpretation → plan → execution → feedback → updated plan
 
-L'app non è un tracker. Il valore è il ciclo di coaching, la coerenza del piano e la spiegazione delle scelte.
+The app isn't a tracker. The value is the coaching cycle, the consistency of the plan and the explanation of the choices.
 
-**Stato attuale (27 ottobre 2026):** Fase 0 completata. La Fase 1 è **funzionalmente
-completa** dopo WS-0, Onda 1 e Onda 2: safety, generatore, timezone, auth/Hevy UI ed
-e2e multi-utente sono chiusi. Restano rinviati due P2 (F1-18 AI coach, F1-19 scheduler e
-credenziali cifrate) e la validazione d'uso reale di 14 giorni. Dettaglio in
+**Current status (October 27, 2026):** Phase 0 completed. Phase 1 is **functionally
+complete** after WS-0, Wave 1 and Wave 2: safety, generator, timezone, auth/Hevy UI and
+multi-user e2e are closed. Two P2s remain deferred (F1-18 AI coach, F1-19 scheduler and
+encrypted credentials) plus the 14-day real-usage validation. Details in
 [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
-**Non assumere** che un path o una feature esista solo perché è nel piano: verifica nel repository.
+**Don't assume** that a path or a feature exists just because it's in the plan: check the repository.
 
 ---
 
-## 2. Ordine di lettura
+## 2. Reading order
 
-1. `AGENT.md` (questo file)
-2. `docs/PIANO.md` — prodotto, architettura, dominio, AI, sicurezza
-3. `docs/FASI.md` — fase corrente, task, criteri di accettazione
-4. `docs/REVIEW-FASE-1.md` — problemi aperti della Fase 1 e piano di fix
+1. `AGENT.md` (this file)
+2. `docs/PIANO.md` — product, architecture, domain, AI, security
+3. `docs/FASI.md` — current phase, tasks, acceptance criteria
+4. `docs/REVIEW-FASE-1.md` — open issues in Phase 1 and fix plan
 5. `docs/INTEGRAZIONI.md` — Garmin, Yazio, Zepp, Hevy, Health Connect, Drive
-6. `docs/MODELLO-ATLETA.md` — storia, capacità misurata, contesto recente
-7. `docs/ARCHITETTURA-LLM.md` — chi decide il piano: dossier, Proposer, Critic, Referee, memoria
-8. `docs/spikes/` — risultati reali degli spike (Garmin, Yazio, FIT export, Zepp, Hevy)
-9. `README.md` — avvio rapido
+6. `docs/MODELLO-ATLETA.md` — history, measured capacity, recent context
+7. `docs/ARCHITETTURA-LLM.md` — who decides the plan: dossier, Proposer, Critic, Referee, memory
+8. `docs/spikes/` — real results of the spikes (Garmin, Yazio, FIT export, Zepp, Hevy)
+9. `README.md` — quick start
 
-Se un documento contraddice un altro, **vince `PIANO.md`** per l'architettura e `FASI.md` per la priorità. Segnala la contraddizione e aggiorna i documenti.
+If one document contradicts another, **`PIANO.md` wins** for architecture and `FASI.md` for priority. Flag the contradiction and update the documents.
 
 ---
 
-## 3. Mappa del repository
+## 3. Repository map
 
 ```
 AGENT.md
 README.md
 package.json                npm workspaces (apps/*, packages/*)
-package-lock.json           lockfile npm
-.env.example                variabili richieste
+package-lock.json           npm lockfile
+.env.example                required variables
 scripts/
-  build-packages.sh         build pacchetti in ordine di dipendenza
-  dev.sh                    API + web in parallelo
-  spike-garmin.ts           spike Garmin Personal API
-  spike-yazio.ts            spike Yazio API v22
-  analyze-fit.ts            analizza FIT Garmin e stampa brief
-  export-workout-fit.ts     genera file FIT workout
-  e2e-api.ts                e2e multi-utente su MongoDB reale (`*_e2e`)
+  build-packages.sh         build packages in dependency order
+  dev.sh                    API + web in parallel
+  spike-garmin.ts           Garmin Personal API spike
+  spike-yazio.ts            Yazio API v22 spike
+  analyze-fit.ts            analyzes Garmin FIT and prints brief
+  export-workout-fit.ts     generates FIT workout file
+  e2e-api.ts                multi-user e2e on real MongoDB (`*_e2e`)
 docs/
   PIANO.md
   FASI.md
-  REVIEW-FASE-1.md          problemi aperti Fase 1 + piano di fix
+  REVIEW-FASE-1.md          open issues Phase 1 + fix plan
   INTEGRAZIONI.md
   FIT.md
-  MODELLO-ATLETA.md         storia, capacità misurata, contesto recente
-  ARCHITETTURA-LLM.md       dossier, Proposer, Critic, Referee, memoria
-  spikes/                   risultati reali (template + registro)
+  MODELLO-ATLETA.md         history, measured capacity, recent context
+  ARCHITETTURA-LLM.md       dossier, Proposer, Critic, Referee, memory
+  spikes/                   real results (template + registry)
 apps/
   api/                      NestJS 12 ESM: health, integrations, auth, export
-    src/database/           MongoService (connessione + indici)
-    src/common/             helper condivisi (`getUserTimeZone`)
+    src/database/           MongoService (connection + indexes)
+    src/common/             shared helpers (`getUserTimeZone`)
     src/integrations/       GarminService, GarminSyncService, YazioService, YazioSyncService
-    src/auth/               AuthService (locale/Google/dev), password scrypt, JWT util
-    src/export/             ExportController (download workout .FIT)
-  web/                      React + Vite + Tailwind, dati Garmin/Yazio in UI, atleta autenticato, export FIT
-  mobile/                   Expo (fase 3, non ancora creata)
+    src/auth/               AuthService (local/Google/dev), scrypt password, JWT util
+    src/export/             ExportController (workout .FIT download)
+  web/                      React + Vite + Tailwind, Garmin/Yazio data in UI, authenticated athlete, FIT export
+  mobile/                   Expo (phase 3, not yet created)
 packages/
-  domain/                   Zod (activity, daily metrics, user, etc.), regole pure
+  domain/                   Zod (activity, daily metrics, user, etc.), pure rules
   integrations/             Garmin + Yazio + FIT parser/analysis + FIT workout encoder
   db/                       Mongo client, repository activities/metrics/nutrition/analyses/sync/users/credentials
-  ai/                       interfacce provider/prompt (stub)
-  ui/                       utility UI condivise (cn)
+  ai/                       provider/prompt interfaces (stub)
+  ui/                       shared UI utilities (cn)
   config/                   env Zod, feature flag
 ```
 
-> Alcuni path sono previsti e non esistono ancora (`apps/mobile`, ecc.). Verifica prima di crearli o importarli.
+> Some paths are planned and don't exist yet (`apps/mobile`, etc.). Check before creating or importing them.
 
 ---
 
-## 4. Fase corrente
+## 4. Current phase
 
-Leggere `docs/FASI.md`. La **Fase 0 — Spike e fondamenta** è completata.
+Read `docs/FASI.md`. **Phase 0 — Spikes and foundations** is completed.
 
-La **Fase 1 — Web MVP personale** è funzionalmente completa: WS-0, Onda 1 e Onda 2
-sono chiuse (auth, baseline, review/check-in, export, backup, safety, generatore,
-timezone, UI auth/Hevy, e2e). Restano rinviati F1-18 (AI coach allineato ai tipi reali)
-e F1-19 (scheduler, credenziali cifrate, storico peso Yazio). Dettaglio in
+**Phase 1 — Personal web MVP** is functionally complete: WS-0, Wave 1 and Wave 2
+File: AGENT.md (part 2)
+
+are closed (auth, baseline, review/check-in, export, backup, safety, generator,
+timezone, UI auth/Hevy, e2e). F1-18 (AI coach aligned with the real types)
+and F1-19 (scheduler, encrypted credentials, Yazio weight history) remain deferred. Details in
 [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
-**Prossimo passo:** validazione d'uso reale di 14 giorni, poi scegliere tra F1-18 e
-F1-19 (o l'inizio della Fase 2).
+**Next step:** 14-day real-world usage validation, then choose between F1-18 and
+F1-19 (or the start of Phase 2).
 
 ---
 
-## 5. Comandi
+## 5. Commands
 
 ```bash
 npm install
@@ -155,20 +157,20 @@ npm run analyze:fit           # scarica l'ultima attività Garmin, parsa il FIT 
 npm run export:workout        # genera file dist/workouts/5x800m-intervals.fit
 ```
 
-MongoDB è locale su `127.0.0.1:27017` ed è **gestito dall'utente**. Non avviare o fermare servizi di sistema (MongoDB, Redis) senza conferma. Non serve Docker.
+MongoDB is local on `127.0.0.1:27017` and is **managed by the user**. Do not start or stop system services (MongoDB, Redis) without confirmation. Docker is not needed.
 
-Comandi **non ancora presenti** (non inventarli): `db:migrate`, `eval`. Verranno aggiunti quando ci sarà il codice corrispondente.
+**Commands not yet present** (do not invent them): `db:migrate`, `eval`. They will be added when the corresponding code exists.
 
-`npm run test:e2e` richiede MongoDB locale, `JWT_SECRET` (≥32 caratteri) in `.env` e la
-build API; usa `E2E_MONGODB_URI` (default `mongodb://127.0.0.1:27017/health_trainer_e2e`),
-rifiuta database che non terminano con `_e2e` e li elimina a fine corsa.
+`npm run test:e2e` requires local MongoDB, `JWT_SECRET` (≥32 characters) in `.env`, and the
+API build; it uses `E2E_MONGODB_URI` (default `mongodb://127.0.0.1:27017/health_trainer_e2e`),
+rejects databases that do not end with `_e2e`, and deletes them at the end of the run.
 
-Se un comando non esiste, verifica `package.json`, crea lo script solo se fa parte del task, aggiorna questo file.
+If a command does not exist, check `package.json`, create the script only if it is part of the task, update this file.
 
-### 5.1 Endpoint API attuali
+### 5.1 Current API endpoints
 
-Tutti gli endpoint sono protetti dal `AuthGuard` globale (`APP_GUARD`) e richiedono
-`Authorization: Bearer <token>`, tranne quelli marcati `@Public()`:
+All endpoints are protected by the global `AuthGuard` (`APP_GUARD`) and require
+`Authorization: Bearer <token>`, except those marked `@Public()`:
 
 ```text
 Pubblici
@@ -224,371 +226,333 @@ POST /api/export/restore
 DELETE /api/export/me
 ```
 
-**Autenticazione.** L'utente si risolve **solo** dal bearer token: `x-user-id` è ignorato.
-I controller ricevono l'utente con `@CurrentUser()`. `JWT_SECRET` è obbligatorio
-(min 32 caratteri) fuori da `NODE_ENV=test`; senza di esso il boot fallisce.
-`ENABLE_DEV_ENDPOINTS` è `false` di default. Gli endpoint Garmin/Yazio restano protetti
-anche da `DevOnlyGuard` (richiedono `ENABLE_DEV_ENDPOINTS=true`).
+**Authentication.** The user is resolved **only** from the bearer token: `x-user-id` is ignored.
+Controllers receive the user with `@CurrentUser()`. `JWT_SECRET` is mandatory
+(min 32 characters) outside `NODE_ENV=test`; without it, boot fails.
+`ENABLE_DEV_ENDPOINTS` is `false` by default. Garmin/Yazio endpoints are also protected
+by `DevOnlyGuard` (they require `ENABLE_DEV_ENDPOINTS=true`).
 
-**Validazione.** Ogni payload/query passa da `ZodValidationPipe` con uno schema
-dedicato; gli errori sono `400` con `{ message, issues[] }`. Il body JSON accetta fino a
-15 MB (`useBodyParser` in `main.ts`) per gli upload FIT in base64.
+**Validation.** Every payload/query passes through `ZodValidationPipe` with a dedicated
+schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up to
+15 MB (`useBodyParser` in `main.ts`) for FIT uploads in base64.
 
-**Semantica consolidata in Onda 1 (non regredire):**
+**Semantics consolidated in Wave 1 (do not regress):**
 
-- **Baseline/versioning.** L'`id` è generato dal server con UUIDv7
-  (`packages/db/src/ids.ts`), mai dal client. `saveBaseline` supersede per
-  `{ userId, supersededAt: null }`, incrementa `version` e imposta `validFrom`.
-  L'indice unique partial `uniq_active_baseline_per_user` garantisce una sola baseline
-  attiva per utente; `getCurrentBaseline` ordina per `version`/`validFrom`.
-- **Review.** Conta come completate solo le sessioni `status === "completed"`; `adjusted`
-  non lo è. Gli eventi dolore arrivano solo dai check-in dentro
-  `microPlan.startDate..endDate`. `advanceWeek` usa la review della settimana corrente
-  (mai una review vecchia) e a fine macro risponde `400`, senza ripartire da 1.
-- **Decisioni.** `progress` applica +10% di volume al microciclo successivo; `deload`
-  applica −30% e abbassa l'RPE di 2. Mobilità e recupero non vengono scalati.
-- **Check-in.** Un adattamento automatico persiste l'intera sessione (durata, RPE,
-  blocchi) più le note in `sessions[].notes`, tramite `replacePlannedSession`; non basta
-  cambiare lo stato.
-- **Export FIT.** Solo `running`, `cycling`, `swimming`; forza/mobilità/altro → `400`.
-  I target testuali vengono interpretati: `Z2`, `Passo 4:20-4:35/km`, `85-95 rpm`,
-  `180-220 W`. Il testo non interpretabile resta nelle note dello step.
-- **Export Hevy.** Richiede `body.apiKey` o `HEVY_API_KEY`. L'ordine di validazione è
-  sessione → sport (`strength`) → chiave, così un errore reale non viene mascherato.
-  La sessione non viene mai inventata; gli esercizi derivano dai blocchi, con fallback
-  full-body dichiarato.
-- **Backup/restore.** Il backup (`0.3.0`) include `ai_runs`. La firma è
-  `restoreUserData(db, backup, userId)`: il `userId` del body è ignorato, il restore è
-  idempotente (delete+insert per collezione) e valida le chiavi prima di cancellare.
-  `deleteUserData` elimina anche `users` e `ai_runs`.
+- **Baseline/versioning.** The `id` is generated by the server with UUIDv7
+  (`packages/db/src/ids.ts`), never by the client. `saveBaseline` supersedes by
+  `{ userId, supersededAt: null }`, increments `version`, and sets `validFrom`.
+  The partial unique index `uniq_active_baseline_per_user` guarantees a single active baseline
+  per user; `getCurrentBaseline` sorts by `version`/`validFrom`.
+- **Review.** Only sessions with `status === "completed"` count as completed; `adjusted`
+  does not. Pain events come only from check-ins within
+`microPlan.startDate..endDate`. `advanceWeek` uses the review of the current week (never an old review) and at the end of the macro responds with `400`, without restarting from 1.
+- **Decisions.** `progress` applies +10% volume to the next microcycle; `deload` applies −30% and lowers RPE by 2. Mobility and recovery are not scaled.
+- **Check-in.** An automatic adaptation persists the entire session (duration, RPE, blocks) plus the notes in `sessions[].notes`, via `replacePlannedSession`; changing the status alone is not enough.
+- **FIT export.** Only `running`, `cycling`, `swimming`; strength/mobility/other → `400`. Textual targets are interpreted: `Z2`, `Passo 4:20-4:35/km`, `85-95 rpm`, `180-220 W`. Text that cannot be interpreted remains in the step notes.
+- **Hevy export.** Requires `body.apiKey` or `HEVY_API_KEY`. The validation order is session → sport (`strength`) → key, so that a real error is not masked. The session is never invented; exercises derive from the blocks, with a declared full-body fallback.
+- **Backup/restore.** The backup (`0.3.0`) includes `ai_runs`. The signature is `restoreUserData(db, backup, userId)`: the `userId` in the body is ignored, the restore is idempotent (delete+insert per collection) and validates the keys before deleting. `deleteUserData` also deletes `users` and `ai_runs`.
 
-**Semantica consolidata in Onda 2 (non regredire):**
+**Semantics consolidated in Wave 2 (do not regress):**
 
-- **Safety.** `assessSafety` è valutata al salvataggio della baseline (solo log, i dati
-  non si perdono) e **blocca la generazione** con `400` su red flag assoluti o PAR-Q non
-  completato. Un valore PAR-Q mancante equivale a `false` (Zod default) e blocca.
-- **Generatore.** Parte da oggi nel timezone dell'atleta (o da `startDate`), colloca le
-  sessioni alla prossima occorrenza dei giorni configurati, rispetta
-  `goals.primary.sport`/`profile.sports` e scala i blocchi su `durationMin`. I passi
-  derivano da `goal.targetValue`/`targetUnit`, non da costanti.
-- **Timezone.** Un solo helper (`packages/domain/src/rules/dates.ts`): `localDate`,
-  `todayLocalDate`, `resolveTimeZone`, `addDaysIso`. L'API legge il fuso dalla baseline
-  attiva (`getUserTimeZone`, fallback `Europe/Rome`). Mai `toISOString().slice(0, 10)`
-  per il giorno corrente.
-- **Risorse assenti.** `GET /api/baseline`, `GET /api/plan/macro` e `GET /api/plan/micro`
-  rispondono `404` esplicito; la UI tratta il 404 come "nessun dato". Mai `200` con body
-  vuoto: Nest non serializza `null` e il client andrebbe in errore di parsing.
-- **Auth locale.** `POST /api/auth/register` e `POST /api/auth/login` gestiscono account
-  email + password (scrypt con salt casuale, hash in `auth_credentials`; il documento
-  pubblico `users` non contiene mai materiale password). Email normalizzata, messaggi di
-  validazione in italiano, 409 su email duplicata, 401 generico su credenziali errate.
-  `ENABLE_LOCAL_AUTH` (default `true`) abilita o disabilita i due endpoint.
-- **Google e linking.** La prima login Google verificata e in allowlist crea l'account;
-  se esiste già un account locale con la stessa email, Google accede a quello stesso
-  `userId` invece di duplicarlo. Servono `GOOGLE_CLIENT_ID` e `GOOGLE_ALLOWED_EMAILS`;
-  il client secret non è usato dal flusso GIS ID-token attuale ed è opzionale. In UI il
-  pulsante Google è sempre visibile e resta disabilitato finché mancano client ID o
-  allowlist.
-- **Auth UI.** `/api/auth/status` espone `localAuthEnabled`, `googleClientId` e
-  `devLoginEnabled`; la login screen offre accesso/registrazione locale, Google Identity
-  Services se configurato e dev login solo se abilitato. Il logout imposta
-  `health-trainer.logged-out` e impedisce il dev auto-login finché non si effettua un
-  login esplicito.
-- **Hevy UI.** La chiave può essere inserita nella board: resta in `localStorage`, viene
-  inviata solo con l'export e il server ricade su `HEVY_API_KEY` se assente.
-- **Integrazioni.** Lo stato in `/api/health` per Garmin usa
-  `GarminService.isConfigured()` (env **o** `secrets/garmin-key.txt`), non il solo env.
-  Gli overview leggono `metrics_daily` filtrando per `source`: Garmin non deve mostrare
-  le righe Yazio della stessa data. Sync, analyze e overview usano l'`userId` del token,
-  mai `personal` hardcoded: un account nuovo non vede i dati di un altro.
-- **E2E.** `scripts/e2e-api.ts` avvia l'API con dev endpoint disabilitati, firma due JWT
-  e verifica registrazione/login locali, isolamento, export FIT, check-in, backup e 404
-  per baseline/piani assenti.
+- **Safety.** `assessSafety` is evaluated when the baseline is saved (log only, data is not lost) and **blocks generation** with `400` on absolute red flags or incomplete PAR-Q. A missing PAR-Q value is equivalent to `false` (Zod default) and blocks.
+- **Generator.** Starts from today in the athlete's timezone (or from `startDate`), places sessions at the next occurrence of the configured days, respects `goals.primary.sport`/`profile.sports` and scales blocks based on `durationMin`. Steps derive from `goal.targetValue`/`targetUnit`, not from constants.
+- **Timezone.** A single helper (`packages/domain/src/rules/dates.ts`): `localDate`, `todayLocalDate`, `resolveTimeZone`, `addDaysIso`. The API reads the timezone from the active baseline (`getUserTimeZone`, fallback `Europe/Rome`). Never `toISOString().slice(0, 10)` for the current day.
+- **Missing resources.** `GET /api/baseline`, `GET /api/plan/macro` and `GET /api/plan/micro` respond with an explicit `404`; the UI treats the 404 as "no data". Never `200` with an empty body: Nest does not serialize `null` and the client would fail with a parsing error.
+- **Local auth.** `POST /api/auth/register` and `POST /api/auth/login` handle email + password accounts (scrypt with random salt, hash in `auth_credentials`; the public `users` document never contains password material). Normalized email, validation messages in Italian, 409 on duplicate email, generic 401 on wrong credentials. `ENABLE_LOCAL_AUTH` (default `true`) enables or disables the two endpoints.
+- **Google and linking.** The first verified and allowlisted Google login creates the account; if a local account already exists with the same email, Google logs into that same `userId` instead of duplicating it. `GOOGLE_CLIENT_ID` and `GOOGLE_ALLOWED_EMAILS` are required; the client secret is not used by the current GIS ID-token flow and is optional. In the UI the Google button is always visible and stays disabled until the client ID or allowlist are missing.
+- **Auth UI.** `/api/auth/status` exposes `localAuthEnabled`, `googleClientId` and `devLoginEnabled`; the login screen offers local login/registration, Google Identity Services if configured, and dev login only if enabled. Logout sets `health-trainer.logged-out` and prevents dev auto-login until an explicit login is performed.
+- **Hevy UI.** The key can be entered in the board: it stays in `localStorage`, is sent only with the export, and the server falls back to `HEVY_API_KEY` if absent.
+- **Integrations.** The status in `/api/health` for Garmin uses `GarminService.isConfigured()` (env **or** `secrets/garmin-key.txt`), not the env alone. The overviews read `metrics_daily` filtering by `source`: Garmin must not show Yazio rows from the same date. Sync, analyze and overview use the token's `userId`, never a hardcoded `personal`: a new account does not see another's data.
+- **E2E.** `scripts/e2e-api.ts` starts the API with dev endpoints disabled, signs two JWTs and verifies local registration/login, isolation, FIT export, check-in, backup and 404 for missing baseline/plans.
 
 ---
 
-## 6. Invarianti non negoziabili
+## 6. Non-negotiable invariants
 
-1. **Niente Next.js.** API NestJS, web React + Vite.
-2. **Il dominio è puro.** `packages/domain` non importa Mongo, HTTP, React, NestJS.
-3. **Le regole vengono prima dell'LLM.** Numeri, carichi, progressione, controindicazioni e fattibilità sono calcolati. L'LLM sceglie e spiega.
-4. **Nessun output LLM viene salvato senza validazione** (Zod + regole + safety critic).
-5. **I piani sono immutabili e versionati.** Non modificare una versione passata: creane una nuova con `supersedes`.
-6. **Timezone:** il "giorno" è locale (IANA), i timestamp sono UTC. Mai fare aritmetica con `Date` nudo.
-7. **Niente Strava API.** La policy 2026 vieta l'uso in AI. Non aggiungerla.
-8. **Nessun dato sanitario nei log.** Niente token, chiavi, foto, testi clinici.
-9. **Segreti cifrati.** Chiavi provider e token mai in chiaro nel DB, mai al client, mai nei log.
-10. **Android local-first.** I dati di salute restano sul dispositivo; il server serve per auth, backup metadata e LLM managed (con consenso).
-11. **Adapter non ufficiali isolati.** Yazio/Zepp dietro feature flag, con fallback manuale e documentazione dei rischi.
-12. **Nessun agente autonomo scrive il piano.** Ruoli tipizzati e pipeline deterministica.
-13. **UUID v7** per gli ID portabili tra web e SQLite.
-14. **Unità SI nello storage**, display secondo preferenze.
-15. **Niente `any`** non giustificato; niente `as` per aggirare i tipi.
-
----
-
-## 6.1 Note tecniche correnti
-
-- **NestJS 12 (ESM)** con `"type": "module"` e import relativi con estensione `.js`. Non reintrodurre CommonJS o Nest 11.
-- **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Evita `moduleResolution: node10` e `baseUrl` (deprecati in TS 6).
-- **Node >= 22**, **npm workspaces**. Niente pnpm, niente Turborepo.
-- `npm run dev` esegue prima `build:packages`: API e web importano i pacchetti da `dist`, non dal sorgente.
-- **Test attuali:** 239 test verdi (api 73, ai 20, domain 99, integrations 40, config 5, db 2) + 14 verifiche e2e. Build, lint, typecheck e `typecheck:scripts` verdi.
-- **Modello atleta (v2):** `profile.experience` è stato rimosso. Al suo posto `profile.history` (cosa hai fatto), `profile.capacity` (cosa sai fare ora) e `profile.experienceTier` **derivato server-side** per lo sport dell'obiettivo primario. Regole in `packages/domain/src/rules/experience.ts`. Dettagli e confine con l'LLM in `docs/MODELLO-ATLETA.md`.
-- **Capacità misurata:** `profile.capacity.source` è `garmin | manual | calibration`. Con `garmin` i numeri vengono ricalcolati dal server dalle attività importate (mai dal client) al salvataggio, in lettura (`GET /baseline`) e alla generazione del piano; senza attività la baseline viene rifiutata con 400. La regola è una sola: `apps/api/src/baseline/measured-capacity.ts`. Con `calibration` la settimana 1 è un test a RPE 4-5 e la capacità viene ri-stimata appena esistono dati.
-- **Giorno dell'atleta:** i contatori ("giorni fa", finestra 28 giorni, streak) usano il fuso della baseline, non UTC. Con `toISOString()` dopo le 22:00 italiane si sbaglia di un giorno. `buildRecentContext()` e `estimateCapacityFromActivities()` accettano `timezone`.
-- **Onboarding e perdita dati:** il wizard salva da qualsiasi step quando si modifica una baseline esistente (barra sticky "Salva modifiche"). Al primo onboarding non si salva a metà perché i valori di default sarebbero dati inventati: si usa una bozza in `sessionStorage` (mai `localStorage`: sono dati sanitari) e si ripristina al ritorno, con avviso.
-- **Sicurezza e anamnesi:** `assessSafety()` riconosce le condizioni sia con gli id inglesi sia con le etichette italiane del wizard (se il wizard salva "ipertensione non controllata", il blocco deve scattare). Le condizioni croniche comuni alzano la severità a `caution` senza bloccare; i farmaci con impatto sull'esercizio aggiungono una nota (beta-bloccanti → usare RPE, diuretici → idratazione, anticoagulanti → niente contatto/cadute, ipoglicemizzanti → rischio ipoglicemia).
-- **Dossier atleta (F1-25):** `buildAthleteDossier()` (`packages/domain/src/rules/athlete-dossier.ts`) compila l'unico oggetto di contesto — identità ed età, obiettivi (anche secondari), storia, capacità, contesto recente, risposta individuale (aderenza, scarto RPE, dolore ricorrente), memoria e storico del piano, vincoli, preferenze — con `warnings` espliciti su ciò che manca. Lo usano `PlanService` e `AiService` tramite `AthleteService.getContext()`: **un solo percorso di contesto**. Un test di copertura fallisce se si aggiunge un campo alla baseline senza passarlo al dossier.
-- **Contesto recente:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produce fatti strutturati (ultima gara/sforzo lungo, giorni di recupero residui, rapporto acuto/cronico, gap). La finestra di recupero finisce in `macroPlan.recoveryWindow` e forza settimane di recupero deterministicamente: l'LLM può spiegarla, non ignorarla.
-- **LLM: DeepSeek cablato, provider parziale.** `LLM_PROVIDER=deepseek` + `LLM_API_KEY` attivano `DeepSeekProvider` (`packages/ai/src/providers/deepseek.ts`); senza chiave si resta su `DeterministicCoachProvider`. Due modelli: `LLM_MODEL=deepseek-v4-pro` per pianificazione/critica, `LLM_MODEL_FAST=deepseek-flash` per il coach. `LLM_THINKING=auto` (default) accende il chain-of-thought sulla pianificazione e sul coach solo quando il contesto è delicato (dolore, readiness bassa, finestra post-gara, carico in salita); `on`/`off` lo forzano. Gli altri provider dell'enum **non** hanno un client: restano deterministici. Il coach **consuma** `RecentContext` (ultima gara/sforzo lungo, finestra di recupero, ACWR, gap) dal 27 ottobre 2026. La generazione del piano resta interamente deterministica: **non descrivere il piano come generato da un LLM** finché la pipeline di `docs/ARCHITETTURA-LLM.md` non è implementata.
-- **Errori LLM:** `LlmProviderError` espone `status` e `retryable` (401/402 non ritentabili, 429/5xx/risposta vuota ritentabili). La chiave non compare mai nei messaggi né nei log; i fallimenti finiscono in `ai_runs` con `success: false`.
-- **Scarico post-gara: costante provvisoria, riconosciuta sbagliata.** `RECOVERY_RULES` usa 21 giorni per chiunque e `sessionPolicy()` applica la stessa policy a tutti gli sport, quindi nella finestra anche la palestra viene limitata a RPE 6. È corretto per un principiante e troppo conservativo per un amatore avanzato; inoltre lo scarico è per modalità (impatto sì/no, upper body ok, eccentriche pesanti no), non globale. Va sostituito dall'envelope proposto dal Proposer e verificato dal Referee (`docs/ARCHITETTURA-LLM.md` §5).
-- **Un solo macro-piano attivo:** rigenerare chiama `supersedeMacroPlans()`, che cancella il piano precedente e i suoi micro-piani. Senza, due piani con la stessa `startDate` rendono `getCurrentMacroPlan` ambiguo.
-- **MongoDB:** locale su `127.0.0.1:27017`, gestito dall'utente. Se non è in ascolto, `/api/health` risponde `degraded`; non è un bug dell'API. Non avviare servizi di sistema senza conferma.
-- **Identità utente:** tutte le collezioni sono partizionate per `userId` = `users.id`, che **non** è l'`_id` di Mongo. Per l'account Google `users.id` è il subject Google (`sub`, es. `114007601918490478360`); per il dev-login è `personal`. Migrando o ispezionando dati usare sempre `users.id`, altrimenti i documenti esistono ma l'app non li vede.
-- **Env:** `apps/api/src/main.ts` carica sempre il `.env` di root (anche con cwd
-  `apps/api`); gli spike usano `dotenv/config`. Il package `config` valida le variabili con Zod. In sviluppo l'API e gli spike accettano `secrets/garmin-key.txt` e `secrets/yazio.json` (ignorati da git); in produzione le credenziali devono arrivare da env/secret manager.
-- **Yazio:** API non ufficiale **v22** con User-Agent gate (`YAZIO_USER_AGENT`). Per account Google usare `refreshToken` importato; il grant password funziona solo se l'account ha una password Yazio.
+1. **No Next.js.** NestJS API, React + Vite web.
+2. **The domain is pure.** `packages/domain` does not import Mongo, HTTP, React, NestJS.
+3. **Rules come before the LLM.** Numbers, loads, progression, contraindications and feasibility are calculated. The LLM chooses and explains.
+4. **No LLM output is saved without validation** (Zod + rules + safety critic).
+5. **Plans are immutable and versioned.** Do not modify a past version: create a new one with `supersedes`.
+6. **Timezone:** the "day" is local (IANA), timestamps are UTC. Never do arithmetic with a bare `Date`.
+7. **No Strava API.** The 2026 policy forbids its use in AI. Do not add it.
+8. **No health data in logs.** No tokens, keys, photos, clinical texts.
+9. **Encrypted secrets.** Provider keys and tokens never in plaintext in the DB, never to the client, never in logs.
+10. **Android local-first.** Health data stays on the device; the server is used for auth, backup metadata and managed LLM (with consent).
+11. **Unofficial adapters isolated.** Yazio/Zepp behind feature flags, with manual fallback and documented risks.
+12. **No autonomous agent writes the plan.** Typed roles and deterministic pipeline.
+13. **UUID v7** for portable IDs between web and SQLite.
+14. **SI units in storage**, display according to preferences.
+15. **No unjustified `any`**; no `as` to bypass types.
 
 ---
 
-## 7. Dove intervenire
+## 6.1 Current technical notes
 
-### Nuova integrazione provider
+- **NestJS 12 (ESM)** with `"type": "module"` and relative imports with the `.js` extension. Do not reintroduce CommonJS or Nest 11.
+- **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Avoid `moduleResolution: node10` and `baseUrl` (deprecated in TS 6).
+- **Node >= 22**, **npm workspaces**. No pnpm, no Turborepo.
+- `npm run dev` first runs `build:packages`: API and web import packages from `dist`, not from source.
+- **Current tests:** 239 green tests (api 73, ai 20, domain 99, integrations 40, config 5, db 2) + 14 e2e checks. Build, lint, typecheck and `typecheck:scripts` green.
+- **Athlete model (v2):** `profile.experience` has been removed. It is replaced by `profile.history` (what you have done), `profile.capacity` (what you can do now) and `profile.experienceTier` **derived server-side** for the sport of the primary goal. Rules in `packages/domain/src/rules/experience.ts`. Details and boundary with the LLM in `docs/MODELLO-ATLETA.md`.
+- **Measured capacity:** `profile.capacity.source` is `garmin | manual | calibration`. With `garmin` the numbers are recalculated by the server from imported activities (never by the client) on save, on read (`GET /baseline`) and on plan generation; without activities the baseline is rejected with 400. The rule is only one: `apps/api/src/baseline/measured-capacity.ts`. With `calibration` week 1 is an RPE 4-5 test and capacity is re-estimated as soon as data exists.
+- **Athlete's day:** counters ("days ago", 28-day window, streak) use the baseline timezone, not UTC. With `toISOString()` after 10:00 PM Italian time you are off by a day. `buildRecentContext()` and `estimateCapacityFromActivities()` accept `timezone`.
+- **Onboarding and data loss:** the wizard saves from any step when editing an existing baseline (sticky bar "Save changes"). On first onboarding it does not save halfway because the default values would be invented data: a draft is used in `sessionStorage` (never `localStorage`: it is health data) and restored on return, with a warning.
+- **Security and medical history:** `assessSafety()` recognizes conditions with both the English ids and the Italian labels of the wizard (if the wizard saves "uncontrolled hypertension", the block must trigger). Common chronic conditions raise severity to `caution` without blocking; medications with an impact on exercise add a note (beta-blockers → use RPE, diuretics → hydration, anticoagulants → no contact/falls, glucose-lowering medications → hypoglycemia risk).
+- **Athlete dossier (F1-25):** `buildAthleteDossier()` (`packages/domain/src/rules/athlete-dossier.ts`) compiles the single context object — identity and age, goals (including secondary ones), history, capacity, recent context, individual response (adherence, RPE gap, recurring pain), memory and plan history, constraints, preferences — with explicit `warnings` about what is missing. It is used by `PlanService` and `AiService` through `AthleteService.getContext()`: **a single context path**. A coverage test fails if a field is added to the baseline without passing it to the dossier.
+- **Recent context:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produces structured facts (last race/long effort, remaining recovery days, acute/chronic ratio, gap). The recovery window ends up in `macroPlan.recoveryWindow` and forces recovery weeks deterministically: the LLM can explain it, not ignore it.
+- **LLM: DeepSeek wired, partial provider.** `LLM_PROVIDER=deepseek` + `LLM_API_KEY` activate `DeepSeekProvider` (`packages/ai/src/providers/deepseek.ts`); without a key it stays on `DeterministicCoachProvider`. Two models: `LLM_MODEL=deepseek-v4-pro` for planning/critique, `LLM_MODEL_FAST=deepseek-flash` for the coach. `LLM_THINKING=auto` (default) turns on chain-of-thought for planning and for the coach only when the context is sensitive (pain, low readiness, post-race window, rising load); `on`/`off` force it. The other providers in the enum **do not** have a client: they remain deterministic. The coach **consumes** `RecentContext` (last race/long effort, recovery window, ACWR, gap) since October 27, 2026. Plan generation remains entirely deterministic: **do not describe the plan as generated by an LLM** until the pipeline in `docs/ARCHITETTURA-LLM.md` is implemented.
+- **LLM errors:** `LlmProviderError` exposes `status` and `retryable` (401/402 non-retryable, 429/5xx/empty response retryable). The key never appears in messages or logs; failures end up in `ai_runs` with `success: false`.
+- **Post-race deload: temporary constant, recognized as wrong.** `RECOVERY_RULES` uses 21 days for everyone and `sessionPolicy()` applies the same policy to all sports, so within the window even the gym is limited to RPE 6. It is correct for a beginner and too conservative for an advanced amateur; moreover, the deload is per modality (impact yes/no, upper body ok, heavy eccentrics no), not global. It must be replaced by the envelope proposed by the Proposer and verified by the Referee (`docs/ARCHITETTURA-LLM.md` §5).
+- **Only one active macro-plan:** regenerating calls `supersedeMacroPlans()`, which deletes the previous plan and its micro-plans. Without it, two plans with the same `startDate` make `getCurrentMacroPlan` ambiguous.
+- **MongoDB:** local on `127.0.0.1:27017`, managed by the user. If it is not listening, `/api/health` responds `degraded`; it is not an API bug. Do not start system services without confirmation.
+- **User identity:** all collections are partitioned by `userId` = `users.id`, which is **not** Mongo's `_id`. For the Google account `users.id` is the Google subject (`sub`, e.g. `114007601918490478360`); for dev-login it is `personal`. When migrating or inspecting data always use `users.id`, otherwise the documents exist but the app does not see them.
+- **Env:** `apps/api/src/main.ts` always loads the root `.env` (even with cwd
+  `apps/api`); spikes use `dotenv/config`. The `config` package validates the variables with Zod. In development the API and spikes accept `secrets/garmin-key.txt` and `secrets/yazio.json` (ignored by git); in production the credentials must come from env/secret manager.
+- **Yazio:** unofficial **v22** API with User-Agent gate (`YAZIO_USER_AGENT`). For Google accounts use the imported `refreshToken`; the password grant works only if the account has a Yazio password.
 
-1. Leggi `docs/INTEGRAZIONI.md` e aggiungi la sezione del provider.
-2. Crea `packages/integrations/src/<provider>/`:
-   - `<provider>.adapter.ts` (implementa `ProviderAdapter`);
-   - `<provider>.schema.ts` (Zod delle risposte);
-   - `<provider>.mapper.ts` (raw → canonico);
-   - `fixtures/` (risposte redatte).
-3. Aggiungi test di contratto con fixture, **senza rete**.
-4. Aggiungi il provider a `provider_credentials` e alla UI stato integrazioni.
-5. Aggiorna `docs/INTEGRAZIONI.md` con auth, endpoint, errori, mapping.
+---
 
-### Nuovo sport
+## 7. Where to intervene
 
-1. Aggiungi lo sport a `packages/domain/src/sports/`.
-2. Definisci tipi sessione, metriche, target, controindicazioni.
-3. Aggiungi la lane nella board settimanale.
-4. Aggiungi il mapping export (Garmin/Hevy) se applicabile.
-5. Aggiungi fixture e test.
+### New provider integration
 
-### Nuovo strato di piano
+1. Read `docs/INTEGRAZIONI.md` and add the provider section.
+2. Create `packages/integrations/src/<provider>/`:
+   - `<provider>.adapter.ts` (implements `ProviderAdapter`);
+   - `<provider>.schema.ts` (Zod for the responses);
+   - `<provider>.mapper.ts` (raw → canonical);
+   - `fixtures/` (redacted responses).
+3. Add contract tests with fixtures, **without network**.
+4. Add the provider to `provider_credentials` and to the integrations status UI.
+5. Update `docs/INTEGRAZIONI.md` with auth, endpoints, errors, mapping.
 
-1. Schema Zod in `packages/domain`.
-2. Repository (Mongo + SQLite) e migrazione.
-3. Context builder: cosa vede l'LLM.
-4. Prompt versionato + JSON schema.
-5. Validator e safety.
-6. UI con diff e "perché".
+### New sport
+
+1. Add the sport to `packages/domain/src/sports/`.
+2. Define session types, metrics, targets, contraindications.
+3. Add the lane to the weekly board.
+4. Add the export mapping (Garmin/Hevy) if applicable.
+5. Add fixtures and tests.
+
+### New plan layer
+
+1. Zod schema in `packages/domain`.
+2. Repository (Mongo + SQLite) and migration.
+3. Context builder: what the LLM sees.
+4. Versioned prompt + JSON schema.
+5. Validator and safety.
+6. UI with diff and "why".
 7. Test + eval.
 
-### Nuovo task LLM
+### New LLM task
 
-1. Nuovo prompt in `packages/ai/prompts/<task>/vN.md`.
-2. Schema output + Zod.
-3. Context builder con budget token.
-4. `ai_runs` con modello, versione, hash, costo.
-5. Eval con personas.
-6. Fallback deterministico.
+1. New prompt in `packages/ai/prompts/<task>/vN.md`.
+2. Output schema + Zod.
+3. Context builder with token budget.
+4. `ai_runs` with model, version, hash, cost.
+5. Eval with personas.
+6. Deterministic fallback.
 
-### Nuova schermata web
+### New web screen
 
 1. Route in `apps/web/src/routes/`.
-2. Query/mutation con TanStack Query.
-3. Componenti in `packages/ui` se riusabili.
-4. Stati: loading, empty, error, offline.
-5. Test e2e del flusso.
+2. Query/mutation with TanStack Query.
+3. Components in `packages/ui` if reusable.
+4. States: loading, empty, error, offline.
+5. e2e test of the flow.
 
-### Nuova regola di dominio
+### New domain rule
 
-1. Funzione pura in `packages/domain/src/rules/`.
-2. Test unitari con casi limite (dati mancanti, outlier, dolore, zero carico).
-3. Se cambia il comportamento del piano, aggiorna `PIANO.md` e l'eval.
+1. Pure function in `packages/domain/src/rules/`.
+2. Unit tests with edge cases (missing data, outlier, pain, zero load).
+3. If it changes the plan behavior, update `PIANO.md` and the eval.
 
-### Nuovo export
+### New export
 
-1. Definisci il formato e il mapping.
-2. Implementa in `packages/integrations` o `apps/api/src/export`.
-3. Test con file reale (Garmin Connect / Hevy).
-4. Documenta i limiti e il fallback manuale.
-
----
-
-## 8. Convenzioni di codice
-
-- TypeScript strict; `noUncheckedIndexedAccess` se possibile.
-- File kebab-case: `readiness.service.ts`, `garmin.adapter.ts`.
-- Tipi PascalCase, funzioni camelCase, costanti UPPER_SNAKE.
-- Zod per ogni boundary: HTTP, provider, LLM, form, backup.
-- Errori tipizzati, non stringhe; niente `throw new Error("...")` generico nel dominio.
-- NestJS: moduli piccoli, service sottili, repository dietro interfaccia.
-- React: componenti funzione, nessuna logica di dominio nel componente.
-- Date: ISO 8601 + timezone esplicita; utility condivise.
-- Denaro/unità: non applicabile; unità SI.
-- Commenti: solo per il "perché", non per il "cosa".
+1. Define the format and the mapping.
+2. Implement in `packages/integrations` or `apps/api/src/export`.
+3. Test with a real file (Garmin Connect / Hevy).
+4. Document the limits and the manual fallback.
 
 ---
 
-## 9. AI e prompt
+## 8. Code conventions
 
-Disegno completo, ruoli e passi di implementazione: `docs/ARCHITETTURA-LLM.md`.
+- TypeScript strict; `noUncheckedIndexedAccess` if possible.
+- kebab-case files: `readiness.service.ts`, `garmin.adapter.ts`.
+- PascalCase types, camelCase functions, UPPER_SNAKE constants.
+- Zod for every boundary: HTTP, provider, LLM, form, backup.
+- Typed errors, not strings; no generic `throw new Error("...")` in the domain.
+- NestJS: small modules, thin services, repositories behind an interface.
+- React: function components, no domain logic in the component.
+- Dates: ISO 8601 + explicit timezone; shared utilities.
+- Money/units: not applicable; SI units.
+- Comments: only for the "why", not for the "what".
 
-Tre regole che vengono da lì e non sono negoziabili:
+---
 
-1. **Il contesto non si improvvisa.** Il modello riceve un dossier compilato da codice (dati Garmin, storia, risposta individuale, memoria dei piani), non una cronologia di chat.
-2. **L'envelope è un output, non un input.** Metodo, durata dello scarico e distribuzione dell'intensità li propone l'LLM, li attacca il Critic e li verifica il Referee. Non sono costanti nel codice.
-3. **Il Referee contiene solo aritmetica.** Se cresce oltre il controllo di coerenza, è un errore di progetto: quella è conoscenza, e va nel Proposer.
+## 9. AI and prompts
 
-- Un prompt per file, versionato (`v1`, `v2`), con changelog.
-- System prompt: ruolo, metodologia, vincoli, stile, divieti medici.
-- User message: blocchi di contesto espliciti, non chat history.
-- Output: JSON schema strict + Zod.
-- Temperatura: 0.2–0.3 per pianificare, 0.5–0.7 per la narrativa.
-- Cache per `contextHash`.
-- `ai_runs` per ogni chiamata: provider, modello, promptVersion, contextHash, token, costo, validazione.
-- Evals prima di cambiare prompt/modello.
-- Non inviare foto o testi clinici senza consenso.
-- Non usare free tier arbitrari per dati sanitari.
+Full design, roles and implementation steps: `docs/ARCHITETTURA-LLM.md`.
+
+Three rules that come from there and are non-negotiable:
+
+1. **The context is not improvised.** The model receives a dossier compiled by code (Garmin data, history, individual response, plan memory), not a chat history.
+2. **The envelope is an output, not an input.** The method, the deload duration and the intensity distribution are proposed by the LLM, challenged by the Critic and verified by the Referee. They are not constants in the code.
+3. **The Referee contains only arithmetic.** If it grows beyond consistency checking, it is a design error: that is knowledge, and it belongs in the Proposer.
+
+- One prompt per file, versioned (`v1`, `v2`), with changelog.
+- System prompt: role, methodology, constraints, style, medical prohibitions.
+- User message: explicit context blocks, not chat history.
+- Output: strict JSON schema + Zod.
+- Temperature: 0.2–0.3 for planning, 0.5–0.7 for narrative.
+File: AGENT.md (part 6)
+
+- Cache by `contextHash`.
+- `ai_runs` for each call: provider, model, promptVersion, contextHash, token, cost, validation.
+- Evals before changing prompt/model.
+- Do not send photos or clinical texts without consent.
+- Do not use arbitrary free tiers for health data.
 
 ---
 
 ## 10. Testing
 
-| Tipo | Cosa | Comando |
+| Type | What | Command |
 |---|---|---|
-| Unit | regole, feasibility, validator | `npm test` |
-| Contract | adapter con fixture | `npm test` |
-| E2E | onboarding → piano → check-in → review, isolamento multi-utente | `npm run test:e2e` |
-| AI eval | 10 personas, schema/sicurezza | previsto (`npm run eval`) |
-| Backup | export → wipe → import | test dedicato |
-| Device | Health Connect, Hevy, Garmin `.FIT` | manuale |
+| Unit | rules, feasibility, validator | `npm test` |
+| Contract | adapter with fixtures | `npm test` |
+| E2E | onboarding → plan → check-in → review, multi-user isolation | `npm run test:e2e` |
+| AI eval | 10 personas, schema/safety | planned (`npm run eval`) |
+| Backup | export → wipe → import | dedicated test |
+| Device | Health Connect, Hevy, Garmin `.FIT` | manual |
 
-Regole:
+Rules:
 
-- Nessuna rete nei test di CI: fixture registrate.
-- Ogni bug di regola → test di regressione.
-- Ogni nuovo provider → fixture + test di errore 401/429.
-- Ogni modifica al backup → test di compatibilità.
+- No network in CI tests: recorded fixtures.
+- Every rule bug → regression test.
+- Every new provider → fixture + 401/429 error test.
+- Every backup change → compatibility test.
 
 ---
 
-## 11. Sicurezza e privacy
+## 11. Security and privacy
 
-- `.env` mai committato; `.env.example` sì.
-- Credenziali provider cifrate AES-256-GCM; master key in env/secret manager.
+- `.env` never committed; `.env.example` yes.
+- Provider credentials encrypted with AES-256-GCM; master key in env/secret manager.
 - Android: Android Keystore.
-- Log redatti: mai token, chiavi, foto, testi clinici, email non necessarie.
-- Upload: limiti, MIME sniffing, re-encode immagini, URL firmati brevi.
-- Rate limit su auth e generazione piani.
-- Multi-tenant: `userId` obbligatorio nel repository; test di accesso incrociato.
-- Backup cifrati; test di restore.
-- Dipendenze: giustifica ogni nuova libreria; preferisci quelle mantenute.
+- Redacted logs: never tokens, keys, photos, clinical texts, unnecessary emails.
+- Upload: limits, MIME sniffing, image re-encoding, short signed URLs.
+- Rate limit on auth and plan generation.
+- Multi-tenant: `userId` required in the repository; cross-tenant access test.
+- Encrypted backups; restore test.
+- Dependencies: justify every new library; prefer maintained ones.
 
 ---
 
-## 12. Cosa NON fare
+## 12. What NOT to do
 
-- Non usare Next.js.
-- Non integrare Strava.
-- Non usare un agente autonomo per generare o modificare il piano.
-- Non salvare output LLM non validati.
-- Non modificare versioni passate di piani, profili, review.
-- Non aggirare il validator "per far funzionare la demo".
-- Non inventare endpoint o campi delle API: verifica in `docs/INTEGRAZIONI.md` o nei docs ufficiali.
-- Non usare username/password Garmin o scraping.
-- Non loggare dati sanitari o segreti.
-- Non committare `.env`, foto, `.FIT`, backup.
-- Non aggiungere `any` o cast per compilare.
-- Non cambiare un prompt senza eval.
-- Non eseguire `git push`, `reset --hard`, `rebase` o force-push senza conferma. Il repo è locale, senza remote.
-- Non avviare o fermare MongoDB/Redis o altri servizi di sistema senza conferma.
-- Non cancellare dati utente senza backup e conferma.
+- Do not use Next.js.
+- Do not integrate Strava.
+- Do not use an autonomous agent to generate or modify the plan.
+- Do not save unvalidated LLM output.
+- Do not modify past versions of plans, profiles, reviews.
+- Do not bypass the validator "to make the demo work".
+- Do not invent API endpoints or fields: verify in `docs/INTEGRAZIONI.md` or in the official docs.
+- Do not use Garmin username/password or scraping.
+- Do not log health data or secrets.
+- Do not commit `.env`, photos, `.FIT`, backups.
+- Do not add `any` or casts to compile.
+- Do not change a prompt without eval.
+- Do not run `git push`, `reset --hard`, `rebase`, or force-push without confirmation. The repo is local, without a remote.
+- Do not start or stop MongoDB/Redis or other system services without confirmation.
+- Do not delete user data without backup and confirmation.
 
 ---
 
 ## 13. Definition of Done
 
-Un task è finito quando:
+A task is done when:
 
-- [ ] Implementazione completa e tipizzata.
-- [ ] Test unitari/contract/e2e applicabili.
-- [ ] Nessun segreto o dato sanitario nei log.
-- [ ] Migrazione/backup compatibile.
-- [ ] Criteri di accettazione della fase soddisfatti.
-- [ ] Documenti aggiornati (`PIANO`, `FASI`, `INTEGRAZIONI`, `AGENT`).
-- [ ] Verifica manuale su dati reali, se il task tocca un'integrazione.
-- [ ] Nessuna regressione sui test esistenti.
+- [ ] Complete and typed implementation.
+- [ ] Unit/contract/e2e tests where applicable.
+- [ ] No secrets or health data in logs.
+- [ ] Compatible migration/backup.
+- [ ] Phase acceptance criteria met.
+- [ ] Documents updated (`PIANO`, `FASI`, `INTEGRAZIONI`, `AGENT`).
+- [ ] Manual verification on real data, if the task touches an integration.
+- [ ] No regression in existing tests.
 
 ---
 
-## 14. Decisioni aperte
+## 14. Open decisions
 
-Prima di implementare, verifica se il task dipende da una di queste:
+Before implementing, check whether the task depends on one of these:
 
-| Decisione | Stato | Default |
+| Decision | Status | Default |
 |---|---|---|
-| Android Expo vs Kotlin | aperta | Expo/RN, modulo nativo se serve |
-| Push Garmin automatico | aperta | `.FIT` manuale; Startup dopo |
-| Deploy web | aperta | Locale ora; VPS UE quando serve accesso remoto |
-| DB web Mongo vs SQLite | decisa: Mongo | non cambiare senza motivo |
-| Zepp | aperta | Health Connect su Android; API non ufficiale solo web |
-| LLM default | decisa: BYOK | managed per test |
-| Agente autonomo vs pipeline a ruoli | **decisa: pipeline** | nessun agente che scelga i tool; raccolta dati deterministica |
-| Autorità sull'envelope | **decisa: LLM propone, Critic attacca, Referee verifica** | niente costanti di allenamento nel Referee |
-| Provider/modello per Proposer e Critic | aperta | due provider diversi, chiavi in `.env` |
+| Android Expo vs Kotlin | open | Expo/RN, native module if needed |
+| Automatic Garmin push | open | manual `.FIT`; Startup later |
+| Web deploy | open | Local for now; EU VPS when remote access is needed |
+| Web DB Mongo vs SQLite | decided: Mongo | do not change without reason |
+| Zepp | open | Health Connect on Android; unofficial API web only |
+| LLM default | decided: BYOK | managed for tests |
+| Autonomous agent vs role-based pipeline | **decided: pipeline** | no agent that chooses tools; deterministic data collection |
+| Authority over the envelope | **decided: LLM proposes, Critic attacks, Referee verifies** | no training constants in the Referee |
+| Provider/model for Proposer and Critic | open | two different providers, keys in `.env` |
 
-Se una decisione cambia, aggiorna `PIANO.md` e questo file **nello stesso commit**.
-
----
-
-## 15. Come lavorare (procedura)
-
-1. Leggi `docs/FASI.md` e scegli **un** task della fase corrente.
-2. Verifica le dipendenze (API key, account, device).
-3. Scrivi prima lo schema/test, poi l'implementazione.
-4. Esegui typecheck, lint, test.
-5. Verifica manualmente il flusso reale, se applicabile.
-6. Aggiorna la documentazione.
-7. Riporta: cosa hai fatto, cosa non hai potuto verificare, rischi residui.
-
-Se un'API non funziona come documentato:
-
-- non aggirarla con hack silenziosi;
-- aggiorna `docs/INTEGRAZIONI.md` con il comportamento reale;
-- aggiungi una fixture/test;
-- valuta un fallback;
-- segnala il rischio.
+If a decision changes, update `PIANO.md` and this file **in the same commit**.
 
 ---
 
-## 16. Glossario
+## 15. How to work (procedure)
 
-| Termine | Significato |
+1. Read `docs/FASI.md` and choose **one** task from the current phase.
+2. Check the dependencies (API key, account, device).
+3. Write the schema/test first, then the implementation.
+4. Run typecheck, lint, test.
+5. Manually verify the real flow, if applicable.
+6. Update the documentation.
+7. Report: what you did, what you could not verify, residual risks.
+
+If an API does not work as documented:
+
+- do not work around it with silent hacks;
+- update `docs/INTEGRAZIONI.md` with the actual behavior;
+- add a fixture/test;
+- evaluate a fallback;
+- report the risk.
+
+---
+
+## 16. Glossary
+
+| Term | Meaning |
 |---|---|
-| **Baseline (L0)** | Dati stabili: profilo, anamnesi, obiettivi, disponibilità, attrezzatura |
-| **Macro (L1)** | Blocco di 8–16 settimane, fasi e target |
-| **Micro (L2)** | Settimana di allenamento |
-| **Giorno (L3)** | Adattamento della sessione odierna |
-| **Review (L4)** | Verifica settimanale/mensile e decisioni per il ciclo successivo |
-| **Readiness** | Punteggio di prontezza da HRV, RHR, sonno, soggettivo, carico |
-| **sRPE** | Carico = RPE × minuti |
-| **ACWR** | Rapporto carico acuto/cronico (flag, non legge) |
-| **Validator** | Controllo schema + regole + sicurezza prima di pubblicare |
-| **Adapter** | Componente che normalizza una fonte esterna nel modello canonico |
-| **Backup bundle** | ZIP cifrato con dati + asset per il restore |
+| **Baseline (L0)** | Stable data: profile, medical history, goals, availability, equipment |
+| **Macro (L1)** | 8–16 week block, phases and targets |
+| **Micro (L2)** | Training week |
+| **Day (L3)** | Adaptation of today's session |
+| **Review (L4)** | Weekly/monthly check and decisions for the next cycle |
+| **Readiness** | Readiness score from HRV, RHR, sleep, subjective input, load |
+| **sRPE** | Load = RPE × minutes |
+| **ACWR** | Acute/chronic load ratio (flag, not law) |
+| **Validator** | Schema + rules + safety check before publishing |
+| **Adapter** | Component that normalizes an external source into the canonical model |
+| **Backup bundle** | Encrypted ZIP with data + assets for restore |
 
 ---
 
-## 17. Link utili
+## 17. Useful links
 
 - Garmin Personal API: <https://developer.garmin.com/gc-developer-program/personal/>
 - Garmin Personal FAQ: <https://developer.garmin.com/gc-developer-program/personal/personal-faq/>
+File: AGENT.md (part 7)
+
 - Garmin FIT SDK JS: <https://github.com/garmin/fit-javascript-sdk>
-- Yazio API non ufficiale: <https://github.com/saganos/yazio_public_api>
+- Unofficial Yazio API: <https://github.com/saganos/yazio_public_api>
 - Zepp health CLI: <https://github.com/m4ary/zepp-health-cli>
 - Hevy API: <https://api.hevyapp.com/docs/>
 - Health Connect: <https://developer.android.com/health-and-fitness/guides/health-connect>
-- Strava API Policy (perché è escluso): <https://www.strava.com/legal/api_policy>
+- Strava API Policy (why it is excluded): <https://www.strava.com/legal/api_policy>
