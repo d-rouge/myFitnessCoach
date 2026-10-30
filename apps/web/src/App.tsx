@@ -842,7 +842,7 @@ function Dashboard({ user }: { user: SessionUser }) {
             </div>
 
             <Card
-              title={hasPlan ? t.ui.regeneratePlanTitle : t.ui.createPlanTitle}
+              title={t.ui.interactiveCoachChat}
               eyebrow={t.ui.trainingPlan}
               className="mt-4 border-sky-400/20 bg-sky-950/10"
             >
@@ -855,19 +855,25 @@ function Dashboard({ user }: { user: SessionUser }) {
                   onClick={() => setIsInterviewOpen(true)}
                   className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20"
                 >
-                  {hasPlan ? t.ui.regeneratePlanWithTheCoach : t.ui.createPlan}
+                  {t.ui.generateYourPlan}
                 </button>
               </div>
 
-              <p className="mt-3 text-[11px] text-slate-400">{t.ui.methodologyChosenByTheCoach}</p>
+              {isInterviewOpen ? (
+                <PlanInterviewChat onClose={() => setIsInterviewOpen(false)} />
+              ) : null}
 
               {methodology.data &&
               methodology.data.goalDescription === baseline.data.goals.primary.description ? (
-                <MethodologyResult evaluation={methodology.data} />
-              ) : null}
-
-              {isInterviewOpen ? (
-                <PlanInterviewChat onClose={() => setIsInterviewOpen(false)} />
+                <details className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                  <summary className="cursor-pointer text-xs font-semibold text-slate-200">
+                    {t.ui.methodologyProposedByCoach}
+                  </summary>
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    {t.ui.methodologyChosenByTheCoach}
+                  </p>
+                  <MethodologyResult evaluation={methodology.data} />
+                </details>
               ) : null}
             </Card>
           </>

@@ -506,6 +506,9 @@ export type TranslationDictionary = {
   };
 
   ui: {
+    interactiveCoachChat: string;
+    generateYourPlan: string;
+    methodologyProposedByCoach: string;
     trainingPlan: string;
     createPlanTitle: string;
     createPlanDescription: string;

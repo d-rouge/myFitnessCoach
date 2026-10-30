@@ -28,8 +28,10 @@ async function fetchLatestInterview(): Promise<PlanInterview | null> {
   return body.interview;
 }
 
-async function startInterview(): Promise<PlanInterview> {
-  const response = await apiFetch("/api/plan/interview", { method: "POST" });
+async function startInterview(input: { restart?: boolean } = {}): Promise<PlanInterview> {
+  const response = await apiFetch(`/api/plan/interview${input.restart ? "?restart=true" : ""}`, {
+    method: "POST",
+  });
   const body = (await response.json()) as PlanInterview & { message?: string };
   if (!response.ok) {
     throw new Error(body.message ?? `Interview start failed (${response.status})`);
@@ -127,7 +129,7 @@ export function PlanInterviewChat({ onClose }: PlanInterviewChatProps) {
       !autoStarted.current
     ) {
       autoStarted.current = true;
-      startMutation.mutate();
+      startMutation.mutate({ restart: latest.data?.status === "generated" });
     }
   }, [latest.isSuccess, latest.data, startMutation]);
 
@@ -160,7 +162,7 @@ export function PlanInterviewChat({ onClose }: PlanInterviewChatProps) {
     generateMutation.reset();
     queryClient.setQueryData(["plan-interview-latest"], null);
     setDraft("");
-    startMutation.mutate();
+    startMutation.mutate({ restart: true });
   };
 
   return (

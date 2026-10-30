@@ -64,8 +64,8 @@ export class PlanController {
   }
 
   @Post("interview")
-  async startInterview(@CurrentUser() user: User) {
-    return this.interviewService.start(user.id);
+  async startInterview(@CurrentUser() user: User, @Query("restart") restart?: string) {
+    return this.interviewService.start(user.id, { restart: restart === "true" });
   }
 
   @Get("interview/latest")

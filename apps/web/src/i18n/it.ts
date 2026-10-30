@@ -531,6 +531,9 @@ export const it: TranslationDictionary = {
   },
 
   ui: {
+    interactiveCoachChat: "Chat Interattiva con il Coach",
+    generateYourPlan: "Genera il tuo piano",
+    methodologyProposedByCoach: "Metodologia proposta dal coach",
     trainingPlan: "Allenamento · piano",
     createPlanTitle: "Crea il tuo piano",
     createPlanDescription:

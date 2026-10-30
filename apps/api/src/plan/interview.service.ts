@@ -66,6 +66,7 @@ export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
   private readonly provider: LlmProvider;
   private readonly settings: ReturnType<typeof llmSettings>;
+  private readonly starting = new Map<string, Promise<PlanInterviewRecord>>();
 
   constructor(
     @Inject(APP_ENV) env: Env,
@@ -158,12 +159,36 @@ export class InterviewService {
     return new Date().toISOString();
   }
 
-  async start(userId: string): Promise<PlanInterviewRecord> {
+  async start(userId: string, options: { restart?: boolean } = {}): Promise<PlanInterviewRecord> {
     const existing = await this.latest(userId);
-    if (existing && existing.status !== "generated") {
+    const ageHours = existing ? (Date.now() - Date.parse(existing.createdAt)) / 3_600_000 : null;
+    // Riprende un'intervista in corso solo se è recente. "Rigenera" e "Nuova
+    // intervista" forzano un nuovo dialogo.
+    if (
+      !options.restart &&
+      existing &&
+      existing.status !== "generated" &&
+      ageHours !== null &&
+      ageHours < 24
+    ) {
       return existing;
     }
 
+    // Due richieste concorrenti (doppio click/HMR) non devono creare due
+    // interviste: la seconda aspetta la prima.
+    const inFlight = this.starting.get(userId);
+    if (inFlight) return inFlight;
+
+    const creation = this.createInterview(userId);
+    this.starting.set(userId, creation);
+    try {
+      return await creation;
+    } finally {
+      this.starting.delete(userId);
+    }
+  }
+
+  private async createInterview(userId: string): Promise<PlanInterviewRecord> {
     const dossier = await this.context(userId);
     const createdAt = this.now();
     const record: PlanInterviewRecord = {

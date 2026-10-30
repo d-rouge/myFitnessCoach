@@ -527,6 +527,9 @@ export const en: TranslationDictionary = {
   },
 
   ui: {
+    interactiveCoachChat: "Interactive Chat with the Coach",
+    generateYourPlan: "Generate your plan",
+    methodologyProposedByCoach: "Methodology proposed by the coach",
     trainingPlan: "Training · plan",
     createPlanTitle: "Create your plan",
     createPlanDescription:
