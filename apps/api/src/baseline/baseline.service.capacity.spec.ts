@@ -100,6 +100,53 @@ describe("BaselineService capacity provenance", () => {
     expect(saved.profile.capacity.asOf).toBeTruthy();
   });
 
+  it("keeps the declared 5K time when recomputing capacity from activities", async () => {
+    activities.push({
+      userId: "user-1",
+      source: "garmin",
+      externalId: "a1",
+      sport: "running",
+      start: "2026-10-03T07:00:00Z",
+      localDate: "2026-10-03",
+      durationSec: 5291,
+      distanceM: 15_080,
+      fetchedAt: "2026-10-03T08:00:00Z",
+    });
+
+    const service = new BaselineService(mockMongo);
+    const input = baselineInput("garmin");
+    // Stima 5K che l'atleta legge su Garmin Connect: non è ricavabile dalle
+    // attività, quindi il ricalcolo non deve sovrascriverla.
+    input.profile.capacity.recent5kSec = 1500;
+    input.profile.capacity.recent5kSource = "declared";
+
+    const saved = await service.save("user-1", input);
+
+    expect(saved.profile.capacity.recent5kSec).toBe(1500);
+    expect(saved.profile.capacity.recent5kSource).toBe("declared");
+    // Il resto della capacità resta misurato, non dichiarato.
+    expect(saved.profile.capacity.asOf).toBeTruthy();
+  });
+
+  it("infers the goal type from the description and normalizes availability", async () => {
+    const service = new BaselineService(mockMongo);
+    const input = baselineInput("manual");
+    input.goals.primary.description = "Completare un 5k in meno di 23 minuti";
+    input.goals.primary.type = "health";
+    input.availability.daysPerWeek = 4;
+    input.availability.longSession = { when: "weekend", day: null };
+    input.availability.days = [];
+
+    const saved = await service.save("user-1", input);
+
+    // Il tipo non è chiesto all'atleta: viene dedotto dalla descrizione.
+    expect(saved.goals.primary.type).toBe("performance");
+    // I giorni concreti sono derivati dai controlli giorni/settimana + lunga.
+    expect(saved.availability.daysPerWeek).toBe(4);
+    expect(saved.availability.days).toHaveLength(4);
+    expect(saved.availability.days.some((day) => day.maxDurationMin === 120)).toBe(true);
+  });
+
   it("keeps manually entered capacity untouched", async () => {
     const service = new BaselineService(mockMongo);
     const input = baselineInput("manual");

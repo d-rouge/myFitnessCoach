@@ -81,6 +81,20 @@ describe("buildAthleteDossier", () => {
     expect(dossier.goals.secondary[0]?.description).toMatch(/forza/i);
   });
 
+  it("passa al dossier la storia sportiva generale senza confonderla con il dato Garmin", () => {
+    const dossier = buildAthleteDossier({
+      baseline: {
+        ...baseline,
+        profile: { ...baseline.profile, athleteBackground: "elite" },
+      },
+      now: NOW,
+    });
+
+    expect(dossier.athleteBackground).toBe("elite");
+    expect(dossier.recentContext.lastActivityDate).toBeNull();
+    expect(dossier.warnings).not.toContain("no_athletic_background");
+  });
+
   it("dichiara ciò che manca invece di inventare zeri", () => {
     const dossier = buildAthleteDossier({ baseline, now: NOW });
 
@@ -127,6 +141,29 @@ describe("buildAthleteDossier", () => {
     expect(dossier.individualResponse.rpeDrift).toBe(1);
   });
 
+  it("include le ultime due settimane con il tipo di seduta", () => {
+    const dossier = buildAthleteDossier({
+      baseline,
+      now: NOW,
+      activities: [
+        {
+          sport: "running",
+          localDate: "2026-10-26",
+          durationSec: 45 * 60,
+          distanceM: 10_000,
+          avgPaceSecKm: 270,
+          trainingEffect: 4.6,
+          title: "Ripetute in soglia",
+          activityType: "running",
+        },
+      ],
+    });
+
+    expect(dossier.trainingHistory.summary.sessions).toBe(1);
+    expect(dossier.trainingHistory.entries[0]?.kind).toBe("quality");
+    expect(dossier.trainingHistory.entries[0]?.activityType).toBe("running");
+  });
+
   it("segnala il dolore ricorrente, non il singolo episodio", () => {
     const checkins = [
       CheckinSchema.parse({
@@ -158,6 +195,26 @@ describe("buildAthleteDossier", () => {
     expect(dossier.recentContext.postRaceRecovery.active).toBe(true);
     expect(dossier.recentContext.lastLongEffort?.label).toMatch(/maratona/i);
     expect(dossier.warnings).not.toContain("no_activities");
+  });
+
+  it("include la data di ultima attività dichiarata se non ci sono dati importati", () => {
+    const dossier = buildAthleteDossier({
+      baseline: {
+        ...baseline,
+        profile: {
+          ...baseline.profile,
+          capacity: {
+            ...baseline.profile.capacity,
+            lastActivityDate: "2026-10-10",
+          },
+        },
+      },
+      now: NOW,
+    });
+
+    expect(dossier.recentContext.lastActivityDate).toBe("2026-10-10");
+    expect(dossier.recentContext.daysSinceLastActivity).toBe(17);
+    expect(dossier.recentContext.flags).toContain("detraining_gap");
   });
 
   it("ricostruisce la memoria del piano: fase, settimana e finestra di recupero", () => {

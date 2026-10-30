@@ -7,6 +7,7 @@ import {
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useI18n } from "../i18n";
 import { apiFetch } from "../lib/api";
 
 interface TodayCheckinResponse {
@@ -17,7 +18,7 @@ interface TodayCheckinResponse {
 
 async function fetchTodayCheckin(): Promise<TodayCheckinResponse> {
   const res = await apiFetch("/api/checkin/today");
-  if (!res.ok) throw new Error("Errore recupero check-in");
+  if (!res.ok) throw new Error("Failed to fetch check-in");
   return res.json() as Promise<TodayCheckinResponse>;
 }
 
@@ -32,7 +33,7 @@ async function submitCheckin(data: Checkin): Promise<{
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore salvataggio check-in");
+    throw new Error(body.message ?? "Failed to save check-in");
   }
   return res.json() as Promise<{
     checkin: Checkin;
@@ -45,6 +46,7 @@ interface MorningCheckinCardProps {
 }
 
 export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const todayCheckin = useQuery({
     queryKey: ["today-checkin"],
@@ -83,7 +85,7 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
       energy,
       sleepQuality,
       soreness,
-      pain: painLevel > 0 ? [{ area: "generale", intensity: painLevel, sharp: false }] : [],
+      pain: painLevel > 0 ? [{ area: "general", intensity: painLevel, sharp: false }] : [],
       availableTimeMin,
     });
   };
@@ -96,15 +98,19 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-400">
-            Check-in Mattutino (20 sec)
+            {t.checkin.badge}
           </span>
           <h3 className="mt-1 text-lg font-bold text-white">
-            {hasMorningCheckin ? "Check-in di oggi registrato" : "Come ti senti questa mattina?"}
+            {hasMorningCheckin ? t.checkin.recordedTitle : t.checkin.pendingTitle}
           </h3>
           <p className="mt-0.5 text-xs text-slate-400">
-            {hasMorningCheckin
-              ? `Energia: ${morningData?.energy}/5 · Sonno: ${morningData?.sleepQuality}/5 · Tempo: ${morningData?.availableTimeMin} min`
-              : "Valuta rapidamente energia, sonno e tempo disponibile per adattare l'allenamento odierno."}
+            {hasMorningCheckin && morningData
+              ? t.checkin.recordedSummary(
+                  morningData.energy ?? 4,
+                  morningData.sleepQuality ?? 4,
+                  morningData.availableTimeMin ?? 60,
+                )
+              : t.checkin.pendingSummary}
           </p>
         </div>
 
@@ -116,11 +122,11 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
           >
             {hasMorningCheckin
               ? isOpen
-                ? "Chiudi"
-                : "Modifica Check-in"
+                ? t.checkin.buttonClose
+                : t.checkin.buttonEdit
               : isOpen
-                ? "Annulla"
-                : "Fai Check-in"}
+                ? t.checkin.buttonCancel
+                : t.checkin.buttonStart}
           </button>
         </div>
       </div>
@@ -128,7 +134,7 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
       {lastAdjustment && (
         <div className="mt-4 rounded-2xl border border-lime-400/20 bg-lime-950/20 p-4 text-xs">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-white">Adattamento Giornaliero Calcolato:</span>
+            <span className="font-bold text-white">{t.checkin.adjustmentTitle}</span>
             <span
               className={cn(
                 "rounded-full px-2.5 py-0.5 font-bold uppercase",
@@ -141,10 +147,10 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
                       : "bg-rose-400/20 text-rose-300",
               )}
             >
-              {lastAdjustment.decision === "confirm" && "Confermato"}
-              {lastAdjustment.decision === "reduce" && "Volume Ridotto"}
-              {lastAdjustment.decision === "swap" && "Alternativa Breve"}
-              {lastAdjustment.decision === "rest" && "Riposo & Scarico"}
+              {lastAdjustment.decision === "confirm" && t.checkin.decisions.confirm}
+              {lastAdjustment.decision === "reduce" && t.checkin.decisions.reduce}
+              {lastAdjustment.decision === "swap" && t.checkin.decisions.swap}
+              {lastAdjustment.decision === "rest" && t.checkin.decisions.rest}
             </span>
           </div>
           <p className="mt-2 text-slate-300">{lastAdjustment.rationale}</p>
@@ -162,7 +168,9 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
         <form onSubmit={handleSubmit} className="mt-6 space-y-4 border-t border-white/10 pt-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <div>
-              <span className="block text-xs font-semibold text-slate-300">Energia (1–5)</span>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.checkin.energyLabel}
+              </span>
               <div className="mt-2 flex items-center justify-between gap-1">
                 {[1, 2, 3, 4, 5].map((lvl) => (
                   <button
@@ -183,7 +191,9 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
             </div>
 
             <div>
-              <span className="block text-xs font-semibold text-slate-300">Sonno (1–5)</span>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.checkin.sleepLabel}
+              </span>
               <div className="mt-2 flex items-center justify-between gap-1">
                 {[1, 2, 3, 4, 5].map((lvl) => (
                   <button
@@ -204,7 +214,9 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
             </div>
 
             <div>
-              <span className="block text-xs font-semibold text-slate-300">DOMS (0–5)</span>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.checkin.sorenessLabel}
+              </span>
               <div className="mt-2 flex items-center justify-between gap-1">
                 {[0, 1, 2, 3, 4, 5].map((lvl) => (
                   <button
@@ -225,7 +237,9 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
             </div>
 
             <div>
-              <span className="block text-xs font-semibold text-slate-300">Dolore (0–10)</span>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.checkin.painLabel}
+              </span>
               <div className="mt-2 flex items-center gap-2">
                 <input
                   type="range"
@@ -242,7 +256,7 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
             </div>
 
             <label className="block text-xs font-semibold text-slate-300">
-              Tempo oggi (min)
+              {t.checkin.timeLabel}
               <input
                 type="number"
                 min={15}
@@ -256,15 +270,13 @@ export function MorningCheckinCard({ timeZone }: MorningCheckinCardProps) {
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <span className="text-xs text-slate-400">
-              Se hai poco tempo o sei stanco, il piano si adatterà automaticamente.
-            </span>
+            <span className="text-xs text-slate-400">{t.checkin.helper}</span>
             <button
               type="submit"
               disabled={mutation.isPending}
               className="rounded-xl bg-lime-400 px-5 py-2 text-xs font-bold text-slate-950 shadow-md transition hover:bg-lime-300 disabled:opacity-50"
             >
-              {mutation.isPending ? "Invio…" : "Salva e Adatta"}
+              {mutation.isPending ? t.checkin.submitting : t.checkin.saveAndAdapt}
             </button>
           </div>
         </form>

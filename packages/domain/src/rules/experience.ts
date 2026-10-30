@@ -138,6 +138,7 @@ const LEGACY_PROFILES: Record<LegacyExperience, { level: TrainingLevel; history:
 
 const LEGACY_CAPACITY: Record<LegacyExperience, CurrentCapacity> = {
   beginner: {
+    lastActivityDate: null,
     activeWeeks: 0,
     weeklySessions: 0,
     longestRecentSessionMin: 0,
@@ -146,6 +147,7 @@ const LEGACY_CAPACITY: Record<LegacyExperience, CurrentCapacity> = {
     asOf: null,
   },
   intermediate: {
+    lastActivityDate: null,
     activeWeeks: 12,
     weeklySessions: 3,
     longestRecentSessionMin: 45,
@@ -154,6 +156,7 @@ const LEGACY_CAPACITY: Record<LegacyExperience, CurrentCapacity> = {
     asOf: null,
   },
   advanced: {
+    lastActivityDate: null,
     activeWeeks: 24,
     weeklySessions: 4,
     longestRecentSessionMin: 70,

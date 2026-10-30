@@ -17,6 +17,10 @@ export interface ContextActivity {
   localDate: string;
   durationSec: number;
   distanceM?: number;
+  avgPaceSecKm?: number;
+  avgHr?: number;
+  activityLoad?: number;
+  activityType?: string;
   title?: string;
   trainingEffect?: number;
 }
@@ -110,7 +114,7 @@ function addDays(date: string, days: number): string {
  */
 export function buildRecentContext(
   activities: readonly ContextActivity[],
-  options: { now: string; timezone?: string },
+  options: { now: string; timezone?: string; fallbackLastActivityDate?: string | null },
 ): RecentContext {
   // "Today" is the athlete's calendar day, not the UTC one: at 00:30 in Rome
   // the UTC date is still yesterday and every day offset would be off by one.
@@ -119,6 +123,8 @@ export function buildRecentContext(
   );
   const sorted = [...activities].sort((a, b) => (a.localDate < b.localDate ? 1 : -1));
   const last = sorted[0] ?? null;
+  const lastActivityDate =
+    last?.localDate ?? (sorted.length === 0 ? (options.fallbackLastActivityDate ?? null) : null);
 
   const load7dMin = sorted
     .filter((a) => nowDay - dayIndex(a.localDate) < 7)
@@ -164,7 +170,7 @@ export function buildRecentContext(
   if (lastLongEffort) flags.push("long_effort_recent");
   if (acuteChronicRatio !== null && acuteChronicRatio > 1.5) flags.push("load_spike");
 
-  const daysSinceLastActivity = last ? nowDay - dayIndex(last.localDate) : null;
+  const daysSinceLastActivity = lastActivityDate ? nowDay - dayIndex(lastActivityDate) : null;
   if (daysSinceLastActivity !== null && daysSinceLastActivity >= 14) {
     flags.push("detraining_gap");
   }
@@ -176,7 +182,7 @@ export function buildRecentContext(
 
   return {
     asOf: options.now,
-    lastActivityDate: last?.localDate ?? null,
+    lastActivityDate,
     daysSinceLastActivity,
     lastLongEffort,
     postRaceRecovery: {

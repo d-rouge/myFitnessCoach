@@ -16,11 +16,11 @@ import { GarminSyncService } from "./garmin-sync.service.js";
 import { YazioService } from "./yazio.service.js";
 import { YazioSyncService } from "./yazio-sync.service.js";
 
-function parseDays(value?: string): number {
+function parseDays(value?: string, maxDays = 30): number {
   if (value === undefined) return 7;
   const days = Number.parseInt(value, 10);
-  if (!Number.isInteger(days) || days < 1 || days > 30) {
-    throw new BadRequestException("days must be an integer between 1 and 30");
+  if (!Number.isInteger(days) || days < 1 || days > maxDays) {
+    throw new BadRequestException(`days must be an integer between 1 and ${maxDays}`);
   }
   return days;
 }
@@ -54,10 +54,16 @@ export class IntegrationsController {
     return this.garminSync.overview(user.id, parseDays(days));
   }
 
+  @Get("garmin/activities/summary")
+  @UseGuards(DevOnlyGuard)
+  garminActivitySummary(@CurrentUser() user: { id: string }, @Query("days") days?: string) {
+    return this.garminSync.activitySummary(user.id, parseDays(days, 90));
+  }
+
   @Post("garmin/sync")
   @UseGuards(DevOnlyGuard)
   syncGarmin(@CurrentUser() user: { id: string }, @Query("days") days?: string) {
-    return this.garminSync.sync(user.id, parseDays(days));
+    return this.garminSync.sync(user.id, parseDays(days, 90));
   }
 
   @Post("garmin/activities/:activityId/analyze")

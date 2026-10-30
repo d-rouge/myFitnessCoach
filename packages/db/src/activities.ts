@@ -50,6 +50,20 @@ export async function getActivitiesForCapacity(
     .toArray();
 }
 
+export async function getActivitiesBySourceInDateRange(
+  db: Db,
+  userId: string,
+  source: string,
+  from: string,
+  to: string,
+): Promise<Activity[]> {
+  return db
+    .collection<Activity>(COLLECTIONS.activities)
+    .find({ userId, source, localDate: { $gte: from, $lte: to } })
+    .sort({ localDate: -1, start: -1 })
+    .toArray();
+}
+
 export async function getActivityByExternalId(
   db: Db,
   userId: string,

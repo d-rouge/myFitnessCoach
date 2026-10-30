@@ -7,6 +7,9 @@ import { riegelTime } from "./feasibility";
 /** Window used for sessions/week and the longest recent session. */
 export const CAPACITY_SESSIONS_WINDOW_DAYS = 28;
 
+/** Window displayed in the athlete profile as a summary of recent activity. */
+export const CAPACITY_ACTIVITY_SUMMARY_DAYS = 90;
+
 /** Window used to look for a reference run to project a 5k time. */
 export const CAPACITY_5K_WINDOW_DAYS = 56;
 
@@ -23,8 +26,57 @@ export interface CapacityActivity {
   distanceM?: number;
 }
 
+/** Attività usata come riferimento per proiettare un tempo sui 5 km. */
+export interface FiveKReference {
+  localDate: string;
+  distanceM: number;
+  durationSec: number;
+  /** Tempo equivalente sui 5 km secondo Riegel. */
+  projected5kSec: number;
+}
+
+/**
+ * Migliore riferimento recente sui 5 km: l'attività con la proiezione più
+ * veloce nella finestra, non la più recente. Espone anche la corsa di partenza
+ * perché la UI deve poter dire *su quale dato* è costruita la stima.
+ */
+export function findFiveKReference(
+  activities: readonly CapacityActivity[],
+  options: { now: string; sport?: Sport; timezone?: string },
+): FiveKReference | null {
+  const nowDay = dayIndex(
+    options.timezone
+      ? todayLocalDate(options.timezone, new Date(options.now))
+      : options.now.slice(0, 10),
+  );
+  const sport = options.sport ?? "running";
+  let best: FiveKReference | null = null;
+
+  for (const activity of activities) {
+    if (activity.sport !== sport) continue;
+    if (nowDay - dayIndex(activity.localDate) >= CAPACITY_5K_WINDOW_DAYS) continue;
+
+    const distanceM = activity.distanceM ?? 0;
+    if (distanceM < CAPACITY_5K_MIN_DISTANCE_M || activity.durationSec <= 0) continue;
+
+    const projected5kSec = Math.round(riegelTime(activity.durationSec, distanceM, 5000));
+    if (best === null || projected5kSec < best.projected5kSec) {
+      best = {
+        localDate: activity.localDate,
+        distanceM,
+        durationSec: activity.durationSec,
+        projected5kSec,
+      };
+    }
+  }
+
+  return best;
+}
+
 export interface CapacityCoverage {
   activities: number;
+  activitiesLast90Days: number;
+  durationSecondsLast90Days: number;
   lastActivityDate: string | null;
   firstActivityDateInWindow: string | null;
 }
@@ -77,14 +129,22 @@ export function estimateCapacityFromActivities(
     return {
       available: false,
       capacity: {
+        lastActivityDate: null,
         activeWeeks: 0,
         weeklySessions: 0,
         longestRecentSessionMin: 0,
         recent5kSec: null,
+        recent5kSource: "measured",
         source: "garmin",
         asOf: options.now,
       },
-      coverage: { activities: 0, lastActivityDate: null, firstActivityDateInWindow: null },
+      coverage: {
+        activities: 0,
+        activitiesLast90Days: 0,
+        durationSecondsLast90Days: 0,
+        lastActivityDate: null,
+        firstActivityDateInWindow: null,
+      },
       warnings: ["no_activities"],
     };
   }
@@ -126,6 +186,10 @@ export function estimateCapacityFromActivities(
   const recent = sorted.filter(
     (activity) => nowDay - dayIndex(activity.localDate) < CAPACITY_SESSIONS_WINDOW_DAYS,
   );
+  const recent90Days = sorted.filter((activity) => {
+    const daysAgo = nowDay - dayIndex(activity.localDate);
+    return daysAgo >= 0 && daysAgo < CAPACITY_ACTIVITY_SUMMARY_DAYS;
+  });
   const weeklySessions = clampInt(recent.length / (CAPACITY_SESSIONS_WINDOW_DAYS / 7), 0, 14);
   const longestRecentSessionMin = clampInt(
     recent.reduce((max, activity) => Math.max(max, activity.durationSec / 60), 0),
@@ -134,18 +198,12 @@ export function estimateCapacityFromActivities(
   );
 
   const sport = options.sport ?? "running";
-  const candidates = sorted.filter(
-    (activity) =>
-      activity.sport === sport &&
-      nowDay - dayIndex(activity.localDate) < CAPACITY_5K_WINDOW_DAYS &&
-      (activity.distanceM ?? 0) >= CAPACITY_5K_MIN_DISTANCE_M &&
-      activity.durationSec > 0,
-  );
-  const projected = candidates
-    .map((activity) => riegelTime(activity.durationSec, activity.distanceM ?? 0, 5000))
-    .map((seconds) => Math.round(seconds))
-    .sort((a, b) => a - b);
-  const recent5kSec = projected[0] ?? null;
+  const reference = findFiveKReference(sorted, {
+    now: options.now,
+    sport,
+    timezone: options.timezone,
+  });
+  const recent5kSec = reference?.projected5kSec ?? null;
   if (recent5kSec === null) warnings.push("no_5k_reference");
 
   const firstInWindow = recent.at(-1)?.localDate ?? null;
@@ -153,20 +211,40 @@ export function estimateCapacityFromActivities(
   return {
     available: true,
     capacity: {
+      lastActivityDate: last?.localDate ?? null,
       activeWeeks: clampInt(activeWeeks, 0, 520),
       weeklySessions,
       longestRecentSessionMin,
       recent5kSec: recent5kSec === null ? null : clampInt(recent5kSec, 0, 20000),
+      recent5kSource: "measured",
       source: "garmin",
       asOf: options.now,
     },
     coverage: {
       activities: sorted.length,
+      activitiesLast90Days: recent90Days.length,
+      durationSecondsLast90Days: recent90Days.reduce(
+        (total, activity) => total + activity.durationSec,
+        0,
+      ),
       lastActivityDate: last?.localDate ?? null,
       firstActivityDateInWindow: firstInWindow,
     },
     warnings,
   };
+}
+
+/**
+ * Conserva il tempo 5K dichiarato dall'atleta quando la capacità viene
+ * ricalcolata dalle attività. Un valore misurato, invece, viene aggiornato dal
+ * nuovo calcolo: è un dato derivato, non una dichiarazione.
+ */
+export function preserveDeclaredFiveK(
+  measured: CurrentCapacity,
+  previous: CurrentCapacity,
+): CurrentCapacity {
+  if (previous.recent5kSource !== "declared" || previous.recent5kSec === null) return measured;
+  return { ...measured, recent5kSec: previous.recent5kSec, recent5kSource: "declared" };
 }
 
 /** Narrowing helper so the API can feed stored documents straight in. */

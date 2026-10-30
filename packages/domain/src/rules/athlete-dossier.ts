@@ -1,5 +1,5 @@
 import type { Injury } from "../schemas/anamnesis";
-import type { AthleticHistory, CurrentCapacity } from "../schemas/athletic";
+import type { AthleteBackground, AthleticHistory, CurrentCapacity } from "../schemas/athletic";
 import type { Baseline } from "../schemas/baseline";
 import type { Checkin } from "../schemas/checkin";
 import type { Equipment } from "../schemas/equipment";
@@ -9,6 +9,8 @@ import type { Preferences } from "../schemas/preferences";
 import { dayIndex } from "./capacity";
 import { todayLocalDate } from "./dates";
 import { buildRecentContext, type ContextActivity, type RecentContext } from "./recent-context";
+import { ADHERENCE_WINDOW_DAYS, measureAdherence } from "./session-adherence";
+import { buildTrainingHistory, type TrainingHistory } from "./training-history";
 
 /**
  * Dossier atleta: l'unico oggetto di contesto.
@@ -22,10 +24,10 @@ import { buildRecentContext, type ContextActivity, type RecentContext } from "./
  * Non contiene prosa e non contiene giudizi: i giudizi sono del layer che
  * pianifica.
  */
-export const ATHLETE_DOSSIER_VERSION = 1;
+export const ATHLETE_DOSSIER_VERSION = 3;
 
 /** Finestra di osservazione per aderenza, RPE e dolore. */
-export const DOSSIER_RESPONSE_WINDOW_DAYS = 28;
+export const DOSSIER_RESPONSE_WINDOW_DAYS = ADHERENCE_WINDOW_DAYS;
 /** Settimane di storico piano incluse nel dossier. */
 export const DOSSIER_PLAN_HISTORY_WEEKS = 6;
 
@@ -42,10 +44,15 @@ export interface DossierIdentity {
 export interface DossierIndividualResponse {
   windowDays: number;
   sessionsPlanned: number;
+  /** Sedute concluse, anche in forma adattata. */
   sessionsCompleted: number;
+  /** Sedute con esito esplicito: concluse oppure saltate. */
+  sessionsDecided: number;
+  /** Sedute passate non marcate: l'app non sa se siano state fatte. */
+  sessionsUnknown: number;
   /**
-   * Percentuale di sedute completate su quelle pianificate nella finestra.
-   * `null` quando non esiste alcun piano: non è 0%, è "non misurabile".
+   * Percentuale di sedute concluse sulle sole sedute con esito esplicito.
+   * `null` quando nessuna seduta ha un esito: non è 0%, è "non misurabile".
    */
   adherencePct: number | null;
   rpeSamples: number;
@@ -91,9 +98,12 @@ export interface AthleteDossier {
   asOf: string;
   identity: DossierIdentity;
   goals: { primary: Goal; secondary: Goal[] };
-  history: AthleticHistory;
+  athleteBackground: AthleteBackground | null;
+  sportSpecificHistory: AthleticHistory;
   capacity: CurrentCapacity;
   recentContext: RecentContext;
+  /** Ultime due settimane con tipo di seduta: base per scegliere la metodologia. */
+  trainingHistory: TrainingHistory;
   individualResponse: DossierIndividualResponse;
   planMemory: DossierPlanMemory;
   planHistory: DossierPlanHistoryEntry[];
@@ -138,6 +148,7 @@ export const DOSSIER_PROFILE_SOURCES = [
   "sex",
   "heightCm",
   "weightKg",
+  "athleteBackground",
   "timezone",
   "units",
   "tone",
@@ -176,23 +187,24 @@ export function buildAthleteDossier(input: DossierInput): AthleteDossier {
   const microPlans = input.microPlans ?? [];
   const timezone = baseline.profile.timezone;
 
-  const recentContext = buildRecentContext(activities, { now, timezone });
+  const recentContext = buildRecentContext(activities, {
+    now,
+    timezone,
+    fallbackLastActivityDate: baseline.profile.capacity.lastActivityDate,
+  });
+  const trainingHistory = buildTrainingHistory(activities, { now, timezone });
   // Stessa definizione di "oggi" usata da buildRecentContext: giorno locale.
   const nowDay = dayIndex(todayLocalDate(timezone, new Date(now)));
   const windowStartDay = nowDay - DOSSIER_RESPONSE_WINDOW_DAYS;
 
   // --- Sedute della finestra -------------------------------------------------
-  const sessions = microPlans.flatMap((plan) => plan.sessions.map((s) => ({ plan, s })));
-  const sessionsInWindow = sessions.filter(({ s }) => {
-    const day = dayIndex(s.date);
-    return day <= nowDay && day > windowStartDay;
-  });
-  const completedInWindow = sessionsInWindow.filter(({ s }) => s.status === "completed");
+  const adherence = measureAdherence(microPlans, { now, timezone });
+  const sessionsInWindow = adherence.sessions;
+  const completedInWindow = sessionsInWindow.filter(
+    ({ session }) => session.status === "completed",
+  );
 
-  const adherencePct =
-    sessionsInWindow.length > 0
-      ? Math.round((completedInWindow.length / sessionsInWindow.length) * 100)
-      : null;
+  const adherencePct = adherence.adherencePct;
 
   // --- Risposta individuale --------------------------------------------------
   const postSessionRpe = new Map<string, number>();
@@ -203,9 +215,9 @@ export function buildAthleteDossier(input: DossierInput): AthleteDossier {
   }
 
   const drifts: number[] = [];
-  for (const { s } of completedInWindow) {
-    const reported = postSessionRpe.get(s.date.slice(0, 10));
-    const prescribed = s.intensity.rpe;
+  for (const { session } of completedInWindow) {
+    const reported = postSessionRpe.get(session.date.slice(0, 10));
+    const prescribed = session.intensity.rpe;
     if (reported !== undefined && prescribed !== undefined) {
       drifts.push(reported - prescribed);
     }
@@ -255,7 +267,7 @@ export function buildAthleteDossier(input: DossierInput): AthleteDossier {
   if (microPlans.length === 0) warnings.push("no_plan_history");
   if (adherencePct === null) warnings.push("no_adherence");
   if (drifts.length === 0) warnings.push("no_rpe_feedback");
-  if (baseline.profile.history.sports.length === 0) warnings.push("no_sport_history");
+  if (baseline.profile.athleteBackground === null) warnings.push("no_athletic_background");
 
   return {
     version: ATHLETE_DOSSIER_VERSION,
@@ -273,13 +285,17 @@ export function buildAthleteDossier(input: DossierInput): AthleteDossier {
       primary: baseline.goals.primary,
       secondary: baseline.goals.secondary ?? [],
     },
-    history: baseline.profile.history,
+    athleteBackground: baseline.profile.athleteBackground,
+    sportSpecificHistory: baseline.profile.history,
     capacity: baseline.profile.capacity,
     recentContext,
+    trainingHistory,
     individualResponse: {
       windowDays: DOSSIER_RESPONSE_WINDOW_DAYS,
       sessionsPlanned: sessionsInWindow.length,
-      sessionsCompleted: completedInWindow.length,
+      sessionsCompleted: adherence.sessionsCompleted,
+      sessionsDecided: adherence.sessionsDecided,
+      sessionsUnknown: adherence.sessionsUnknown,
       adherencePct,
       rpeSamples: drifts.length,
       rpeDrift: drifts.length > 0 ? round(drifts.reduce((a, b) => a + b, 0) / drifts.length) : null,

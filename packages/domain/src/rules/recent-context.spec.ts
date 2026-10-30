@@ -80,6 +80,30 @@ describe("buildRecentContext", () => {
     expect(context.flags).toEqual([]);
   });
 
+  it("uses the athlete-reported last session when imported activities are unavailable", () => {
+    const context = buildRecentContext([], {
+      now: NOW,
+      timezone: "Europe/Rome",
+      fallbackLastActivityDate: "2026-10-10",
+    });
+
+    expect(context.lastActivityDate).toBe("2026-10-10");
+    expect(context.daysSinceLastActivity).toBe(17);
+    expect(context.flags).toContain("detraining_gap");
+    expect(context.load7dMin).toBe(0);
+  });
+
+  it("prefers imported activity dates over a manually reported date", () => {
+    const context = buildRecentContext([activity({ localDate: "2026-10-26" })], {
+      now: NOW,
+      fallbackLastActivityDate: "2026-09-01",
+    });
+
+    expect(context.lastActivityDate).toBe("2026-10-26");
+    expect(context.daysSinceLastActivity).toBe(1);
+    expect(context.flags).not.toContain("detraining_gap");
+  });
+
   it("counts days since the effort in the athlete's timezone, not in UTC", () => {
     // 00:30 on 28 July in Rome (CEST, UTC+2), still 27 July in UTC.
     const context = buildRecentContext(

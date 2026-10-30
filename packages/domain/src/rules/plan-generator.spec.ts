@@ -12,30 +12,40 @@ import { validateMacroPlan, validatePlanSessions } from "./validator";
 
 describe("plan-generator", () => {
   describe("generateMacroPlan", () => {
-    it("generates a valid 8-week plan for beginner runner", () => {
+    it("uses the target date as horizon", () => {
       const plan = generateMacroPlan(beginnerPersona, { startDate: "2026-11-02" });
 
-      expect(plan.totalWeeks).toBe(8);
+      expect(plan.totalWeeks).toBe(12);
+      expect(plan.targetDate).toBe("2027-01-20");
       expect(plan.startDate).toBe("2026-11-02");
-      expect(plan.endDate).toBe("2026-12-27");
-      expect(plan.phases.length).toBeGreaterThanOrEqual(2);
-      expect(plan.phases[0].startWeek).toBe(1);
-      expect(plan.phases.at(-1)?.endWeek).toBe(8);
+      expect(plan.endDate).toBe("2027-01-24");
+      expect(plan.phases.at(-1)?.endWeek).toBe(12);
 
       const issues = validateMacroPlan(plan);
       expect(issues.filter((i) => i.severity === "error")).toHaveLength(0);
     });
 
-    it("generates a 12-week plan for race goal", () => {
+    it("generates a 20-week plan when the race target is farther out", () => {
       const plan = generateMacroPlan(intermediatePersona, { startDate: "2026-11-02" });
 
-      expect(plan.totalWeeks).toBe(12);
+      expect(plan.totalWeeks).toBe(20);
+      expect(plan.targetDate).toBe("2027-03-15");
       expect(plan.startDate).toBe("2026-11-02");
-      expect(plan.endDate).toBe("2027-01-24");
+      expect(plan.endDate).toBe("2027-03-21");
       expect(plan.phases.length).toBe(3);
 
       const issues = validateMacroPlan(plan);
       expect(issues.filter((i) => i.severity === "error")).toHaveLength(0);
+    });
+
+    it("keeps the explicit totalWeeks override", () => {
+      const plan = generateMacroPlan(beginnerPersona, {
+        startDate: "2026-11-02",
+        totalWeeks: 8,
+      });
+
+      expect(plan.totalWeeks).toBe(8);
+      expect(plan.endDate).toBe("2026-12-27");
     });
 
     it("generates low-impact adapted phases when athlete has knee pain", () => {

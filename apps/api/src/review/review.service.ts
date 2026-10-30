@@ -11,6 +11,7 @@ import {
 import {
   computeWeeklyReview,
   generateMicroPlan,
+  type MethodologyReview,
   type MicroPlan,
   type Review,
   type ReviewDecision,
@@ -20,12 +21,18 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { MongoService } from "../database/mongo.service.js";
+import { MethodologyService } from "../plan/methodology.service.js";
 
 const PROGRESS_FACTOR = 1.1;
 const DELOAD_FACTOR = 0.7;
+
+/** Età massima della metodologia prima di rifarla alla review. */
+const METHODOLOGY_MAX_AGE_PROGRESS_DAYS = 6;
+const METHODOLOGY_MAX_AGE_ALERT_DAYS = 3;
 
 /**
  * Applies the weekly verdict to the generated next microcycle. The generator
@@ -67,7 +74,10 @@ function scaleVolume(plan: MicroPlan, factor: number, options: { reduceRpe?: boo
 export class ReviewService {
   private readonly logger = new Logger(ReviewService.name);
 
-  constructor(private readonly mongo: MongoService) {}
+  constructor(
+    private readonly mongo: MongoService,
+    @Optional() private readonly methodology?: MethodologyService,
+  ) {}
 
   private async db() {
     return this.mongo.getDb().catch((error: unknown) => {
@@ -92,11 +102,64 @@ export class ReviewService {
       checkins,
     });
 
+    // La review è anche il punto in cui la metodologia viene ricontrollata con
+    // i dati nuovi. Se il modello è giù, la review resta valida: il controllo
+    // è un extra, non un prerequisito.
+    const methodologyReview = await this.refreshMethodology(userId, review);
+    if (methodologyReview) {
+      review.methodologyReview = methodologyReview;
+      if (methodologyReview.refreshed) {
+        review.nextCycleRecommendations = [
+          ...review.nextCycleRecommendations,
+          `Metodologia rivalutata: ${methodologyReview.methodology}. Valuta di rigenerare il piano con la nuova struttura.`,
+        ];
+      }
+    }
+
     await saveReview(db, userId, review);
     this.logger.log(
       `Review settimanale calcolata e salvata per atleta ${userId}: verdetto ${review.decision}`,
     );
     return review;
+  }
+
+  private async refreshMethodology(
+    userId: string,
+    review: Review,
+  ): Promise<MethodologyReview | null> {
+    if (!this.methodology) return null;
+
+    const maxAgeDays =
+      review.decision === "progress"
+        ? METHODOLOGY_MAX_AGE_PROGRESS_DAYS
+        : METHODOLOGY_MAX_AGE_ALERT_DAYS;
+
+    try {
+      const { evaluation, refreshed } = await this.methodology.reevaluateIfStale(
+        userId,
+        maxAgeDays,
+      );
+      if (!evaluation) return null;
+      if (refreshed) {
+        this.logger.log(
+          `Metodologia rivalutata dalla review per atleta ${userId}: ${evaluation.decision.methodology}`,
+        );
+      }
+      return {
+        refreshed,
+        decisionId: evaluation.id,
+        methodology: evaluation.decision.methodology,
+        confidence: evaluation.decision.confidence,
+        checkedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Rivalutazione metodologia fallita per atleta ${userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
   }
 
   async getLatestReview(userId: string): Promise<Review | null> {

@@ -46,37 +46,52 @@ const ABSOLUTE_RED_FLAGS = [
  */
 const CAUTION_CONDITIONS = [
   "asma",
+  "asthma",
   "diabete",
+  "diabetes",
   "ipertensione controllata",
+  "controlled hypertension",
+  "controlled_hypertension",
   "cardiopatia stabile",
+  "stable heart disease",
   "aritmia",
+  "arrhythmia",
   "gravidanza",
+  "pregnancy",
   "post parto",
+  "postpartum",
   "anemia",
   "ipotiroidismo",
+  "hypothyroidism",
   "ipertiroidismo",
+  "hyperthyroidism",
   "colesterolo alto",
+  "high cholesterol",
+  "high_cholesterol",
   "emicrania",
+  "migraine",
   "reflusso",
+  "reflux",
   "ernia",
+  "hernia",
 ];
 
 /** Farmaci che modificano la risposta all'esercizio. */
 const MEDICATION_NOTES: Array<{ matches: string[]; note: string }> = [
   {
-    matches: ["betabloccante", "beta-bloccante", "beta bloccante"],
+    matches: ["betabloccante", "beta-bloccante", "beta bloccante", "beta blocker", "beta-blocker"],
     note: "Beta-bloccanti: la frequenza cardiaca è attenuata, usare RPE invece del battito.",
   },
   {
-    matches: ["diuretico"],
+    matches: ["diuretico", "diuretic"],
     note: "Diuretici: rischio di disidratazione, cura l'idratazione e gli elettroliti.",
   },
   {
-    matches: ["anticoagulante", "warfarin", "doac"],
+    matches: ["anticoagulante", "warfarin", "doac", "anticoagulant"],
     note: "Anticoagulanti: evitare sport di contatto e cadute.",
   },
   {
-    matches: ["insulina", "ipoglicemizzante", "metformina"],
+    matches: ["insulina", "ipoglicemizzante", "metformina", "insulin", "metformin", "hypoglycemic"],
     note: "Terapia ipoglicemizzante: attenzione all'ipoglicemia durante e dopo la seduta.",
   },
 ];

@@ -51,9 +51,15 @@ export function project5k(input: FiveKProjectionInput): FiveKProjection {
   if (input.current5kSec <= 0 || input.weeks <= 0) {
     throw new Error("Current time and weeks must be positive");
   }
+  if (input.weeklyVolumeKm < 0) {
+    throw new Error("Weekly volume cannot be negative");
+  }
 
-  const adherence = clamp(input.adherence ?? 0.8, 0, 1);
-  const adherenceFactor = 0.5 + adherence * 0.5;
+  // `undefined` = aderenza non considerata (es. proiezione prima che esista
+  // uno storico): nessun fattore correttivo e nessuna affermazione sul
+  // comportamento futuro. Non la sostituiamo con un 80% inventato.
+  const measuredAdherence = input.adherence === undefined ? null : clamp(input.adherence, 0, 1);
+  const adherenceFactor = measuredAdherence === null ? 1 : 0.5 + measuredAdherence * 0.5;
   const volumeFactor = clamp(input.weeklyVolumeKm / 40, 0.6, 1.2);
   const base = BASE_WEEKLY_IMPROVEMENT[input.tier];
 
@@ -64,12 +70,25 @@ export function project5k(input: FiveKProjectionInput): FiveKProjection {
   const bestSec = apply(weeklyRate * 1.3);
   const worstSec = apply(weeklyRate * 0.6);
 
+  // Senza aderenza la confidenza non può essere alta, ma non è nemmeno
+  // automaticamente bassa: dipende dalla qualità degli altri input misurati.
   const confidence =
-    input.weeks >= 8 && input.weeklyVolumeKm >= 25 && adherence >= 0.8
-      ? "high"
-      : input.weeks >= 6
+    measuredAdherence === null
+      ? input.weeks >= 6 && input.weeks <= 26 && input.weeklyVolumeKm >= 15
         ? "medium"
-        : "low";
+        : "low"
+      : measuredAdherence >= 0.8 &&
+          input.weeks >= 8 &&
+          input.weeks <= 26 &&
+          input.weeklyVolumeKm >= 25
+        ? "high"
+        : measuredAdherence >= 0.6 && input.weeks >= 6 && input.weeklyVolumeKm >= 15
+          ? "medium"
+          : "low";
+
+  const volumeKm = Number(input.weeklyVolumeKm.toFixed(1));
+  const adherenceText =
+    measuredAdherence === null ? "" : `, aderenza ${Math.round(measuredAdherence * 100)}%`;
 
   return {
     projectedSec: Math.round(projectedSec),
@@ -77,7 +96,7 @@ export function project5k(input: FiveKProjectionInput): FiveKProjection {
     worstSec: Math.round(worstSec),
     weeklyImprovementPct: Number((weeklyRate * 100).toFixed(2)),
     confidence,
-    rationale: `Stima basata su livello ${input.tier}, ${input.weeklyVolumeKm} km/settimana, aderenza ${Math.round(adherence * 100)}% e ${input.weeks} settimane.`,
+    rationale: `Stima basata su livello ${input.tier}, ${volumeKm} km/settimana${adherenceText} e ${input.weeks} settimane.`,
   };
 }
 

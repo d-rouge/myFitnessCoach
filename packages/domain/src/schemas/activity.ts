@@ -6,6 +6,8 @@ export const ActivitySchema = z.object({
   source: z.string().min(1),
   externalId: z.string().min(1),
   sport: SportSchema,
+  /** Tipo grezzo del provider (es. `trail_running`, `strength_training`). */
+  activityType: z.string().min(1).optional(),
   start: IsoDateTimeSchema,
   localDate: IsoDateSchema,
   durationSec: z.number().nonnegative(),

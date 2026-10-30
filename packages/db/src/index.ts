@@ -1,5 +1,6 @@
 export {
   countActivities,
+  getActivitiesBySourceInDateRange,
   getActivitiesForCapacity,
   getActivityByExternalId,
   getRecentActivities,
@@ -59,6 +60,7 @@ export {
   getCurrentMacroPlan,
   getCurrentMicroPlan,
   getMicroPlan,
+  getMicroPlansByMacroPlan,
   getRecentMicroPlans,
   replacePlannedSession,
   type StoredMacroPlan,

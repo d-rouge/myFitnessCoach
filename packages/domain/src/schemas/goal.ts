@@ -11,7 +11,8 @@ export const GoalTypeSchema = z.enum([
 ]);
 
 export const GoalSchema = z.object({
-  type: GoalTypeSchema,
+  /** Dedotto dalla descrizione lato server; il client può ometterlo. */
+  type: GoalTypeSchema.default("performance"),
   sport: SportSchema.optional(),
   description: z.string().min(3).max(500),
   targetDate: IsoDateSchema.optional(),

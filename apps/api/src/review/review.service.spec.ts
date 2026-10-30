@@ -2,6 +2,7 @@ import type { MicroPlan } from "@health-trainer/domain";
 import type { Db } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MongoService } from "../database/mongo.service.js";
+import type { MethodologyService } from "../plan/methodology.service.js";
 import { applyReviewDecision, ReviewService } from "./review.service.js";
 
 const mockMicroPlan: MicroPlan = {
@@ -107,6 +108,32 @@ describe("ReviewService", () => {
     expect(review.plannedSessionsCount).toBe(2);
     expect(review.completedSessionsCount).toBe(2);
     expect(review.decision).toBe("progress");
+  });
+
+  it("aggancia la rivalutazione metodologica alla review", async () => {
+    const methodology = {
+      reevaluateIfStale: vi.fn(async () => ({
+        evaluation: {
+          id: "methodology_1",
+          decision: { methodology: "Metodologia test", confidence: "medium" },
+        },
+        refreshed: true,
+      })),
+    } as unknown as MethodologyService;
+
+    const serviceWithMethodology = new ReviewService(mockMongo, methodology);
+    const review = await serviceWithMethodology.computeWeeklyReview("user_marco");
+
+    expect(methodology.reevaluateIfStale).toHaveBeenCalledWith("user_marco", 6);
+    expect(review.methodologyReview).toMatchObject({
+      refreshed: true,
+      decisionId: "methodology_1",
+      methodology: "Metodologia test",
+      confidence: "medium",
+    });
+    expect(review.nextCycleRecommendations).toEqual(
+      expect.arrayContaining([expect.stringMatching(/Metodologia rivalutata/)]),
+    );
   });
 });
 

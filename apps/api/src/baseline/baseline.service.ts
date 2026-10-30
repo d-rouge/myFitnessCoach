@@ -2,27 +2,34 @@ import {
   getActivitiesForCapacity,
   getBaselineHistory,
   getCurrentBaseline,
+  getCurrentMacroPlan,
+  getMicroPlansByMacroPlan,
   saveBaseline,
 } from "@health-trainer/db";
 import {
+  type Activity,
   AnamnesisSchema,
   assessSafety,
   type Baseline,
   BaselineSchema,
   type CapacityEstimate,
   estimateCapacityFromActivities,
-  type FiveKProjection,
-  type FiveKProjectionInput,
+  estimateFiveKFeasibility,
+  type FiveKFeasibility,
+  type MicroPlan,
+  normalizeAvailability,
+  preserveDeclaredFiveK,
   primarySportOf,
-  project5k,
   type SafetyAssessment,
   toCapacityActivity,
   withDerivedExperienceTier,
+  withInferredGoalTypes,
 } from "@health-trainer/domain";
 import {
   BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { MongoService } from "../database/mongo.service.js";
@@ -60,7 +67,11 @@ export class BaselineService {
     const baseline = await getCurrentBaseline(db, userId);
     if (!baseline) return null;
 
-    const normalized = withDerivedExperienceTier(baseline);
+    const normalized = withDerivedExperienceTier({
+      ...baseline,
+      goals: withInferredGoalTypes(baseline.goals),
+      availability: normalizeAvailability(baseline.availability),
+    });
     const activities = await getActivitiesForCapacity(db, userId);
     return withMeasuredCapacity(
       normalized,
@@ -115,15 +126,24 @@ export class BaselineService {
           "Nessuna attività importata trovata: inserisci la capacità manualmente o lascia la settimana di calibrazione.",
         );
       }
-      profile = { ...profile, capacity: estimate.capacity };
+      // Il tempo 5K dichiarato (es. race prediction di Garmin Connect) non è
+      // ricavabile dalle attività: il ricalcolo lo conserva, il resto dei campi
+      // misurati viene aggiornato.
+      profile = {
+        ...profile,
+        capacity: preserveDeclaredFiveK(estimate.capacity, profile.capacity),
+      };
     }
 
     // The tier is derived, never trusted from the client: this is the single
     // place where current capacity (starting load) and past history
-    // (progression speed) are combined.
+    // (progression speed) are combined. Anche il tipo di obiettivo è dedotto
+    // dalla descrizione: non è una domanda da fare all'atleta.
     const data = withDerivedExperienceTier({
       ...parsed.data,
       profile,
+      goals: withInferredGoalTypes(parsed.data.goals),
+      availability: normalizeAvailability(parsed.data.availability),
       userId,
     });
 
@@ -153,11 +173,54 @@ export class BaselineService {
     return assessSafety({ anamnesis: parsed.data });
   }
 
-  evaluate5kFeasibility(input: FiveKProjectionInput): FiveKProjection {
-    try {
-      return project5k(input);
-    } catch (err) {
-      throw new BadRequestException((err as Error).message);
+  /**
+   * Fattibilità 5K calcolata sui dati reali dell'atleta: capacità misurata
+   * sulle attività Garmin, volume di corsa delle ultime 4 settimane e data
+   * obiettivo della baseline. Nessun input arriva dal client: i numeri non
+   * possono essere inventati dalla UI. Il piano parte dalla prima seduta
+   * completata: prima di allora non c'è storico e la stima non viene data.
+   */
+  async estimate5kFeasibility(userId: string): Promise<FiveKFeasibility> {
+    const baseline = await this.getCurrent(userId);
+    if (!baseline) {
+      throw new NotFoundException("Nessuna baseline attiva trovata.");
     }
+
+    const db = await this.db();
+    const [activities, macroPlan] = await Promise.all([
+      getActivitiesForCapacity(db, userId),
+      getCurrentMacroPlan(db, userId),
+    ]);
+    // Solo le settimane del piano corrente: i piani sostituiti non contano.
+    const microPlans = macroPlan ? await getMicroPlansByMacroPlan(db, userId, macroPlan.id) : [];
+
+    return this.estimate5kFeasibilityFromData({
+      baseline,
+      activities,
+      microPlans,
+      planStartDate: macroPlan?.startDate ?? null,
+      now: new Date().toISOString(),
+    });
+  }
+
+  /** Variante pura, usata dai test e riutilizzabile senza DB. */
+  estimate5kFeasibilityFromData(input: {
+    baseline: Baseline;
+    activities: readonly Activity[];
+    microPlans: readonly MicroPlan[];
+    planStartDate?: string | null;
+    now: string;
+  }): FiveKFeasibility {
+    return estimateFiveKFeasibility({
+      capacity: input.baseline.profile.capacity,
+      tier: input.baseline.profile.experienceTier,
+      targetDate: input.baseline.goals.primary.targetDate ?? null,
+      activities: input.activities.map(toCapacityActivity),
+      microPlans: input.microPlans,
+      planStartDate: input.planStartDate ?? null,
+      sport: primarySportOf(input.baseline),
+      now: input.now,
+      timezone: input.baseline.profile.timezone,
+    });
   }
 }

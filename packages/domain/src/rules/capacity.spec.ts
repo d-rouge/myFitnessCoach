@@ -67,6 +67,27 @@ describe("estimateCapacityFromActivities", () => {
 
     expect(estimate.capacity.weeklySessions).toBe(2);
     expect(estimate.capacity.longestRecentSessionMin).toBe(60);
+    expect(estimate.capacity.lastActivityDate).toBe("2026-10-26");
+  });
+
+  it("summarizes activity count and training time over the last 90 days", () => {
+    const estimate = estimateCapacityFromActivities(
+      [
+        run("2026-10-26", 3600, 10_000),
+        {
+          sport: "cycling",
+          start: "2026-10-01T07:00:00Z",
+          localDate: "2026-10-01",
+          durationSec: 7200,
+        },
+        // Outside the 90-day summary window.
+        run("2026-07-28", 5400, 15_000),
+      ],
+      { now: NOW },
+    );
+
+    expect(estimate.coverage.activitiesLast90Days).toBe(2);
+    expect(estimate.coverage.durationSecondsLast90Days).toBe(10_800);
   });
 
   it("projects a 5k time from the best recent reference run", () => {

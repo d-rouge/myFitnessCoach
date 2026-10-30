@@ -9,6 +9,8 @@ export const COLLECTIONS = {
   credentials: "auth_credentials",
   macroPlans: "athlete_macro_plans",
   microPlans: "athlete_micro_plans",
+  methodologyDecisions: "methodology_decisions",
+  planInterviews: "plan_interviews",
   dailyMetrics: "metrics_daily",
   nutritionDaily: "nutrition_daily",
   reviews: "weekly_reviews",
@@ -72,10 +74,15 @@ export async function ensureIndexes(db: Db): Promise<void> {
       .collection(COLLECTIONS.microPlans)
       .createIndex({ userId: 1, macroPlanId: 1, weekIndex: 1 }, { unique: true }),
     db.collection(COLLECTIONS.microPlans).createIndex({ userId: 1, startDate: -1 }),
+    db.collection(COLLECTIONS.methodologyDecisions).createIndex({ userId: 1, createdAt: -1 }),
+    db.collection(COLLECTIONS.planInterviews).createIndex({ userId: 1, createdAt: -1 }),
     db
       .collection(COLLECTIONS.activities)
       .createIndex({ userId: 1, source: 1, externalId: 1 }, { unique: true }),
     db.collection(COLLECTIONS.activities).createIndex({ userId: 1, start: -1 }),
+    db
+      .collection(COLLECTIONS.activities)
+      .createIndex({ userId: 1, source: 1, localDate: -1, start: -1 }),
     db
       .collection(COLLECTIONS.activityAnalyses)
       .createIndex({ userId: 1, source: 1, externalId: 1 }, { unique: true }),

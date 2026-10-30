@@ -1,21 +1,30 @@
 import type { Baseline } from "../schemas/baseline";
 import type { Sport, Weekday } from "../schemas/common";
-import type { MacroPlan, MicroPlan, PlanPhase } from "../schemas/plan";
+import type { MacroPlan, MicroPlan, PlanMethodology, PlanPhase } from "../schemas/plan";
 import type { PlannedSession, SessionAlternative, SessionBlock } from "../schemas/session";
 import { todayLocalDate } from "./dates";
-import { experienceTierLabel } from "./experience";
+import { experienceTierLabel, primarySportOf } from "./experience";
+import { planHorizonWeeks } from "./plan-horizon";
 import { isDeloadWeek } from "./progression";
 import type { RecentContext } from "./recent-context";
 import { validateMacroPlan, validatePlanSessions } from "./validator";
 
 export interface MacroPlanOptions {
   startDate?: string;
+  /** Data target concordata; se assente vale quella della baseline. */
+  targetDate?: string | null;
   totalWeeks?: number;
   /**
    * Recent-past facts. Used as a hard guard (post-race recovery) and stored on
    * the plan so every weekly generation inherits it.
    */
   recentContext?: RecentContext;
+  /**
+   * Metodologia scelta dall'LLM. Non è una prescrizione di sedute: è la
+   * struttura che il generatore deve rispettare (numero sedute, qualità, lungo,
+   * forza, pliometria).
+   */
+  methodology?: PlanMethodology;
 }
 
 export interface MicroPlanOptions {
@@ -233,6 +242,7 @@ function buildRunningSession(
   maxDurationMin: number,
   deload: boolean,
   policy: SessionPolicy,
+  longCap?: number,
 ): SessionDraft {
   const pace = goalPaceText(baseline);
   const thresholdTarget = pace
@@ -352,7 +362,7 @@ function buildRunningSession(
     };
   }
 
-  const longRunCap = policy.conservativeVolume ? 50 : 65;
+  const longRunCap = longCap ?? (policy.conservativeVolume ? 50 : 65);
   const durationMin = Math.min(maxDurationMin, deload ? 45 : longRunCap);
   return {
     sport: "running",
@@ -377,6 +387,7 @@ function buildCyclingSession(
   maxDurationMin: number,
   deload: boolean,
   policy: SessionPolicy,
+  longCap?: number,
 ): SessionDraft {
   if (index === 0) {
     const durationMin = Math.min(maxDurationMin, deload ? 35 : 50);
@@ -427,7 +438,7 @@ function buildCyclingSession(
     };
   }
 
-  const longRideCap = policy.conservativeVolume ? 55 : 70;
+  const longRideCap = longCap ?? (policy.conservativeVolume ? 55 : 70);
   const durationMin = Math.min(maxDurationMin, deload ? 45 : longRideCap);
   return {
     sport: "cycling",
@@ -452,6 +463,7 @@ function buildSwimmingSession(
   maxDurationMin: number,
   deload: boolean,
   policy: SessionPolicy,
+  longCap?: number,
 ): SessionDraft {
   if (index === 0) {
     const durationMin = Math.min(maxDurationMin, deload ? 35 : 45);
@@ -502,7 +514,7 @@ function buildSwimmingSession(
     };
   }
 
-  const durationMin = Math.min(maxDurationMin, deload ? 40 : 55);
+  const durationMin = Math.min(maxDurationMin, deload ? 40 : (longCap ?? 55));
   return {
     sport: "swimming",
     title: deload ? "Lungo in Acqua Rigenerante" : "Lungo in Acqua Z2",
@@ -623,12 +635,13 @@ function buildDraft(
   deload: boolean,
   weekIndex: number,
   forcedRecovery: boolean,
+  longCap?: number,
 ): SessionDraft {
   const kneePain = isKneePain(baseline);
   const sport = chooseSport(baseline, index, kneePain);
   const policy = sessionPolicy(baseline, weekIndex, forcedRecovery);
 
-  const draft = buildSportDraft(baseline, sport, index, maxDurationMin, deload, policy);
+  const draft = buildSportDraft(baseline, sport, index, maxDurationMin, deload, policy, longCap);
 
   if (policy.forcedRecovery) {
     return {
@@ -656,14 +669,15 @@ function buildSportDraft(
   maxDurationMin: number,
   deload: boolean,
   policy: SessionPolicy,
+  longCap?: number,
 ): SessionDraft {
   switch (sport) {
     case "running":
-      return buildRunningSession(baseline, index, maxDurationMin, deload, policy);
+      return buildRunningSession(baseline, index, maxDurationMin, deload, policy, longCap);
     case "cycling":
-      return buildCyclingSession(index, maxDurationMin, deload, policy);
+      return buildCyclingSession(index, maxDurationMin, deload, policy, longCap);
     case "swimming":
-      return buildSwimmingSession(index, maxDurationMin, deload, policy);
+      return buildSwimmingSession(index, maxDurationMin, deload, policy, longCap);
     case "strength":
       return buildStrengthSession(index, maxDurationMin, deload, policy);
     default:
@@ -671,9 +685,120 @@ function buildSportDraft(
   }
 }
 
+/**
+ * Converte una bozza di seduta nella sessione persistita, con alternative,
+ * equipaggiamento e — quando la metodologia lo consente — il blocco di
+ * pliometria. Estratto perché il percorso classico e quello guidato dalla
+ * metodologia devono produrre esattamente lo stesso formato.
+ */
+function finalizeSession(input: {
+  baseline: Baseline;
+  macroPlan: MacroPlan;
+  weekIndex: number;
+  index: number;
+  date: string;
+  draft: SessionDraft;
+  plyometrics?: boolean;
+}): PlannedSession {
+  const { baseline, macroPlan, weekIndex, index, date } = input;
+  const withPlyometrics =
+    input.plyometrics && input.draft.sport === "strength"
+      ? {
+          ...input.draft,
+          durationMin: input.draft.durationMin + 10,
+          blocks: [
+            ...input.draft.blocks,
+            {
+              repeat: 1,
+              steps: [
+                {
+                  kind: "work" as const,
+                  durationMin: 10,
+                  target: "Pliometria a bassa intensità: salti, balzi e skipping controllati",
+                },
+              ],
+            },
+          ],
+        }
+      : input.draft;
+
+  const draft = withPlyometrics;
+  const blocks = fitBlocksToDuration(draft.blocks, draft.durationMin);
+
+  const alternatives: SessionAlternative[] = [
+    {
+      label: "Versione 15 min (Espressa)",
+      changes:
+        "Riduci a 15 min di mobilità e attivazione aerobica a casa per mantenere la costanza senza affaticamento.",
+    },
+    {
+      label: "Versione 30 min (Compressa)",
+      changes: `Taglia il riscaldamento a 5 min e mantieni ${Math.min(20, draft.durationMin - 10)} min di lavoro principale per incastrare la sessione.`,
+    },
+    {
+      label: "Basso impatto (No-jump / Cyclette)",
+      changes:
+        "Sostituisci con 30-40 min di pedalata Z2 o cyclette a casa per preservare tendini e articolazioni.",
+    },
+  ];
+
+  if (
+    baseline.equipment.items.includes("ems") &&
+    (draft.sport === "strength" || draft.sport === "mobility")
+  ) {
+    alternatives.push({
+      label: "Recupero con elettrostimolatore (Compex SP4)",
+      changes:
+        "Sostituisci il lavoro accessorio con 20 min di EMS a bassa intensità per favorire il recupero, mantenendo il lavoro principale.",
+    });
+  }
+
+  const contraindications: string[] = [];
+  if (draft.sport === "running") {
+    contraindications.push("knee_impact_high", "plantar_fasciitis_acute");
+  }
+
+  const equipment =
+    draft.sport === "strength"
+      ? [
+          ...(baseline.equipment.gymAccess ? ["dumbbells", "bodyweight"] : ["bodyweight"]),
+          ...(baseline.equipment.items.includes("ems") ? ["ems"] : []),
+        ]
+      : draft.sport === "cycling" && baseline.equipment.items.includes("indoor_bike")
+        ? ["indoor_bike"]
+        : draft.sport === "swimming"
+          ? ["pool"]
+          : [];
+
+  return {
+    id: `session_${macroPlan.id}_w${weekIndex}_d${index + 1}`,
+    date,
+    sport: draft.sport,
+    type: draft.type,
+    title: draft.title,
+    durationMin: draft.durationMin,
+    intensity: {
+      mode: "rpe",
+      rpe: draft.rpe,
+      target:
+        draft.rpe >= 8 ? "Z4 / Soglia" : draft.rpe >= 6 ? "Z2 / Aerobico" : "Z1 / Rigenerante",
+    },
+    blocks,
+    equipment,
+    location: draft.location,
+    successCriteria: `Completare la durata target mantenendo lo sforzo percepito RPE ${draft.rpe}/10.`,
+    alternatives,
+    contraindications,
+    notes: draft.notes,
+    status: "planned",
+  };
+}
+
 export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions): MacroPlan {
   const startDate = options?.startDate ?? todayLocalDate(baseline.profile.timezone);
-  const totalWeeks = options?.totalWeeks ?? (baseline.goals.primary.type === "race" ? 12 : 8);
+  const targetDate = options?.targetDate ?? baseline.goals.primary.targetDate ?? null;
+  const fallbackWeeks = baseline.goals.primary.type === "race" ? 12 : 8;
+  const totalWeeks = options?.totalWeeks ?? planHorizonWeeks(startDate, targetDate, fallbackWeeks);
   const endDate = addDays(startDate, totalWeeks * 7 - 1);
 
   const goalType = baseline.goals.primary.type;
@@ -683,7 +808,33 @@ export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions
 
   let phases: PlanPhase[];
 
-  if (kneePain) {
+  // Se l'LLM ha definito le fasi del macrociclo, sono quelle: coprono
+  // l'intero arco, non solo il primo blocco. Il volume relativo viene
+  // tradotto in minuti sulla base della metodologia.
+  const llmPhases = options?.methodology?.phases ?? [];
+  if (llmPhases.length > 0) {
+    const baseWeeklyMinutes =
+      options?.methodology?.structure.weeklyMinutes ??
+      (goalType === "race" || goalType === "performance" ? 200 : 170);
+    phases = llmPhases
+      .map((phase) => ({
+        name: phase.name,
+        startWeek: Math.min(phase.startWeek, totalWeeks),
+        endWeek: Math.min(phase.endWeek, totalWeeks),
+        focus: phase.focus,
+        weeklyVolumeMin: Math.max(60, Math.round(phase.volumeShare * baseWeeklyMinutes)),
+        deload: phase.deload,
+        ...(phase.sessions !== undefined ? { sessions: phase.sessions } : {}),
+        ...(phase.qualitySessions !== undefined ? { qualitySessions: phase.qualitySessions } : {}),
+        ...(phase.longSessionMin !== undefined ? { longSessionMin: phase.longSessionMin } : {}),
+      }))
+      .filter((phase) => phase.endWeek >= phase.startWeek);
+
+    const last = phases.at(-1);
+    if (last && last.endWeek < totalWeeks) {
+      last.endWeek = totalWeeks;
+    }
+  } else if (kneePain) {
     phases = [
       {
         name: "Scarico articolare & Adattamento aerobico a basso impatto",
@@ -788,9 +939,10 @@ export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions
     goalDescription: baseline.goals.primary.description,
     startDate,
     endDate,
+    targetDate,
     totalWeeks,
     phases,
-    rationale: `Macrociclo generato deterministicamente per livello ${experienceTierLabel(baseline.profile.experienceTier)} con ${baseline.availability.days.length} sessioni settimanali disponibili. Obiettivo primario: ${baseline.goals.primary.description}. Vincoli medici e infortuni integrati.`,
+    rationale: `Macrociclo generato deterministicamente per livello ${experienceTierLabel(baseline.profile.experienceTier)} con ${options?.methodology?.structure.sessions ?? baseline.availability.days.length} sessioni settimanali${options?.methodology ? ` (metodologia: ${options.methodology.name})` : ""}. Obiettivo primario: ${baseline.goals.primary.description}. Vincoli medici e infortuni integrati.`,
     assumptions: [
       `Aderenza prevista: >= 80%`,
       `Intensità calcolata su RPE e zone HR Garmin`,
@@ -802,8 +954,10 @@ export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions
       ...(kneePain ? ["caution_knee_pain", "low_impact_priority"] : []),
       ...(calibration ? ["calibration_week_1"] : []),
       ...(recoveryWindow ? ["post_race_recovery"] : []),
+      ...(options?.methodology ? ["methodology_guided"] : []),
     ],
     recoveryWindow,
+    ...(options?.methodology ? { methodology: options.methodology } : {}),
   };
 
   const issues = validateMacroPlan(macroPlan);
@@ -813,6 +967,94 @@ export function generateMacroPlan(baseline: Baseline, options?: MacroPlanOptions
   }
 
   return macroPlan;
+}
+
+/**
+ * Sceglie i giorni concreti quando la metodologia chiede meno sedute della
+ * disponibilità. Distribuisce i giorni sulla settimana e garantisce che il
+ * giorno lungo resti incluso.
+ */
+function selectSessionDays<T extends { maxDurationMin: number }>(
+  days: readonly T[],
+  count: number,
+): T[] {
+  if (count <= 0) return [];
+  if (count >= days.length) return [...days];
+  if (count === 1) {
+    const longIndex = days.reduce(
+      (best, day, index) => (day.maxDurationMin > (days[best]?.maxDurationMin ?? 0) ? index : best),
+      0,
+    );
+    const only = days[longIndex];
+    return only ? [only] : [];
+  }
+
+  const selected = new Set<number>();
+  for (let index = 0; index < count; index += 1) {
+    selected.add(Math.round((index * (days.length - 1)) / (count - 1)));
+  }
+
+  const longIndex = days.reduce(
+    (best, day, index) => (day.maxDurationMin > (days[best]?.maxDurationMin ?? 0) ? index : best),
+    0,
+  );
+  if (!selected.has(longIndex)) {
+    let closest = [...selected][0] ?? 0;
+    for (const index of selected) {
+      if (Math.abs(index - longIndex) < Math.abs(closest - longIndex)) closest = index;
+    }
+    selected.delete(closest);
+    selected.add(longIndex);
+  }
+
+  return [...selected]
+    .sort((a, b) => a - b)
+    .map((index) => days[index])
+    .filter((day): day is T => Boolean(day));
+}
+
+/**
+ * Riallinea il volume settimanale al target della metodologia senza toccare la
+ * seduta lunga: se il totale supera il target di oltre il 15%, riduce le altre
+ * sedute in proporzione. Il lungo resta il perno della settimana.
+ */
+function applyWeeklyVolumeTarget(
+  sessions: readonly PlannedSession[],
+  targetMin: number,
+): PlannedSession[] {
+  const total = sessions.reduce((sum, session) => sum + session.durationMin, 0);
+  if (targetMin <= 0 || total <= targetMin * 1.15) return [...sessions];
+
+  const isLong = (session: PlannedSession) => session.type.includes("long");
+  const longTotal = sessions.filter(isLong).reduce((sum, session) => sum + session.durationMin, 0);
+  const adjustable = sessions.filter((session) => !isLong(session));
+  const adjustableTotal = adjustable.reduce((sum, session) => sum + session.durationMin, 0);
+  const targetAdjustable = Math.max(0, targetMin - longTotal);
+  if (adjustableTotal === 0 || adjustableTotal <= targetAdjustable) return [...sessions];
+
+  const factor = targetAdjustable / adjustableTotal;
+  return sessions.map((session) => {
+    if (isLong(session)) return session;
+    const durationMin = Math.max(20, Math.round(session.durationMin * factor));
+    return {
+      ...session,
+      durationMin,
+      blocks: fitBlocksToDuration(session.blocks, durationMin),
+    };
+  });
+}
+
+/**
+ * Settimana di scarico secondo la periodizzazione scelta dall'LLM: dopo
+ * `loadWeeks` settimane di carico, `deloadWeeks` di scarico, poi si ripete.
+ */
+function isPeriodizationDeloadWeek(
+  weekIndex: number,
+  periodization: NonNullable<PlanMethodology["periodization"]>,
+): boolean {
+  if (periodization.deloadWeeks === 0) return false;
+  const cycle = periodization.loadWeeks + periodization.deloadWeeks;
+  return weekIndex > 0 && (weekIndex - 1) % cycle >= periodization.loadWeeks;
 }
 
 export function generateMicroPlan(
@@ -832,7 +1074,21 @@ export function generateMicroPlan(
   const weekStartDate = options?.startDate ?? addDays(macroPlan.startDate, (weekIndex - 1) * 7);
   const weekEndDate = addDays(weekStartDate, 6);
 
-  const deload = isDeloadWeek(weekIndex) || phase.deload;
+  const periodization = macroPlan.methodology?.periodization;
+  const hasLlmPhases = (macroPlan.methodology?.phases?.length ?? 0) > 0;
+  // Se l'LLM ha definito le fasi, sono loro a dire quali settimane sono di
+  // scarico: il ritmo 3:1 non va applicato in parallelo e in conflitto.
+  const periodizationDeload = hasLlmPhases
+    ? false
+    : periodization
+      ? isPeriodizationDeloadWeek(weekIndex, periodization)
+      : isDeloadWeek(weekIndex);
+  const taper = hasLlmPhases
+    ? false
+    : periodization
+      ? periodization.taperWeeks > 0 && weekIndex > macroPlan.totalWeeks - periodization.taperWeeks
+      : false;
+  const deload = periodizationDeload || taper || phase.deload;
   const kneePain = isKneePain(baseline);
 
   const availableDays = [...baseline.availability.days]
@@ -842,82 +1098,143 @@ export function generateMicroPlan(
   const forcedRecovery = (macroPlan.recoveryWindow?.weeks ?? 0) >= weekIndex;
 
   const sessions: PlannedSession[] = [];
+  const methodology = macroPlan.methodology;
 
-  for (let idx = 0; idx < availableDays.length; idx += 1) {
-    const avail = availableDays[idx];
-    if (!avail) continue;
+  if (methodology) {
+    const structure = methodology.structure;
+    const methodologyScope =
+      hasLlmPhases || weekIndex <= (methodology.applyThroughWeek ?? macroPlan.totalWeeks);
+    const phaseText = `${phase.name} ${phase.focus}`.toLowerCase();
+    const buildPhase = /soglia|ritmo|sviluppo|build|qualit/.test(phaseText);
+    // Con le fasi decise dall'LLM ogni settimana legge la propria fase. Senza,
+    // fuori dalla finestra della metodologia (tipicamente recupero post-gara)
+    // qualità, lungo e volume riprendono la progressione della fase.
+    const usePhaseGuidance = hasLlmPhases || !methodologyScope;
+    const effectiveQualitySessions = usePhaseGuidance
+      ? (phase.qualitySessions ?? (deload ? 1 : buildPhase ? 2 : 1))
+      : structure.qualitySessions;
+    const effectiveLongSessionMin = usePhaseGuidance
+      ? (phase.longSessionMin ?? (deload ? 45 : buildPhase ? 75 : 60))
+      : structure.longSessionMin;
+    const effectiveWeeklyMinutes = usePhaseGuidance
+      ? (phase.weeklyVolumeMin ?? structure.weeklyMinutes)
+      : structure.weeklyMinutes;
+    const effectiveSessions = phase.sessions ?? structure.sessions;
+    const totalSessions = Math.min(effectiveSessions, availableDays.length);
+    const primarySport = primarySportOf(baseline);
+    const strengthSlots =
+      primarySport === "strength" ? 0 : Math.min(structure.strengthSessions, totalSessions);
+    const runSlots = totalSessions - strengthSlots;
+    const selectedDays = selectSessionDays(availableDays, totalSessions);
+    const longSlot =
+      effectiveLongSessionMin > 0 && runSlots > 0
+        ? selectedDays.reduce(
+            (best, day, index) =>
+              day.maxDurationMin > (selectedDays[best]?.maxDurationMin ?? 0) ? index : best,
+            0,
+          )
+        : -1;
 
-    const sessionDate = addDays(weekStartDate, avail.offset);
-    const draft = buildDraft(
-      baseline,
-      idx,
-      avail.maxDurationMin,
-      deload,
-      weekIndex,
-      forcedRecovery,
-    );
-    const blocks = fitBlocksToDuration(draft.blocks, draft.durationMin);
-
-    const alternatives: SessionAlternative[] = [
-      {
-        label: "Versione 15 min (Espressa)",
-        changes:
-          "Riduci a 15 min di mobilità e attivazione aerobica a casa per mantenere la costanza senza affaticamento.",
-      },
-      {
-        label: "Versione 30 min (Compressa)",
-        changes: `Taglia il riscaldamento a 5 min e mantieni ${Math.min(20, draft.durationMin - 10)} min di lavoro principale per incastrare la sessione.`,
-      },
-      {
-        label: "Basso impatto (No-jump / Cyclette)",
-        changes:
-          "Sostituisci con 30-40 min di pedalata Z2 o cyclette a casa per preservare tendini e articolazioni.",
-      },
-    ];
-
-    const contraindications: string[] = [];
-    if (draft.sport === "running") {
-      contraindications.push("knee_impact_high", "plantar_fasciitis_acute");
+    // Le sedute di forza occupano gli ultimi slot disponibili, escludendo il
+    // giorno lungo: così il lungo resta una seduta di endurance.
+    const strengthSlotsIndices = new Set<number>();
+    for (let index = selectedDays.length - 1; index >= 0; index -= 1) {
+      if (strengthSlotsIndices.size >= strengthSlots) break;
+      if (index !== longSlot) strengthSlotsIndices.add(index);
     }
 
-    const equipment =
-      draft.sport === "strength"
-        ? baseline.equipment.gymAccess
-          ? ["dumbbells", "bodyweight"]
-          : ["bodyweight"]
-        : draft.sport === "cycling" && baseline.equipment.items.includes("indoor_bike")
-          ? ["indoor_bike"]
-          : draft.sport === "swimming"
-            ? ["pool"]
-            : [];
+    const qualitySlots = Math.min(
+      effectiveQualitySessions,
+      Math.max(0, runSlots - (longSlot >= 0 ? 1 : 0)),
+    );
+    let qualityAssigned = 0;
+    const policy = sessionPolicy(baseline, weekIndex, forcedRecovery);
 
-    const plannedSession: PlannedSession = {
-      id: `session_${macroPlan.id}_w${weekIndex}_d${idx + 1}`,
-      date: sessionDate,
-      sport: draft.sport,
-      type: draft.type,
-      title: draft.title,
-      durationMin: draft.durationMin,
-      intensity: {
-        mode: "rpe",
-        rpe: draft.rpe,
-        target:
-          draft.rpe >= 8 ? "Z4 / Soglia" : draft.rpe >= 6 ? "Z2 / Aerobico" : "Z1 / Rigenerante",
-      },
-      blocks,
-      equipment,
-      location: draft.location,
-      successCriteria: `Completare la durata target mantenendo lo sforzo percepito RPE ${draft.rpe}/10.`,
-      alternatives,
-      contraindications,
-      notes: draft.notes,
-      status: "planned",
-    };
+    selectedDays.forEach((day, index) => {
+      const isStrength = strengthSlotsIndices.has(index);
+      const isLong = index === longSlot;
+      const isQuality = !isStrength && !isLong && qualityAssigned < qualitySlots;
+      if (isQuality) qualityAssigned += 1;
 
-    sessions.push(plannedSession);
+      const sport: Sport = isStrength ? "strength" : primarySport;
+      const kindIndex = isLong ? 2 : isQuality ? 1 : 0;
+      const maxDurationMin = isLong
+        ? Math.max(
+            30,
+            Math.min(
+              effectiveLongSessionMin,
+              day.maxDurationMin > 0 ? day.maxDurationMin : effectiveLongSessionMin,
+            ),
+          )
+        : day.maxDurationMin;
+
+      const draft = buildSportDraft(
+        baseline,
+        sport,
+        kindIndex,
+        maxDurationMin,
+        deload,
+        policy,
+        isLong ? effectiveLongSessionMin : undefined,
+      );
+      sessions.push(
+        finalizeSession({
+          baseline,
+          macroPlan,
+          weekIndex,
+          index,
+          date: addDays(weekStartDate, day.offset),
+          draft,
+          plyometrics: structure.plyometrics,
+        }),
+      );
+    });
+
+    if (effectiveWeeklyMinutes !== undefined && effectiveWeeklyMinutes > 0) {
+      const adjusted = applyWeeklyVolumeTarget(sessions, effectiveWeeklyMinutes);
+      sessions.length = 0;
+      sessions.push(...adjusted);
+    }
+  } else {
+    for (let idx = 0; idx < availableDays.length; idx += 1) {
+      const avail = availableDays[idx];
+      if (!avail) continue;
+
+      const sessionDate = addDays(weekStartDate, avail.offset);
+      const draft = buildDraft(
+        baseline,
+        idx,
+        avail.maxDurationMin,
+        deload,
+        weekIndex,
+        forcedRecovery,
+      );
+      sessions.push(
+        finalizeSession({
+          baseline,
+          macroPlan,
+          weekIndex,
+          index: idx,
+          date: sessionDate,
+          draft,
+        }),
+      );
+    }
   }
 
   const weeklyVolumeMin = sessions.reduce((sum, s) => sum + s.durationMin, 0);
+  const planMethodology = macroPlan.methodology;
+  const methodologyInScope =
+    planMethodology !== undefined &&
+    (planMethodology.applyThroughWeek === undefined ||
+      weekIndex <= planMethodology.applyThroughWeek);
+  const methodologyNote = planMethodology
+    ? methodologyInScope
+      ? ` Metodologia: ${planMethodology.name}.`
+      : planMethodology.applyThroughWeek
+        ? ` Metodologia ${planMethodology.name} applicata fino alla settimana ${planMethodology.applyThroughWeek}; da qui prosegue la progressione della fase.`
+        : ""
+    : "";
 
   const microPlan: MicroPlan = {
     id: `micro_${macroPlan.id}_w${weekIndex}`,
@@ -930,8 +1247,12 @@ export function generateMicroPlan(
     weeklyVolumeMin,
     deload,
     sessions,
-    rationale: `Settimana ${weekIndex}/${macroPlan.totalWeeks} (${phase.name})${deload ? " · Settimana di scarico/rigenerazione" : ""}. Volume totale: ${weeklyVolumeMin} minuti su ${sessions.length} sessioni.`,
-    flags: deload ? ["deload_week"] : [],
+    rationale: `Settimana ${weekIndex}/${macroPlan.totalWeeks} (${phase.name})${deload ? " · Settimana di scarico/rigenerazione" : ""}. Volume totale: ${weeklyVolumeMin} minuti su ${sessions.length} sessioni.${methodologyNote}`,
+    flags: [
+      ...(deload ? ["deload_week"] : []),
+      ...(methodologyInScope ? ["methodology_guided"] : []),
+      ...(planMethodology && !methodologyInScope ? ["methodology_scope_ended"] : []),
+    ],
   };
 
   const issues = validatePlanSessions(sessions, kneePain ? ["knee_impact_high"] : []);

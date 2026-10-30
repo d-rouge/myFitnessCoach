@@ -2,17 +2,22 @@ import {
   type Baseline,
   computeReadiness,
   experienceTierLabel,
-  type FiveKProjection,
-  type FiveKProjectionInput,
+  type FiveKFeasibility,
+  type MethodologyDecision,
+  type MethodologyEnvelope,
+  type MethodologyValidation,
 } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { DownloadButton } from "./components/DownloadButton";
+import { GarminImportPanel } from "./components/GarminImportPanel";
 import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { MorningCheckinCard } from "./components/MorningCheckinCard";
-import { OnboardingWizard } from "./components/OnboardingWizard";
+import { OnboardingWizard, type ProfileFocus } from "./components/OnboardingWizard";
+import { PlanInterviewChat } from "./components/PlanInterviewChat";
 import { TrainingPlanBoard } from "./components/TrainingPlanBoard";
+import { LanguageSelector, useI18n } from "./i18n";
 import {
   apiFetch,
   fetchAuthStatus,
@@ -218,14 +223,45 @@ async function fetchCurrentBaseline(): Promise<Baseline | null> {
   return response.json() as Promise<Baseline>;
 }
 
-async function checkFeasibility(input: FiveKProjectionInput): Promise<FiveKProjection> {
-  const response = await apiFetch("/api/baseline/feasibility", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) throw new Error("Feasibility check failed");
-  return response.json() as Promise<FiveKProjection>;
+async function checkFeasibility(): Promise<FiveKFeasibility> {
+  const response = await apiFetch("/api/baseline/feasibility", { method: "POST" });
+  const body = (await response.json()) as FiveKFeasibility & { message?: string };
+  if (!response.ok) {
+    throw new Error(body.message ?? `Feasibility check failed (${response.status})`);
+  }
+  return body;
+}
+
+interface MethodologyEvaluation {
+  id: string;
+  createdAt: string;
+  promptVersion: string;
+  provider: string;
+  model: string;
+  envelope: MethodologyEnvelope;
+  decision: MethodologyDecision;
+  validation: MethodologyValidation;
+}
+
+async function fetchLatestMethodology(): Promise<MethodologyEvaluation | null> {
+  const response = await apiFetch("/api/plan/methodology/latest");
+  if (!response.ok) return null;
+  const body = (await response.json()) as { evaluation: MethodologyEvaluation | null };
+  return body.evaluation;
+}
+
+async function analyzeMethodology(): Promise<MethodologyEvaluation> {
+  const response = await apiFetch("/api/plan/methodology", { method: "POST" });
+  const body = (await response.json()) as MethodologyEvaluation & {
+    message?: string;
+    issues?: string[];
+  };
+  if (!response.ok) {
+    throw new Error(
+      body.message ?? body.issues?.join("; ") ?? `Analisi metodologia fallita (${response.status})`,
+    );
+  }
+  return body;
 }
 
 const readiness = computeReadiness({
@@ -238,20 +274,6 @@ const readiness = computeReadiness({
   subjective: { energy: 4, mood: 4, stress: 2, soreness: 2 },
 });
 
-const formatDate = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", {
-    day: "2-digit",
-    month: "short",
-  });
-
-const formatDateTime = (iso: string) =>
-  new Date(iso).toLocaleString("it-IT", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
 const formatSleep = (minutes: number | null) => {
   if (minutes === null) return "—";
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
@@ -260,14 +282,22 @@ const formatSleep = (minutes: number | null) => {
 const formatNumber = (value: number | null, suffix = "") =>
   value === null ? "—" : `${value}${suffix}`;
 
-const formatStatus = (status: SyncStatus) =>
-  ({
-    never: "mai",
-    running: "in corso",
-    ok: "ok",
-    partial: "parziale",
-    error: "errore",
-  })[status];
+const formatStatus = (status: SyncStatus, locale: string) =>
+  locale === "it"
+    ? {
+        never: "mai",
+        running: "in corso",
+        ok: "ok",
+        partial: "parziale",
+        error: "errore",
+      }[status]
+    : {
+        never: "never",
+        running: "running",
+        ok: "ok",
+        partial: "partial",
+        error: "error",
+      }[status];
 
 function StatusPill({ status }: { status: CheckStatus }) {
   const styles: Record<CheckStatus, string> = {
@@ -290,7 +320,7 @@ function StatusPill({ status }: { status: CheckStatus }) {
   );
 }
 
-function SyncPill({ status }: { status: SyncStatus }) {
+function SyncPill({ status, locale = "en" }: { status: SyncStatus; locale?: string }) {
   const styles: Record<SyncStatus, string> = {
     never: "bg-slate-400/10 text-slate-300 ring-slate-400/30",
     running: "bg-sky-400/10 text-sky-300 ring-sky-400/30",
@@ -306,7 +336,7 @@ function SyncPill({ status }: { status: SyncStatus }) {
         styles[status],
       )}
     >
-      {formatStatus(status)}
+      {formatStatus(status, locale)}
     </span>
   );
 }
@@ -340,7 +370,162 @@ function Card({
   );
 }
 
+function FeasibilityResult({ result }: { result: FiveKFeasibility }) {
+  const warningLabels: Record<string, string> = {
+    no_5k_reference:
+      "Serve una corsa di almeno 3 km negli ultimi 56 giorni, oppure un tempo 5K inserito a mano.",
+    no_running_volume: "Nessuna corsa con distanza nelle ultime 4 settimane.",
+    no_target_date: "Aggiungi una data obiettivo alla baseline.",
+    target_date_passed: "La data obiettivo è già passata: aggiornala.",
+    plan_not_started: "Il piano non è ancora iniziato.",
+    insufficient_completed_sessions: "Servono più sedute completate.",
+    long_horizon: "Orizzonte oltre 26 settimane: stima puramente indicativa.",
+  };
+  const warnings = result.warnings;
+  if (!result.available || !result.projection) {
+    return (
+      <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-xs">
+        <p className="font-bold text-amber-200">Proiezione 5K non disponibile</p>
+        <p className="mt-1 text-slate-300">
+          {warnings.includes("plan_not_started")
+            ? "Il piano non è ancora iniziato. Registra la prima seduta completata: da lì parte il conteggio per la stima."
+            : warnings.includes("insufficient_completed_sessions")
+              ? `Servono almeno ${result.sessionsRequired} sedute completate dall'inizio del piano. Finora: ${result.sessionsCompleted}.`
+              : "Non ci sono abbastanza dati per stimare la fattibilità: la stima non usa numeri inventati."}
+        </p>
+        {warnings.length > 0 ? (
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-slate-300">
+            {warnings.map((warning) => (
+              <li key={warning}>{warningLabels[warning] ?? warning}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    );
+  }
+
+  const { projection } = result;
+  const formatTime = (seconds: number) =>
+    `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-bold text-white">Proiezione 5K</span>
+        <span className="rounded-full bg-white/5 px-2.5 py-0.5 font-bold uppercase text-slate-300">
+          Confidenza: {projection.confidence}
+        </span>
+      </div>
+      <p className="mt-2 text-slate-300">{projection.rationale}</p>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-xl bg-white/5 p-2.5">
+          <p className="text-[10px] uppercase text-slate-400">Ottimistico</p>
+          <p className="font-mono text-base font-bold text-emerald-400">
+            {formatTime(projection.bestSec)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-lime-400/10 p-2.5">
+          <p className="text-[10px] uppercase text-lime-300">Proiettato</p>
+          <p className="font-mono text-base font-bold text-lime-300">
+            {formatTime(projection.projectedSec)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2.5">
+          <p className="text-[10px] uppercase text-slate-400">Prudente</p>
+          <p className="font-mono text-base font-bold text-slate-300">
+            {formatTime(projection.worstSec)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MethodologyResult({ evaluation }: { evaluation: MethodologyEvaluation }) {
+  const { decision, envelope } = evaluation;
+  const structure = decision.weeklyStructure;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-sky-400/20 bg-sky-400/[0.04] p-4 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-slate-400">
+            Metodologia proposta dal modello
+          </p>
+          <p className="text-sm font-bold text-white">{decision.methodology}</p>
+        </div>
+        <span className="rounded-full bg-sky-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-sky-200">
+          Confidenza: {decision.confidence}
+        </span>
+      </div>
+
+      <p className="mt-2 text-slate-300">{decision.why}</p>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-xl bg-white/5 p-2.5">
+          <p className="text-[10px] uppercase text-slate-400">Sedute</p>
+          <p className="mt-1 font-mono text-base font-bold text-white">{structure.sessions}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2.5">
+          <p className="text-[10px] uppercase text-slate-400">Qualità</p>
+          <p className="mt-1 font-mono text-base font-bold text-white">
+            {structure.qualitySessions}
+          </p>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2.5">
+          <p className="text-[10px] uppercase text-slate-400">Lungo</p>
+          <p className="mt-1 font-mono text-base font-bold text-white">
+            {structure.longSessionMin}′
+          </p>
+        </div>
+        <div className="rounded-xl bg-white/5 p-2.5">
+          <p className="text-[10px] uppercase text-slate-400">Forza</p>
+          <p className="mt-1 font-mono text-base font-bold text-white">
+            {structure.strengthSessions}
+          </p>
+        </div>
+      </div>
+
+      <dl className="mt-3 space-y-1.5 rounded-xl bg-white/[0.03] p-3 text-[11px] text-slate-300">
+        <div>
+          <dt className="text-slate-400">Periodizzazione</dt>
+          <dd>
+            {decision.periodization
+              ? `${decision.periodization.model}: ${decision.periodization.loadWeeks} carico / ${decision.periodization.deloadWeeks} scarico · taper ${decision.periodization.taperWeeks} sett.`
+              : "non specificata"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Fasi</dt>
+          <dd>
+            {decision.phases
+              ? decision.phases
+                  .map((phase) => `${phase.name} (${phase.startWeek}-${phase.endWeek})`)
+                  .join(" · ")
+              : "non specificate"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Evidenza dai dati</dt>
+          <dd>{decision.evidence.join(" · ")}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Alternative scartate</dt>
+          <dd>{decision.alternatives.map((item) => `${item.name}: ${item.whyNot}`).join(" · ")}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Limiti verificati</dt>
+          <dd>
+            {envelope.reasons.join(" · ")} · orizzonte {envelope.horizonWeeks ?? "n/d"} settimane
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 function Dashboard({ user }: { user: SessionUser }) {
+  const { t, locale, formatDate, formatDateTime } = useI18n();
   const queryClient = useQueryClient();
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth });
   const overview = useQuery({ queryKey: ["garmin-overview"], queryFn: fetchGarminOverview });
@@ -373,16 +558,25 @@ function Dashboard({ user }: { user: SessionUser }) {
   });
 
   const [isEditingBaseline, setIsEditingBaseline] = useState(false);
+  const [baselineEditStep, setBaselineEditStep] = useState(1);
+  const [baselineEditFocus, setBaselineEditFocus] = useState<ProfileFocus>("full");
+  const [isInterviewOpen, setIsInterviewOpen] = useState(false);
   const [dataFeedback, setDataFeedback] = useState<string | null>(null);
+
+  const openBaselineEditor = (step: number, focus: ProfileFocus) => {
+    setBaselineEditStep(step);
+    setBaselineEditFocus(focus);
+    setIsEditingBaseline(true);
+  };
 
   const wipeDataMutation = useMutation({
     mutationFn: async () => {
       const res = await apiFetch("/api/export/me", { method: "DELETE" });
-      if (!res.ok) throw new Error("Errore durante la cancellazione dati");
+      if (!res.ok) throw new Error(t.system.deleteError);
       return res.json();
     },
     onSuccess: async () => {
-      setDataFeedback("Tutti i dati dell'atleta sono stati eliminati con successo dal database.");
+      setDataFeedback(t.system.deleteSuccess);
       await queryClient.invalidateQueries();
     },
   });
@@ -395,11 +589,11 @@ function Dashboard({ user }: { user: SessionUser }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(backup),
       });
-      if (!res.ok) throw new Error("Errore ripristino backup");
+      if (!res.ok) throw new Error(t.system.restoreError);
       return res.json();
     },
     onSuccess: async () => {
-      setDataFeedback("Backup ripristinato con successo!");
+      setDataFeedback(t.system.restoreSuccess);
       await queryClient.invalidateQueries();
     },
   });
@@ -410,6 +604,16 @@ function Dashboard({ user }: { user: SessionUser }) {
   });
   const feasibilityMutation = useMutation({
     mutationFn: checkFeasibility,
+  });
+  const methodology = useQuery({
+    queryKey: ["methodology"],
+    queryFn: fetchLatestMethodology,
+  });
+  const methodologyMutation = useMutation({
+    mutationFn: analyzeMethodology,
+    onSuccess: (evaluation) => {
+      queryClient.setQueryData(["methodology"], evaluation);
+    },
   });
 
   const apiStatus = health.isError ? "error" : health.data ? "ok" : "unchecked";
@@ -427,20 +631,28 @@ function Dashboard({ user }: { user: SessionUser }) {
             <span className="text-sm font-medium tracking-wide text-slate-400">health-trainer</span>
           </div>
           <h1 className="max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-5xl">
-            Il loop di coaching,
-            <br />
-            non un altro tracker.
+            {locale === "it" ? (
+              <>
+                Il loop di coaching,
+                <br />
+                non un altro tracker.
+              </>
+            ) : (
+              <>
+                The coaching loop,
+                <br />
+                not another tracker.
+              </>
+            )}
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">
-            Dati, piano, esecuzione, feedback. Il motore deterministico calcola i vincoli;
-            l&apos;LLM progetta e spiega dentro quei vincoli.
-          </p>
+          <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">{t.header.subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <LanguageSelector />
           {user ? (
             <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-              Atleta: {user.name} ({user.email})
+              {locale === "it" ? "Atleta:" : "Athlete:"} {user.name} ({user.email})
             </span>
           ) : null}
           <button
@@ -452,10 +664,10 @@ function Dashboard({ user }: { user: SessionUser }) {
             }}
             className="rounded-full bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 ring-1 ring-inset ring-white/10 transition hover:bg-white/10 hover:text-white"
           >
-            Esci
+            {t.auth.signOut}
           </button>
           <span className="rounded-full bg-lime-300/10 px-3 py-1.5 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-300/30">
-            Fase 1 · Web MVP
+            {t.header.phaseTag}
           </span>
           <span className="rounded-full bg-white/5 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-inset ring-white/10">
             v0.2.0
@@ -467,11 +679,13 @@ function Dashboard({ user }: { user: SessionUser }) {
       <section className="mt-8">
         {baseline.isLoading ? (
           <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
-            Caricamento profilo atleta…
+            {locale === "it" ? "Caricamento profilo atleta…" : "Loading athlete profile…"}
           </div>
         ) : !baseline.data || isEditingBaseline ? (
           <OnboardingWizard
             initialBaseline={baseline.data}
+            initialStep={baselineEditStep}
+            focus={baselineEditFocus}
             onSaved={(saved) => {
               queryClient.setQueryData(["baseline"], saved);
               setIsEditingBaseline(false);
@@ -479,13 +693,13 @@ function Dashboard({ user }: { user: SessionUser }) {
             onCancel={baseline.data ? () => setIsEditingBaseline(false) : undefined}
           />
         ) : (
-          <Card
-            title={`Profilo Atleta & Baseline (v${baseline.data.version})`}
-            eyebrow="Livello 0 · Baseline Attiva"
-            className="border-lime-400/20 bg-lime-950/10"
-          >
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-4">
+          <>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Card
+                title={locale === "it" ? "Dati fisici & salute" : "Physical data & health"}
+                eyebrow={locale === "it" ? "Profilo · anamnesi" : "Profile · anamnesis"}
+                className="border-white/10"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-lime-400/10 px-3 py-1 text-xs font-semibold text-lime-300 ring-1 ring-inset ring-lime-400/30">
                     {experienceTierLabel(baseline.data.profile.experienceTier)}
@@ -495,137 +709,245 @@ function Dashboard({ user }: { user: SessionUser }) {
                     {baseline.data.profile.weightKg} kg
                   </span>
                   <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-300 ring-1 ring-inset ring-white/10">
-                    Valida dal {formatDate(baseline.data.validFrom.slice(0, 10))}
+                    {locale === "it" ? "Aggiornato il" : "Updated"}{" "}
+                    {formatDate(baseline.data.validFrom.slice(0, 10))}
                   </span>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-bold text-white">
-                    {baseline.data.goals.primary.description}
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Tipo:{" "}
-                    <span className="capitalize text-white">
-                      {baseline.data.goals.primary.type}
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Anamnesi & dolori:" : "Medical & injuries:"}
                     </span>
-                    {baseline.data.goals.primary.targetDate
-                      ? ` · Data target: ${baseline.data.goals.primary.targetDate}`
-                      : ""}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">Sport attivi:</span>
-                    <p className="mt-1 font-semibold capitalize text-white">
-                      {baseline.data.profile.sports.join(", ")}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">Disponibilità:</span>
-                    <p className="mt-1 font-semibold text-white">
-                      {baseline.data.availability.days.length} gg/settimana (
-                      {baseline.data.availability.days.map((d) => d.day.toUpperCase()).join(", ")})
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">Anamnesi &amp; Dolori:</span>
                     <p className="mt-1 font-semibold text-white">
                       {baseline.data.anamnesis.injuries.length === 0
-                        ? "Nessun infortunio attivo"
+                        ? locale === "it"
+                          ? "Nessun infortunio attivo"
+                          : "No active injuries"
                         : baseline.data.anamnesis.injuries
-                            .map((i) => `${i.area} (${i.painLevel}/10)`)
+                            .map((injury) => `${injury.area} (${injury.painLevel}/10)`)
                             .join(", ")}
                     </p>
                   </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Patologie:" : "Conditions:"}
+                    </span>
+                    <p className="mt-1 font-semibold text-white">
+                      {baseline.data.anamnesis.conditions.length === 0
+                        ? locale === "it"
+                          ? "Nessuna dichiarata"
+                          : "None reported"
+                        : baseline.data.anamnesis.conditions.join(", ")}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Farmaci:" : "Medications:"}
+                    </span>
+                    <p className="mt-1 font-semibold text-white">
+                      {baseline.data.anamnesis.medications.length === 0
+                        ? locale === "it"
+                          ? "Nessuno"
+                          : "None"
+                        : baseline.data.anamnesis.medications.join(", ")}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Background sportivo:" : "Sports background:"}
+                    </span>
+                    <p className="mt-1 font-semibold capitalize text-white">
+                      {baseline.data.profile.athleteBackground ??
+                        (locale === "it" ? "Non indicato" : "Not set")}
+                    </p>
+                  </div>
                 </div>
 
-                {baseline.data.summary ? (
-                  <p className="text-xs italic text-slate-400">
-                    &ldquo;{baseline.data.summary}&rdquo;
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openBaselineEditor(1, "health")}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                  >
+                    {locale === "it" ? "Modifica dati fisici" : "Edit physical data"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openBaselineEditor(2, "health")}
+                    className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
+                  >
+                    {locale === "it" ? "Segnala un problema" : "Report a problem"}
+                  </button>
+                </div>
+              </Card>
+
+              <Card
+                title={locale === "it" ? "Obiettivo corrente" : "Current goal"}
+                eyebrow={locale === "it" ? "Allenamento · piano" : "Training · plan"}
+                className="border-lime-400/20 bg-lime-950/10"
+              >
+                <h3 className="text-lg font-bold text-white">
+                  {baseline.data.goals.primary.description}
+                </h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  {baseline.data.goals.primary.targetDate
+                    ? `${locale === "it" ? "Data target:" : "Target date:"} ${baseline.data.goals.primary.targetDate}`
+                    : locale === "it"
+                      ? "Nessuna data target: il piano usa un orizzonte standard."
+                      : "No target date: the plan uses a standard horizon."}
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Sport attivi:" : "Active sports:"}
+                    </span>
+                    <p className="mt-1 font-semibold capitalize text-white">
+                      {baseline.data.profile.sports
+                        .map((sport) => t.planBoard.sports[sport] || sport)
+                        .join(", ")}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Disponibilità:" : "Availability:"}
+                    </span>
+                    <p className="mt-1 font-semibold text-white">
+                      {baseline.data.availability.daysPerWeek ??
+                        baseline.data.availability.days.length}{" "}
+                      {locale === "it" ? "giorni/settimana" : "days/week"} ·{" "}
+                      {baseline.data.availability.longSession
+                        ? baseline.data.availability.longSession.when === "weekend"
+                          ? locale === "it"
+                            ? "seduta lunga nel weekend"
+                            : "long session at the weekend"
+                          : `${locale === "it" ? "seduta lunga il" : "long session on"} ${baseline.data.availability.longSession.day ?? "—"}`
+                        : locale === "it"
+                          ? "nessuna seduta lunga dedicata"
+                          : "no dedicated long session"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs sm:col-span-2">
+                    <span className="text-slate-400">
+                      {locale === "it" ? "Attrezzatura a casa:" : "Home equipment:"}
+                    </span>
+                    <p className="mt-1 font-semibold text-white">
+                      {baseline.data.equipment.items.length === 0
+                        ? locale === "it"
+                          ? "Nessuna attrezzatura dichiarata"
+                          : "No equipment reported"
+                        : baseline.data.equipment.items.join(", ")}
+                      {baseline.data.equipment.gymAccess
+                        ? locale === "it"
+                          ? " · accesso in palestra"
+                          : " · gym access"
+                        : ""}
+                      {baseline.data.equipment.poolAccess
+                        ? locale === "it"
+                          ? " · accesso in piscina"
+                          : " · pool access"
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <GarminImportPanel />
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openBaselineEditor(3, "goal")}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                  >
+                    {locale === "it" ? "Modifica obiettivo" : "Edit goal"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openBaselineEditor(4, "training")}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                  >
+                    {locale === "it" ? "Disponibilità & attrezzatura" : "Availability & equipment"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => feasibilityMutation.mutate()}
+                    disabled={feasibilityMutation.isPending}
+                    className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-60"
+                  >
+                    {feasibilityMutation.isPending
+                      ? locale === "it"
+                        ? "Calcolo Feasibility…"
+                        : "Calculating Feasibility…"
+                      : locale === "it"
+                        ? "Verifica Feasibility 5K"
+                        : "Verify 5K Feasibility"}
+                  </button>
+                </div>
+
+                {feasibilityMutation.isError ? (
+                  <p className="mt-3 text-xs leading-5 text-rose-300">
+                    {feasibilityMutation.error.message}
                   </p>
                 ) : null}
-              </div>
-
-              <div className="flex shrink-0 flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditingBaseline(true)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
-                >
-                  Modifica Baseline
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    feasibilityMutation.mutate({
-                      current5kSec: 1800,
-                      weeks: 8,
-                      tier: baseline.data?.profile.experienceTier ?? "novice",
-                      weeklyVolumeKm: 15,
-                    })
-                  }
-                  disabled={feasibilityMutation.isPending}
-                  className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-60"
-                >
-                  {feasibilityMutation.isPending
-                    ? "Calcolo Feasibility…"
-                    : "Verifica Feasibility 5K"}
-                </button>
-              </div>
+                {feasibilityMutation.data ? (
+                  <FeasibilityResult result={feasibilityMutation.data} />
+                ) : null}
+              </Card>
             </div>
 
-            {feasibilityMutation.data ? (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white">Proiezione 5K (Feasibility):</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 font-bold uppercase",
-                      feasibilityMutation.data.confidence === "high"
-                        ? "bg-emerald-400/20 text-emerald-300"
-                        : feasibilityMutation.data.confidence === "medium"
-                          ? "bg-amber-400/20 text-amber-300"
-                          : "bg-rose-400/20 text-rose-300",
-                    )}
-                  >
-                    Confidenza: {feasibilityMutation.data.confidence}
-                  </span>
-                </div>
-                <p className="mt-2 text-slate-300">{feasibilityMutation.data.rationale}</p>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl bg-white/5 p-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                      Ottimistico
-                    </p>
-                    <p className="mt-1 font-mono text-base font-bold text-emerald-400">
-                      {Math.floor(feasibilityMutation.data.bestSec / 60)}:
-                      {String(Math.floor(feasibilityMutation.data.bestSec % 60)).padStart(2, "0")}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-lime-400/10 p-2.5 ring-1 ring-inset ring-lime-400/20">
-                    <p className="text-[10px] uppercase tracking-wider text-lime-300">Proiettato</p>
-                    <p className="mt-1 font-mono text-base font-bold text-lime-300">
-                      {Math.floor(feasibilityMutation.data.projectedSec / 60)}:
-                      {String(Math.floor(feasibilityMutation.data.projectedSec % 60)).padStart(
-                        2,
-                        "0",
-                      )}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white/5 p-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Prudente</p>
-                    <p className="mt-1 font-mono text-base font-bold text-slate-300">
-                      {Math.floor(feasibilityMutation.data.worstSec / 60)}:
-                      {String(Math.floor(feasibilityMutation.data.worstSec % 60)).padStart(2, "0")}
-                    </p>
-                  </div>
-                </div>
+            <Card
+              title={
+                locale === "it" ? "Imposta il piano con il coach" : "Set up the plan with the coach"
+              }
+              eyebrow={locale === "it" ? "Allenamento · intervista" : "Training · interview"}
+              className="mt-4 border-sky-400/20 bg-sky-950/10"
+            >
+              <p className="text-xs leading-5 text-slate-300">
+                {locale === "it"
+                  ? "Il piano nasce da un'intervista guidata: il coach legge obiettivo, Garmin e ultime due settimane, chiede quello che manca, sceglie la metodologia e poi genera il piano."
+                  : "The plan comes from a guided interview: the coach reads goal, Garmin and the last two weeks, asks what is missing, chooses the methodology and then generates the plan."}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsInterviewOpen(true)}
+                  className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20"
+                >
+                  {locale === "it"
+                    ? "Imposta il piano con il coach"
+                    : "Set up the plan with the coach"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => methodologyMutation.mutate()}
+                  disabled={methodologyMutation.isPending}
+                  className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20 disabled:opacity-60"
+                >
+                  {methodologyMutation.isPending
+                    ? locale === "it"
+                      ? "Analisi metodologia…"
+                      : "Analysing methodology…"
+                    : locale === "it"
+                      ? "Analizza metodologia"
+                      : "Analyse methodology"}
+                </button>
               </div>
-            ) : null}
-          </Card>
+
+              {methodologyMutation.isError ? (
+                <p className="mt-3 text-xs leading-5 text-rose-300">
+                  {methodologyMutation.error.message}
+                </p>
+              ) : null}
+              {methodology.data ? <MethodologyResult evaluation={methodology.data} /> : null}
+
+              {isInterviewOpen ? (
+                <PlanInterviewChat onClose={() => setIsInterviewOpen(false)} />
+              ) : null}
+            </Card>
+          </>
         )}
       </section>
 
@@ -642,34 +964,40 @@ function Dashboard({ user }: { user: SessionUser }) {
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
         <Card title="API" eyebrow="Runtime">
           <div className="flex items-center justify-between gap-4">
-            <span>Stato del servizio</span>
+            <span>{locale === "it" ? "Stato del servizio" : "Service status"}</span>
             <StatusPill status={apiStatus} />
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">
             {health.isError
-              ? "API non raggiungibile. Avvia `npm run dev:api`."
+              ? locale === "it"
+                ? "API non raggiungibile. Avvia `npm run dev:api`."
+                : "API unreachable. Start `npm run dev:api`."
               : health.data
                 ? `Uptime ${health.data.uptimeSec}s · ${new Date(health.data.timestamp).toLocaleTimeString()}`
-                : "Verifica in corso…"}
+                : locale === "it"
+                  ? "Verifica in corso…"
+                  : "Checking…"}
           </p>
         </Card>
 
-        <Card title="MongoDB" eyebrow="Persistenza">
+        <Card title="MongoDB" eyebrow={locale === "it" ? "Persistenza" : "Persistence"}>
           <div className="flex items-center justify-between gap-4">
-            <span>Connessione</span>
+            <span>{locale === "it" ? "Connessione" : "Connection"}</span>
             <StatusPill status={health.data?.checks.mongo.status ?? "unchecked"} />
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">
             {health.data?.checks.mongo.error ??
               (health.data?.checks.mongo.latencyMs !== undefined
                 ? `${health.data.checks.mongo.latencyMs} ms`
-                : "MongoDB locale: avvialo e riprova.")}
+                : locale === "it"
+                  ? "MongoDB locale: avvialo e riprova."
+                  : "Local MongoDB: start it and retry.")}
           </p>
         </Card>
 
-        <Card title="Garmin Personal" eyebrow="Integrazione">
+        <Card title="Garmin Personal" eyebrow={locale === "it" ? "Integrazione" : "Integration"}>
           <div className="flex items-center justify-between gap-4">
-            <span>Chiave API</span>
+            <span>{locale === "it" ? "Chiave API" : "API Key"}</span>
             <StatusPill status={health.data?.checks.garmin.status ?? "unchecked"} />
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -679,7 +1007,13 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={garminCheck.isPending}
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {garminCheck.isPending ? "Verifica…" : "Verifica chiave"}
+              {garminCheck.isPending
+                ? locale === "it"
+                  ? "Verifica…"
+                  : "Checking…"
+                : locale === "it"
+                  ? "Verifica chiave"
+                  : "Check key"}
             </button>
             <button
               type="button"
@@ -687,7 +1021,13 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={garminSync.isPending || overview.isLoading}
               className="rounded-xl bg-lime-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {garminSync.isPending ? "Sincronizzo…" : "Sincronizza ora"}
+              {garminSync.isPending
+                ? locale === "it"
+                  ? "Sincronizzo…"
+                  : "Syncing…"
+                : locale === "it"
+                  ? "Sincronizza ora"
+                  : "Sync now"}
             </button>
           </div>
           {garminCheck.data ? (
@@ -699,22 +1039,28 @@ function Dashboard({ user }: { user: SessionUser }) {
             >
               {garminCheck.data.ok
                 ? `OK · ${garminCheck.data.latencyMs} ms`
-                : (garminCheck.data.error ?? "Verifica fallita")}
+                : (garminCheck.data.error ??
+                  (locale === "it" ? "Verifica fallita" : "Check failed"))}
             </p>
           ) : garminCheck.isError ? (
             <p className="mt-3 text-xs leading-5 text-rose-300">{garminCheck.error.message}</p>
           ) : null}
           {garminSync.isSuccess ? (
             <p className="mt-3 text-xs leading-5 text-emerald-300">
-              Sync {garminSync.data.status}: {garminSync.data.activities} attività,{" "}
-              {garminSync.data.metrics} giorni di metriche.
+              Sync {garminSync.data.status}: {garminSync.data.activities}{" "}
+              {locale === "it" ? "attività" : "activities"}, {garminSync.data.metrics}{" "}
+              {locale === "it" ? "giorni di metriche" : "metric days"}.
             </p>
           ) : garminSync.isError ? (
             <p className="mt-3 text-xs leading-5 text-rose-300">{garminSync.error.message}</p>
           ) : null}
         </Card>
 
-        <Card title="Dominio condiviso" eyebrow="Regole" className="lg:col-span-2">
+        <Card
+          title={locale === "it" ? "Dominio condiviso" : "Shared Domain"}
+          eyebrow={locale === "it" ? "Regole" : "Rules"}
+          className="lg:col-span-2"
+        >
           <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-center">
             <div className="flex h-24 w-24 flex-col items-center justify-center rounded-3xl bg-lime-300/10 ring-1 ring-inset ring-lime-300/30">
               <span className="text-3xl font-bold text-lime-300">{readiness.score}</span>
@@ -724,14 +1070,24 @@ function Dashboard({ user }: { user: SessionUser }) {
             </div>
             <div>
               <p className="text-sm leading-6 text-slate-300">
-                Calcolato da <code className="text-lime-300">@health-trainer/domain</code>: HRV,
-                RHR, sonno e check-in soggettivo. Confidenza{" "}
-                <strong className="text-white">{readiness.confidence}</strong>.
+                {locale === "it" ? (
+                  <>
+                    Calcolato da <code className="text-lime-300">@health-trainer/domain</code>: HRV,
+                    RHR, sonno e check-in soggettivo. Confidenza{" "}
+                    <strong className="text-white">{readiness.confidence}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Calculated by <code className="text-lime-300">@health-trainer/domain</code>:
+                    HRV, RHR, sleep, and subjective check-in. Confidence{" "}
+                    <strong className="text-white">{readiness.confidence}</strong>.
+                  </>
+                )}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {readiness.flags.length === 0 ? (
                   <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-                    nessun flag
+                    {locale === "it" ? "nessun flag" : "no flags"}
                   </span>
                 ) : (
                   readiness.flags.map((flag) => (
@@ -748,48 +1104,100 @@ function Dashboard({ user }: { user: SessionUser }) {
           </div>
         </Card>
 
-        <Card title="Fase 1 Completata" eyebrow="Stato MVP">
+        <Card
+          title={locale === "it" ? "Fase 1 Completata" : "Phase 1 Complete"}
+          eyebrow={locale === "it" ? "Stato MVP" : "MVP Status"}
+        >
           <ul className="space-y-1.5 text-xs leading-5 text-slate-300">
-            <li className="text-lime-300 font-semibold">✓ Baseline L0 &amp; Wizard 6 step</li>
-            <li className="text-lime-300 font-semibold">✓ Macro &amp; Micro Plan Multisport</li>
-            <li className="text-lime-300 font-semibold">✓ Morning Check-in &amp; Adattamento</li>
-            <li className="text-lime-300 font-semibold">✓ Tracciamento &amp; Upload FIT</li>
-            <li className="text-lime-300 font-semibold">✓ AI Coach Briefing deterministico</li>
-            <li className="text-lime-300 font-semibold">✓ Export FIT &amp; Hevy Pro</li>
-            <li className="text-lime-300 font-semibold">✓ Review settimanale &amp; Avanzamento</li>
-            <li className="text-lime-300 font-semibold">✓ Backup JSON &amp; Data Sovereignty</li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it" ? "✓ Baseline L0 & Wizard 6 step" : "✓ Baseline L0 & 6-step Wizard"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it"
+                ? "✓ Macro & Micro Plan Multisport"
+                : "✓ Multisport Macro & Micro Plan"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it"
+                ? "✓ Morning Check-in & Adattamento"
+                : "✓ Morning Check-in & Real-time Adaptation"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it" ? "✓ Tracciamento & Upload FIT" : "✓ Activity Tracking & FIT Upload"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it"
+                ? "✓ AI Coach Briefing deterministico"
+                : "✓ Deterministic AI Coach Briefing"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it" ? "✓ Export FIT & Hevy Pro" : "✓ FIT & Hevy Pro Export"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it"
+                ? "✓ Review settimanale & Avanzamento"
+                : "✓ Weekly Review & Progression"}
+            </li>
+            <li className="text-lime-300 font-semibold">
+              {locale === "it"
+                ? "✓ Backup JSON & Data Sovereignty"
+                : "✓ JSON Backup & Data Sovereignty"}
+            </li>
           </ul>
         </Card>
       </div>
 
-      <Card title="Dati Garmin" eyebrow="Ultimi 7 giorni" className="mt-4">
+      <Card
+        title={locale === "it" ? "Dati Garmin" : "Garmin Data"}
+        eyebrow={locale === "it" ? "Ultimi 7 giorni" : "Last 7 days"}
+        className="mt-4"
+      >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <SyncPill status={data?.status ?? "never"} />
+            <SyncPill status={data?.status ?? "never"} locale={locale} />
             <span>
-              {data?.lastSync ? `Ultimo sync: ${formatDateTime(data.lastSync)}` : "Nessun sync"}
+              {data?.lastSync
+                ? `${locale === "it" ? "Ultimo sync:" : "Last sync:"} ${formatDateTime(data.lastSync)}`
+                : locale === "it"
+                  ? "Nessun sync"
+                  : "Never synced"}
             </span>
             <span className="text-slate-600">·</span>
-            <span>{data?.counts.activities ?? 0} attività totali</span>
+            <span>
+              {data?.counts.activities ?? 0}{" "}
+              {locale === "it" ? "attività totali" : "total activities"}
+            </span>
             <span className="text-slate-600">·</span>
-            <span>{data?.counts.metrics ?? 0} giorni di metriche</span>
+            <span>
+              {data?.counts.metrics ?? 0} {locale === "it" ? "giorni di metriche" : "metric days"}
+            </span>
           </div>
           {data?.error ? <span className="text-xs text-rose-300">{data.error}</span> : null}
         </div>
 
         {overview.isLoading ? (
-          <p className="py-6 text-sm text-slate-500">Carico i dati Garmin…</p>
+          <p className="py-6 text-sm text-slate-500">
+            {locale === "it" ? "Carico i dati Garmin…" : "Loading Garmin data…"}
+          </p>
         ) : overview.isError ? (
           <p className="py-6 text-sm text-rose-300">{overview.error.message}</p>
         ) : !data || data.counts.activities === 0 ? (
           <p className="py-6 text-sm text-slate-500">
-            Nessun dato ancora. Premi <strong className="text-white">Sincronizza ora</strong>.
+            {locale === "it" ? (
+              <>
+                Nessun dato ancora. Premi <strong className="text-white">Sincronizza ora</strong>.
+              </>
+            ) : (
+              <>
+                No data yet. Press <strong className="text-white">Sync now</strong>.
+              </>
+            )}
           </p>
         ) : (
           <div className="mt-4 grid gap-6 lg:grid-cols-2">
             <div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Attività recenti
+                {locale === "it" ? "Attività recenti" : "Recent activities"}
               </h3>
               <ul className="space-y-2">
                 {data.activities.map((activity) => {
@@ -805,7 +1213,8 @@ function Dashboard({ user }: { user: SessionUser }) {
                             {activity.title ?? activity.sport}
                           </p>
                           <p className="mt-0.5 text-xs text-slate-500">
-                            {formatDate(activity.date)} · {activity.sport}
+                            {formatDate(activity.date)} ·{" "}
+                            {t.planBoard.sports[activity.sport] || activity.sport}
                           </p>
                         </div>
                         <div className="text-right text-xs text-slate-400">
@@ -825,14 +1234,18 @@ function Dashboard({ user }: { user: SessionUser }) {
                         className="mt-3 rounded-lg border border-lime-300/30 bg-lime-300/10 px-2.5 py-1.5 text-[11px] font-semibold text-lime-300 transition hover:bg-lime-300/20 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {analyzeActivity.isPending && analyzeActivity.variables === activity.id
-                          ? "Analizzo FIT…"
-                          : "Analizza FIT"}
+                          ? locale === "it"
+                            ? "Analizzo FIT…"
+                            : "Analyzing FIT…"
+                          : locale === "it"
+                            ? "Analizza FIT"
+                            : "Analyze FIT"}
                       </button>
 
                       {analysis ? (
                         <details className="mt-2">
                           <summary className="cursor-pointer text-[11px] font-semibold text-slate-400">
-                            Brief pronto per l&apos;LLM
+                            {locale === "it" ? "Brief pronto per l'LLM" : "LLM prompt briefing"}
                           </summary>
                           <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-black/30 p-3 text-[11px] leading-5 text-slate-300">
                             {analysis.brief}
@@ -850,17 +1263,23 @@ function Dashboard({ user }: { user: SessionUser }) {
 
             <div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Metriche giornaliere
+                {locale === "it" ? "Metriche giornaliere" : "Daily metrics"}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="pb-2 pr-3 font-medium">Giorno</th>
+                      <th className="pb-2 pr-3 font-medium">
+                        {locale === "it" ? "Giorno" : "Day"}
+                      </th>
                       <th className="pb-2 pr-3 font-medium">RHR</th>
                       <th className="pb-2 pr-3 font-medium">HRV</th>
-                      <th className="pb-2 pr-3 font-medium">Sonno</th>
-                      <th className="pb-2 pr-3 font-medium">Passi</th>
+                      <th className="pb-2 pr-3 font-medium">
+                        {locale === "it" ? "Sonno" : "Sleep"}
+                      </th>
+                      <th className="pb-2 pr-3 font-medium">
+                        {locale === "it" ? "Passi" : "Steps"}
+                      </th>
                       <th className="pb-2 pr-3 font-medium">Stress</th>
                       <th className="pb-2 font-medium">Battery</th>
                     </tr>
@@ -873,7 +1292,9 @@ function Dashboard({ user }: { user: SessionUser }) {
                         <td className="py-2 pr-3">{formatNumber(metric.hrvAvgMs, " ms")}</td>
                         <td className="py-2 pr-3">{formatSleep(metric.sleepMinutes)}</td>
                         <td className="py-2 pr-3">
-                          {metric.steps !== null ? metric.steps.toLocaleString("it-IT") : "—"}
+                          {metric.steps !== null
+                            ? metric.steps.toLocaleString(locale === "it" ? "it-IT" : "en-US")
+                            : "—"}
                         </td>
                         <td className="py-2 pr-3">{formatNumber(metric.stressAvg)}</td>
                         <td className="py-2">{formatNumber(metric.bodyBatteryEnd)}</td>
@@ -887,19 +1308,29 @@ function Dashboard({ user }: { user: SessionUser }) {
         )}
       </Card>
 
-      <Card title="Nutrizione Yazio" eyebrow="Ultimi 7 giorni" className="mt-4">
+      <Card
+        title={locale === "it" ? "Nutrizione Yazio" : "Yazio Nutrition"}
+        eyebrow={locale === "it" ? "Ultimi 7 giorni" : "Last 7 days"}
+        className="mt-4"
+      >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <SyncPill status={yazioData?.status ?? "never"} />
+            <SyncPill status={yazioData?.status ?? "never"} locale={locale} />
             <span>
               {yazioData?.lastSync
-                ? `Ultimo sync: ${formatDateTime(yazioData.lastSync)}`
-                : "Nessun sync"}
+                ? `${locale === "it" ? "Ultimo sync:" : "Last sync:"} ${formatDateTime(yazioData.lastSync)}`
+                : locale === "it"
+                  ? "Nessun sync"
+                  : "Never synced"}
             </span>
             <span className="text-slate-600">·</span>
-            <span>{yazioData?.counts.days ?? 0} giorni</span>
+            <span>
+              {yazioData?.counts.days ?? 0} {locale === "it" ? "giorni" : "days"}
+            </span>
             <span className="text-slate-600">·</span>
-            <span>{yazioData?.counts.weightEntries ?? 0} pesi</span>
+            <span>
+              {yazioData?.counts.weightEntries ?? 0} {locale === "it" ? "pesi" : "weigh-ins"}
+            </span>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -908,7 +1339,13 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={yazioCheck.isPending}
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {yazioCheck.isPending ? "Verifica…" : "Verifica Yazio"}
+              {yazioCheck.isPending
+                ? locale === "it"
+                  ? "Verifica…"
+                  : "Checking…"
+                : locale === "it"
+                  ? "Verifica Yazio"
+                  : "Check Yazio"}
             </button>
             <button
               type="button"
@@ -916,7 +1353,13 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={yazioSync.isPending}
               className="rounded-xl bg-lime-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {yazioSync.isPending ? "Sincronizzo…" : "Sincronizza Yazio"}
+              {yazioSync.isPending
+                ? locale === "it"
+                  ? "Sincronizzo…"
+                  : "Syncing…"
+                : locale === "it"
+                  ? "Sincronizza Yazio"
+                  : "Sync Yazio"}
             </button>
           </div>
         </div>
@@ -931,34 +1374,54 @@ function Dashboard({ user }: { user: SessionUser }) {
           >
             {yazioCheck.data.ok
               ? `OK · ${yazioCheck.data.latencyMs} ms · ${yazioCheck.data.baseUrl ?? ""}`
-              : (yazioCheck.data.error ?? "Verifica fallita")}
+              : (yazioCheck.data.error ?? (locale === "it" ? "Verifica fallita" : "Check failed"))}
           </p>
         ) : yazioCheck.isError ? (
           <p className="mt-3 text-xs text-rose-300">{yazioCheck.error.message}</p>
         ) : null}
         {yazioSync.isSuccess ? (
           <p className="mt-3 text-xs text-emerald-300">
-            Sync {yazioSync.data.status}: {yazioSync.data.nutritionDays} giorni,{" "}
-            {yazioSync.data.weightEntries} pesi.
+            Sync {yazioSync.data.status}: {yazioSync.data.nutritionDays}{" "}
+            {locale === "it" ? "giorni" : "days"}, {yazioSync.data.weightEntries}{" "}
+            {locale === "it" ? "pesi" : "weigh-ins"}.
           </p>
         ) : yazioSync.isError ? (
           <p className="mt-3 text-xs text-rose-300">{yazioSync.error.message}</p>
         ) : null}
 
         {yazioOverview.isLoading ? (
-          <p className="py-6 text-sm text-slate-500">Carico i dati Yazio…</p>
+          <p className="py-6 text-sm text-slate-500">
+            {locale === "it" ? "Carico i dati Yazio…" : "Loading Yazio data…"}
+          </p>
         ) : yazioOverview.isError ? (
           <p className="py-6 text-sm text-rose-300">{yazioOverview.error.message}</p>
         ) : !yazioData || yazioData.days.length === 0 ? (
           <div className="py-6 text-sm text-slate-500">
             {yazioData?.configured === false ? (
               <p>
-                Yazio non configurato. Aggiungi le credenziali in{" "}
-                <code className="text-slate-300">secrets/yazio.json</code> e riavvia l&apos;API.
+                {locale === "it" ? (
+                  <>
+                    Yazio non configurato. Aggiungi le credenziali in{" "}
+                    <code className="text-slate-300">secrets/yazio.json</code> e riavvia l&apos;API.
+                  </>
+                ) : (
+                  <>
+                    Yazio not configured. Add credentials to{" "}
+                    <code className="text-slate-300">secrets/yazio.json</code> and restart the API.
+                  </>
+                )}
               </p>
             ) : (
               <p>
-                Nessun dato. Premi <strong className="text-white">Sincronizza Yazio</strong>.
+                {locale === "it" ? (
+                  <>
+                    Nessun dato. Premi <strong className="text-white">Sincronizza Yazio</strong>.
+                  </>
+                ) : (
+                  <>
+                    No data. Press <strong className="text-white">Sync Yazio</strong>.
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -967,13 +1430,15 @@ function Dashboard({ user }: { user: SessionUser }) {
             <table className="w-full text-left text-xs">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="pb-2 pr-3 font-medium">Giorno</th>
+                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Giorno" : "Day"}</th>
                   <th className="pb-2 pr-3 font-medium">Kcal</th>
-                  <th className="pb-2 pr-3 font-medium">Proteine</th>
-                  <th className="pb-2 pr-3 font-medium">Carbo</th>
-                  <th className="pb-2 pr-3 font-medium">Grassi</th>
-                  <th className="pb-2 pr-3 font-medium">Acqua</th>
-                  <th className="pb-2 pr-3 font-medium">Peso</th>
+                  <th className="pb-2 pr-3 font-medium">
+                    {locale === "it" ? "Proteine" : "Protein"}
+                  </th>
+                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Carbo" : "Carbs"}</th>
+                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Grassi" : "Fat"}</th>
+                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Acqua" : "Water"}</th>
+                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Peso" : "Weight"}</th>
                 </tr>
               </thead>
               <tbody className="text-slate-300">
@@ -1003,13 +1468,20 @@ function Dashboard({ user }: { user: SessionUser }) {
         )}
       </Card>
 
-      <Card title="Export Workout Garmin (.FIT)" eyebrow="Export manuale" className="mt-6">
+      <Card
+        title={locale === "it" ? "Export Workout Garmin (.FIT)" : "Export Garmin Workout (.FIT)"}
+        eyebrow={locale === "it" ? "Export manuale" : "Manual export"}
+        className="mt-6"
+      >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold text-white">5×800m Ripetute Corsa</h3>
+            <h3 className="font-semibold text-white">
+              {locale === "it" ? "5×800m Ripetute Corsa" : "5×800m Running Intervals"}
+            </h3>
             <p className="mt-1 text-xs text-slate-400">
-              Riscaldamento 10 min (Zona 2) · 5× [800m @ 4:15–4:35/km + 200m recupero] ·
-              Defaticamento 10 min (Zona 1).
+              {locale === "it"
+                ? "Riscaldamento 10 min (Zona 2) · 5× [800m @ 4:15–4:35/km + 200m recupero] · Defaticamento 10 min (Zona 1)."
+                : "Warm-up 10 min (Zone 2) · 5× [800m @ 4:15–4:35/km + 200m recovery] · Cool-down 10 min (Zone 1)."}
             </p>
           </div>
           <DownloadButton
@@ -1017,14 +1489,18 @@ function Dashboard({ user }: { user: SessionUser }) {
             filename="5x800m-intervals.fit"
             className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
           >
-            Scarica workout (.FIT)
+            {locale === "it" ? "Scarica workout (.FIT)" : "Download workout (.FIT)"}
           </DownloadButton>
         </div>
         <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs text-slate-400">
-          <p className="font-medium text-slate-300">Come importare in Garmin Connect:</p>
+          <p className="font-medium text-slate-300">
+            {locale === "it"
+              ? "Come importare in Garmin Connect:"
+              : "How to import into Garmin Connect:"}
+          </p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
             <li>
-              Apri{" "}
+              {locale === "it" ? "Apri " : "Open "}
               <a
                 href="https://connect.garmin.com/modern/workouts"
                 target="_blank"
@@ -1033,34 +1509,63 @@ function Dashboard({ user }: { user: SessionUser }) {
               >
                 Garmin Connect Workouts
               </a>{" "}
-              su computer.
+              {locale === "it" ? "su computer." : "on your computer."}
             </li>
             <li>
-              Clicca su <strong>Importa</strong> accanto a &quot;Crea un allenamento&quot;.
+              {locale === "it" ? (
+                <>
+                  Clicca su <strong>Importa</strong> accanto a &quot;Crea un allenamento&quot;.
+                </>
+              ) : (
+                <>
+                  Click <strong>Import</strong> next to &quot;Create a Workout&quot;.
+                </>
+              )}
             </li>
             <li>
-              Trascina o seleziona il file{" "}
-              <code className="text-slate-200">5x800m-intervals.fit</code> scaricato.
+              {locale === "it" ? (
+                <>
+                  Trascina o seleziona il file{" "}
+                  <code className="text-slate-200">5x800m-intervals.fit</code> scaricato.
+                </>
+              ) : (
+                <>
+                  Drag and drop or select the downloaded{" "}
+                  <code className="text-slate-200">5x800m-intervals.fit</code> file.
+                </>
+              )}
             </li>
             <li>
-              In alternativa, collega l&apos;orologio via USB e copia il file nella cartella{" "}
-              <code className="text-slate-200">GARMIN/NewFiles/</code>.
+              {locale === "it" ? (
+                <>
+                  In alternativa, collega l&apos;orologio via USB e copia il file nella cartella{" "}
+                  <code className="text-slate-200">GARMIN/NewFiles/</code>.
+                </>
+              ) : (
+                <>
+                  Alternatively, connect your watch via USB and copy the file into the{" "}
+                  <code className="text-slate-200">GARMIN/NewFiles/</code> folder.
+                </>
+              )}
             </li>
           </ol>
         </div>
       </Card>
 
       <Card
-        title="Sovranità dei Dati &amp; Backup (GDPR)"
-        eyebrow="Privacy &amp; Portabilità"
+        title={t.system.dataManagementTitle}
+        eyebrow={locale === "it" ? "Privacy & Portabilità" : "Privacy & Portability"}
         className="mt-6"
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold text-white">I tuoi dati appartengono a te</h3>
+            <h3 className="font-semibold text-white">
+              {locale === "it" ? "I tuoi dati appartengono a te" : "Your data belongs to you"}
+            </h3>
             <p className="mt-1 text-xs text-slate-400">
-              Esporta l&apos;intero storico in formato standard JSON aperto, ripristinalo su un
-              altro ambiente o elimina ogni traccia dal server.
+              {locale === "it"
+                ? "Esporta l'intero storico in formato standard JSON aperto, ripristinalo su un altro ambiente o elimina ogni traccia dal server."
+                : "Export your complete history in open standard JSON format, restore it into another instance, or erase all records from the server."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1069,10 +1574,10 @@ function Dashboard({ user }: { user: SessionUser }) {
               filename="health-trainer-backup.json"
               className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
             >
-              Scarica Backup (.JSON)
+              {t.system.backupExport}
             </DownloadButton>
             <label className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
-              Ripristina Backup
+              {t.system.restoreBackup}
               <input
                 type="file"
                 accept=".json"
@@ -1093,18 +1598,14 @@ function Dashboard({ user }: { user: SessionUser }) {
             <button
               type="button"
               onClick={() => {
-                if (
-                  window.confirm(
-                    "Sei sicuro di voler eliminare TUTTI i tuoi dati di allenamento, baseline e check-in? L'operazione è irreversibile.",
-                  )
-                ) {
+                if (window.confirm(t.system.deleteConfirm)) {
                   wipeDataMutation.mutate();
                 }
               }}
               disabled={wipeDataMutation.isPending}
               className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
             >
-              {wipeDataMutation.isPending ? "Eliminazione…" : "Elimina tutti i miei dati"}
+              {wipeDataMutation.isPending ? t.common.loading : t.system.deleteAthleteData}
             </button>
           </div>
         </div>
@@ -1117,27 +1618,36 @@ function Dashboard({ user }: { user: SessionUser }) {
       </Card>
 
       <footer className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <span>health-trainer · documentazione in `docs/`</span>
-        <span>Strava escluso · dati salute local-first su Android</span>
+        <span>
+          health-trainer ·{" "}
+          {locale === "it" ? "documentazione in `docs/`" : "documentation in `docs/`"}
+        </span>
+        <span>
+          {locale === "it"
+            ? "Strava escluso · dati salute local-first su Android"
+            : "Strava excluded · local-first health data on Android"}
+        </span>
       </footer>
     </main>
   );
 }
 
 function Splash() {
+  const { t } = useI18n();
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="rounded-3xl border border-white/10 bg-white/[0.035] px-8 py-6 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-300 font-black text-slate-950">
           HT
         </div>
-        <p className="text-sm text-slate-400">Verifico la sessione…</p>
+        <p className="text-sm text-slate-400">{t.common.loading}</p>
       </div>
     </main>
   );
 }
 
 function LoginScreen() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const status = useQuery({ queryKey: ["auth-status"], queryFn: fetchAuthStatus, retry: 1 });
   const [authError, setAuthError] = useState<string | null>(null);
@@ -1210,14 +1720,14 @@ function LoginScreen() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-10">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.035] p-8 shadow-2xl">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-300 font-black text-slate-950">
-          HT
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-lime-300 font-black text-slate-950">
+            HT
+          </div>
+          <LanguageSelector />
         </div>
-        <h1 className="text-xl font-semibold text-white">Autenticazione richiesta</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          health-trainer usa un token JWT per isolare i dati dell&apos;atleta. Nessuna richiesta
-          viene accettata senza credenziali.
-        </p>
+        <h1 className="text-xl font-semibold text-white">{t.auth.welcomeTitle}</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-400">{t.auth.welcomeSubtitle}</p>
 
         {localReady ? (
           <>
@@ -1232,7 +1742,7 @@ function LoginScreen() {
                     : "text-slate-300 hover:text-white",
                 )}
               >
-                Accedi
+                {t.auth.signInTab}
               </button>
               <button
                 type="button"
@@ -1244,27 +1754,27 @@ function LoginScreen() {
                     : "text-slate-300 hover:text-white",
                 )}
               >
-                Crea account
+                {t.auth.createAccountTab}
               </button>
             </div>
 
             <form onSubmit={submitLocal} className="mt-4 space-y-3">
               {mode === "register" ? (
                 <label className="block text-xs text-slate-400">
-                  Nome (opzionale)
+                  {t.auth.nameLabel}
                   <input
                     type="text"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     autoComplete="name"
                     maxLength={100}
-                    placeholder="Marco"
+                    placeholder={t.auth.namePlaceholder}
                     className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-lime-300/60 focus:outline-none"
                   />
                 </label>
               ) : null}
               <label className="block text-xs text-slate-400">
-                Email
+                {t.auth.emailLabel}
                 <input
                   type="email"
                   value={email}
@@ -1272,12 +1782,12 @@ function LoginScreen() {
                   autoComplete="email"
                   required
                   maxLength={254}
-                  placeholder="atleta@example.com"
+                  placeholder={t.auth.emailPlaceholder}
                   className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-lime-300/60 focus:outline-none"
                 />
               </label>
               <label className="block text-xs text-slate-400">
-                Password
+                {t.auth.passwordLabel}
                 <input
                   type="password"
                   value={password}
@@ -1286,7 +1796,11 @@ function LoginScreen() {
                   required
                   minLength={mode === "register" ? 8 : undefined}
                   maxLength={128}
-                  placeholder={mode === "register" ? "Almeno 8 caratteri" : "La tua password"}
+                  placeholder={
+                    mode === "register"
+                      ? t.auth.passwordPlaceholderRegister
+                      : t.auth.passwordPlaceholderLogin
+                  }
                   className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-lime-300/60 focus:outline-none"
                 />
               </label>
@@ -1297,11 +1811,11 @@ function LoginScreen() {
               >
                 {localPending
                   ? mode === "login"
-                    ? "Accesso…"
-                    : "Creo l'account…"
+                    ? t.auth.signingIn
+                    : t.auth.creatingAccount
                   : mode === "login"
-                    ? "Accedi"
-                    : "Crea account e inizia"}
+                    ? t.auth.signInButton
+                    : t.auth.createAccountButton}
               </button>
             </form>
           </>
@@ -1310,7 +1824,9 @@ function LoginScreen() {
         {localReady ? (
           <div className="mt-5 flex items-center gap-3">
             <span className="h-px flex-1 bg-white/10" />
-            <span className="text-[11px] uppercase tracking-widest text-slate-500">oppure</span>
+            <span className="text-[11px] uppercase tracking-widest text-slate-500">
+              {t.common.or}
+            </span>
             <span className="h-px flex-1 bg-white/10" />
           </div>
         ) : null}
@@ -1328,17 +1844,17 @@ function LoginScreen() {
                 disabled
                 className="w-full cursor-not-allowed rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-400 opacity-70"
               >
-                Continua con Google
+                {t.auth.continueWithGoogle}
               </button>
             )}
             {googleLogin.isPending ? (
-              <p className="mt-2 text-center text-xs text-slate-400">Verifico l&apos;account…</p>
+              <p className="mt-2 text-center text-xs text-slate-400">{t.auth.verifyingGoogle}</p>
             ) : null}
             {!googleReady ? (
               <p className="mt-2 text-center text-[11px] leading-4 text-slate-500">
                 {status.data.googleConfigured
-                  ? "Google è configurato ma la allowlist è vuota: aggiungi la tua email a GOOGLE_ALLOWED_EMAILS e riavvia l'API."
-                  : "Google non configurato: imposta GOOGLE_CLIENT_ID e GOOGLE_ALLOWED_EMAILS nel .env e riavvia l'API."}
+                  ? t.auth.googleEmptyAllowlist
+                  : t.auth.googleNotConfigured}
               </p>
             ) : null}
           </div>
@@ -1351,15 +1867,13 @@ function LoginScreen() {
             disabled={devLogin.isPending || googleLogin.isPending || localPending}
             className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
           >
-            {devLogin.isPending ? "Accesso…" : "Accedi come atleta locale (dev)"}
+            {devLogin.isPending ? t.auth.signingIn : t.auth.devLoginButton}
           </button>
         ) : null}
 
         {!localReady && !googleReady && !status.data?.devLoginEnabled && status.data ? (
           <p className="mt-6 rounded-xl bg-rose-400/10 p-3 text-xs leading-5 text-rose-200 ring-1 ring-rose-400/30">
-            Nessun metodo di login configurato. Imposta <code>ENABLE_LOCAL_AUTH=true</code> per
-            email e password, oppure <code>GOOGLE_CLIENT_ID</code>,{" "}
-            <code>GOOGLE_CLIENT_SECRET</code> e <code>GOOGLE_ALLOWED_EMAILS</code> per Google.
+            {t.auth.noAuthMethod}
           </p>
         ) : null}
 
@@ -1370,9 +1884,7 @@ function LoginScreen() {
         ) : null}
 
         {status.isError ? (
-          <p className="mt-4 text-xs text-rose-300">
-            API non raggiungibile. Avvia il backend e ricarica la pagina.
-          </p>
+          <p className="mt-4 text-xs text-rose-300">{t.auth.apiUnreachable}</p>
         ) : null}
       </div>
     </main>

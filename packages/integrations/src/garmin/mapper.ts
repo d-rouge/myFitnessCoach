@@ -119,6 +119,7 @@ export function mapGarminActivities(raw: unknown, options: GarminMappingOptions)
       source: "garmin",
       externalId,
       sport: mapGarminSport(str(activityType?.typeKey)),
+      activityType: str(activityType?.typeKey),
       start,
       localDate,
       durationSec,

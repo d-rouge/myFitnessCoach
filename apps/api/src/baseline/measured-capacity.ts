@@ -2,6 +2,7 @@ import {
   type Baseline,
   type CapacityActivity,
   estimateCapacityFromActivities,
+  preserveDeclaredFiveK,
   primarySportOf,
   withDerivedExperienceTier,
 } from "@health-trainer/domain";
@@ -36,6 +37,11 @@ export function withMeasuredCapacity(
 
   return withDerivedExperienceTier({
     ...baseline,
-    profile: { ...baseline.profile, capacity: estimate.capacity },
+    profile: {
+      ...baseline.profile,
+      // Il tempo 5K dichiarato sopravvive al ricalcolo: è un dato che l'atleta
+      // conosce (es. la race prediction di Garmin), non una stima da rifare.
+      capacity: preserveDeclaredFiveK(estimate.capacity, baseline.profile.capacity),
+    },
   });
 }

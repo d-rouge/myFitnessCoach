@@ -1,5 +1,6 @@
 import { cn } from "@health-trainer/ui";
 import { type ReactNode, useState } from "react";
+import { useI18n } from "../i18n";
 import { downloadWithAuth } from "../lib/api";
 
 interface DownloadButtonProps {
@@ -14,6 +15,7 @@ interface DownloadButtonProps {
  * Authorization headers, so protected files are fetched as blobs.
  */
 export function DownloadButton({ url, filename, children, className }: DownloadButtonProps) {
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -37,7 +39,7 @@ export function DownloadButton({ url, filename, children, className }: DownloadB
         disabled={isDownloading}
         className={cn(className, "disabled:cursor-not-allowed disabled:opacity-60")}
       >
-        {isDownloading ? "Download…" : children}
+        {isDownloading ? t.common.downloading : children}
       </button>
       {error ? <span className="text-[11px] text-rose-300">{error}</span> : null}
     </span>

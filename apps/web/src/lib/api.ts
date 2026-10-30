@@ -23,7 +23,7 @@ interface ApiErrorBody {
   issues?: Array<{ message?: string }>;
 }
 
-/** Turns a Nest/Zod error body into a single user-facing Italian message. */
+/** Turns a Nest/Zod error body into a single user-facing message. */
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
   const issues = (body.issues ?? [])
@@ -112,7 +112,7 @@ export async function loginLocal(input: LocalAuthInput): Promise<SessionUser> {
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Accesso non riuscito"));
+    throw new Error(await readErrorMessage(response, "Login failed"));
   }
 
   const data = (await response.json()) as { token: string; user: SessionUser };
@@ -131,7 +131,7 @@ export async function registerLocal(
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Registrazione non riuscita"));
+    throw new Error(await readErrorMessage(response, "Registration failed"));
   }
 
   const data = (await response.json()) as { token: string; user: SessionUser };

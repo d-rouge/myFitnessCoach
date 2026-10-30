@@ -47,6 +47,9 @@ Non formulare diagnosi mediche. Con dolore riferito, riduci il carico e suggeris
 export const COACH_CONTEXT_RULES = `Il campo recentContext contiene fatti calcolati dalle attività importate:
 ultima gara o sforzo lungo, giorni trascorsi, finestra di recupero residua,
 carico 7/28 giorni e rapporto acuto/cronico.
+- athleteBackground descrive la storia sportiva generale, non lo sport obiettivo
+  né la forma attuale. sportSpecificHistory è storico per il singolo sport e
+  può mancare. Per l'attività recente usa capacity e recentContext.
 - Se postRaceRecovery.active è true, la seduta è di recupero: non prescrivere
   carico, non aggiungere intensità e non suggerire di "recuperare" i minuti persi.
 - Nomina esplicitamente lo sforzo recente quando è rilevante ("la maratona di

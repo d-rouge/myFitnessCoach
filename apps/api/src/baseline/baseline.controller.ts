@@ -1,6 +1,5 @@
 import {
   beginnerPersona,
-  type FiveKProjectionInput,
   intermediatePersona,
   kneePainPersona,
   returningPersona,
@@ -55,7 +54,9 @@ export class BaselineController {
   }
 
   @Post("feasibility")
-  checkFeasibility(@Body() body: FiveKProjectionInput) {
-    return this.baselineService.evaluate5kFeasibility(body);
+  checkFeasibility(@CurrentUser() user: { id: string }) {
+    // Nessun body: la proiezione si calcola dai dati dell'utente. Accettare
+    // numeri dal client significherebbe permettere stime arbitrarie.
+    return this.baselineService.estimate5kFeasibility(user.id);
   }
 }

@@ -6,8 +6,12 @@ export * from "./rules/daily-adjustment";
 export * from "./rules/dates";
 export * from "./rules/experience";
 export * from "./rules/feasibility";
+export * from "./rules/feasibility-context";
+export * from "./rules/goal";
 export * from "./rules/load";
+export * from "./rules/methodology";
 export * from "./rules/plan-generator";
+export * from "./rules/plan-horizon";
 export * from "./rules/progression";
 export {
   type Confidence,
@@ -18,6 +22,8 @@ export {
 } from "./rules/readiness";
 export * from "./rules/recent-context";
 export * from "./rules/safety";
+export * from "./rules/session-adherence";
+export * from "./rules/training-history";
 export * from "./rules/validator";
 export * from "./rules/weekly-review";
 export * from "./schemas/activity";
@@ -32,6 +38,8 @@ export * from "./schemas/daily-metrics";
 export * from "./schemas/daily-state";
 export * from "./schemas/equipment";
 export * from "./schemas/goal";
+export * from "./schemas/interview";
+export * from "./schemas/methodology";
 export * from "./schemas/nutrition";
 export * from "./schemas/plan";
 export * from "./schemas/preferences";

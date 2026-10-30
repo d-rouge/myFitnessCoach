@@ -13,8 +13,10 @@ import {
   type Injury,
   intermediatePersona,
   kneePainPersona,
-  type PreferredTrainingTime,
+  type LongSessionAvailability,
+  preserveDeclaredFiveK,
   primarySportOf,
+  resolveAvailabilityDays,
   returningPersona,
   type Sex,
   type Sport,
@@ -23,81 +25,162 @@ import {
   type Weekday,
 } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n";
 import { apiFetch } from "../lib/api";
+
+export type ProfileFocus = "full" | "health" | "goal" | "training" | "summary";
+
+interface GarminActivitySyncResult {
+  status: "ok" | "partial";
+  activities: number;
+  errors: string[];
+}
+
+interface GarminActivitySummary {
+  from: string;
+  to: string;
+  totalActivities: number;
+  durationSeconds: number;
+  bySport: Array<{ sport: Sport; activities: number; durationSeconds: number }>;
+  entries: Array<{
+    id: string;
+    date: string;
+    sport: Sport;
+    title: string | null;
+    durationSeconds: number;
+  }>;
+}
+
+async function requestGarminActivitySummary(): Promise<GarminActivitySummary> {
+  const response = await apiFetch("/api/integrations/garmin/activities/summary?days=90");
+  if (!response.ok) {
+    throw new Error(`Lettura del riepilogo Garmin fallita (${response.status})`);
+  }
+  return (await response.json()) as GarminActivitySummary;
+}
+
+const formatActivityDuration = (durationSeconds: number): string => {
+  const totalMinutes = Math.round(durationSeconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
+};
+
+const FOCUS_STEPS: Record<ProfileFocus, number[]> = {
+  full: [1, 2, 3, 4, 5, 6],
+  health: [1, 2],
+  goal: [3],
+  training: [4, 5],
+  summary: [6],
+};
 
 interface OnboardingWizardProps {
   initialBaseline?: Baseline | null;
+  initialStep?: number;
+  focus?: ProfileFocus;
   onSaved: (saved: Baseline) => void;
   onCancel?: () => void;
 }
 
-const ALL_SPORTS: { id: Sport; label: string }[] = [
-  { id: "running", label: "Corsa" },
-  { id: "cycling", label: "Ciclismo" },
-  { id: "swimming", label: "Nuoto" },
-  { id: "strength", label: "Forza / Palestra" },
-  { id: "mobility", label: "Mobilità" },
+const ALL_SPORTS: { id: Sport; labelEn: string; labelIt: string }[] = [
+  { id: "running", labelEn: "Running", labelIt: "Corsa" },
+  { id: "cycling", labelEn: "Cycling", labelIt: "Ciclismo" },
+  { id: "swimming", labelEn: "Swimming", labelIt: "Nuoto" },
+  { id: "strength", labelEn: "Strength / Gym", labelIt: "Forza / Palestra" },
+  { id: "mobility", labelEn: "Mobility", labelIt: "Mobilità" },
 ];
 
-const WEEKDAYS: { id: Weekday; label: string }[] = [
-  { id: "mon", label: "Lun" },
-  { id: "tue", label: "Mar" },
-  { id: "wed", label: "Mer" },
-  { id: "thu", label: "Gio" },
-  { id: "fri", label: "Ven" },
-  { id: "sat", label: "Sab" },
-  { id: "sun", label: "Dom" },
+const WEEKDAYS: { id: Weekday; labelEn: string; labelIt: string }[] = [
+  { id: "mon", labelEn: "Mon", labelIt: "Lun" },
+  { id: "tue", labelEn: "Tue", labelIt: "Mar" },
+  { id: "wed", labelEn: "Wed", labelIt: "Mer" },
+  { id: "thu", labelEn: "Thu", labelIt: "Gio" },
+  { id: "fri", labelEn: "Fri", labelIt: "Ven" },
+  { id: "sat", labelEn: "Sat", labelIt: "Sab" },
+  { id: "sun", labelEn: "Sun", labelIt: "Dom" },
 ];
 
-const EQUIPMENT_OPTIONS: { id: EquipmentItem; label: string }[] = [
-  { id: "bodyweight", label: "A corpo libero" },
-  { id: "dumbbells", label: "Manubri" },
-  { id: "barbell", label: "Bilanciere e dischi" },
-  { id: "kettlebell", label: "Kettlebell" },
-  { id: "resistance_band", label: "Elastici / Loop band" },
-  { id: "foam_roller", label: "Foam roller" },
-  { id: "treadmill", label: "Tapis roulant" },
-  { id: "indoor_bike", label: "Cyclette / Rulli" },
+const EQUIPMENT_OPTIONS: { id: EquipmentItem; labelEn: string; labelIt: string }[] = [
+  { id: "bodyweight", labelEn: "Bodyweight", labelIt: "A corpo libero" },
+  { id: "dumbbells", labelEn: "Dumbbells", labelIt: "Manubri" },
+  { id: "barbell", labelEn: "Barbell & plates", labelIt: "Bilanciere e dischi" },
+  { id: "kettlebell", labelEn: "Kettlebell", labelIt: "Kettlebell" },
+  { id: "resistance_band", labelEn: "Resistance / Loop bands", labelIt: "Elastici / Loop band" },
+  { id: "foam_roller", labelEn: "Foam roller", labelIt: "Foam roller" },
+  { id: "treadmill", labelEn: "Treadmill", labelIt: "Tapis roulant" },
+  { id: "indoor_bike", labelEn: "Stationary bike / Turbo trainer", labelIt: "Cyclette / Rulli" },
+  {
+    id: "ems",
+    labelEn: "EMS device (Compex SP4)",
+    labelIt: "Elettrostimolatore (Compex SP4)",
+  },
 ];
 
-const RED_FLAGS = [
-  "dolore toracico",
-  "sincope o vertigini",
-  "ipertensione non controllata",
-  "chirurgia recente",
-  "sospetta frattura da stress",
-  "disturbo alimentare attivo",
-  "febbre o infezione in corso",
+interface MedicalFlagOption {
+  id: string;
+  labelEn: string;
+  labelIt: string;
+}
+
+const RED_FLAGS: MedicalFlagOption[] = [
+  { id: "dolore toracico", labelEn: "Chest pain", labelIt: "Dolore toracico" },
+  { id: "sincope o vertigini", labelEn: "Syncope or dizziness", labelIt: "Sincope o vertigini" },
+  {
+    id: "ipertensione non controllata",
+    labelEn: "Uncontrolled hypertension",
+    labelIt: "Ipertensione non controllata",
+  },
+  { id: "chirurgia recente", labelEn: "Recent surgery", labelIt: "Chirurgia recente" },
+  {
+    id: "sospetta frattura da stress",
+    labelEn: "Suspected stress fracture",
+    labelIt: "Sospetta frattura da stress",
+  },
+  {
+    id: "disturbo alimentare attivo",
+    labelEn: "Active eating disorder",
+    labelIt: "Disturbo alimentare attivo",
+  },
+  {
+    id: "febbre o infezione in corso",
+    labelEn: "Fever or active infection",
+    labelIt: "Febbre o infezione in corso",
+  },
 ];
 
-/**
- * Patologie selezionabili. Le voci che richiedono un parere medico usano le
- * stesse parole riconosciute da `assessSafety`, così il blocco scatta davvero.
- */
-const CONDITIONS = [
-  "ipertensione controllata",
-  "ipertensione non controllata",
-  "cardiopatia stabile",
-  "aritmia",
-  "asma",
-  "diabete",
-  "ipotiroidismo",
-  "ipertiroidismo",
-  "anemia",
-  "colesterolo alto",
-  "ernia",
-  "reflusso",
-  "emicrania",
-  "gravidanza",
-  "post parto",
+const CONDITIONS: MedicalFlagOption[] = [
+  {
+    id: "ipertensione controllata",
+    labelEn: "Controlled hypertension",
+    labelIt: "Ipertensione controllata",
+  },
+  {
+    id: "ipertensione non controllata",
+    labelEn: "Uncontrolled hypertension",
+    labelIt: "Ipertensione non controllata",
+  },
+  { id: "cardiopatia stabile", labelEn: "Stable heart disease", labelIt: "Cardiopatia stabile" },
+  { id: "aritmia", labelEn: "Arrhythmia", labelIt: "Aritmia" },
+  { id: "asma", labelEn: "Asthma", labelIt: "Asma" },
+  { id: "diabete", labelEn: "Diabetes", labelIt: "Diabete" },
+  { id: "ipotiroidismo", labelEn: "Hypothyroidism", labelIt: "Ipotiroidismo" },
+  { id: "ipertiroidismo", labelEn: "Hyperthyroidism", labelIt: "Ipertiroidismo" },
+  { id: "anemia", labelEn: "Anemia", labelIt: "Anemia" },
+  { id: "colesterolo alto", labelEn: "High cholesterol", labelIt: "Colesterolo alto" },
+  { id: "ernia", labelEn: "Hernia", labelIt: "Ernia" },
+  { id: "reflusso", labelEn: "Acid reflux", labelIt: "Reflusso" },
+  { id: "emicrania", labelEn: "Migraine", labelIt: "Emicrania" },
+  { id: "gravidanza", labelEn: "Pregnancy", labelIt: "Gravidanza" },
+  { id: "post parto", labelEn: "Postpartum", labelIt: "Post parto" },
 ];
 
-const TRAINING_LEVELS: Array<{ id: TrainingLevel; label: string }> = [
-  { id: "none", label: "Nessuna pratica strutturata" },
-  { id: "amateur", label: "Amatoriale regolare" },
-  { id: "competitive", label: "Agonistico" },
-  { id: "elite", label: "Alto livello / nazionale" },
+const TRAINING_LEVELS: Array<{ id: TrainingLevel; labelEn: string; labelIt: string }> = [
+  { id: "none", labelEn: "No structured training", labelIt: "Nessuna pratica strutturata" },
+  { id: "amateur", labelEn: "Regular amateur", labelIt: "Amatoriale regolare" },
+  { id: "competitive", labelEn: "Competitive", labelIt: "Agonistico" },
+  { id: "elite", labelEn: "High level / National", labelIt: "Alto livello / nazionale" },
 ];
 
 /**
@@ -140,15 +223,37 @@ function parse5k(value: string): number | null {
   return total > 0 ? total : null;
 }
 
-const INJURY_STATUSES: Array<{ id: Injury["status"]; label: string }> = [
-  { id: "acute", label: "Acuto" },
-  { id: "recovering", label: "In recupero" },
-  { id: "chronic", label: "Cronico" },
-  { id: "resolved", label: "Risolto" },
+const INJURY_STATUSES: Array<{ id: Injury["status"]; labelEn: string; labelIt: string }> = [
+  { id: "acute", labelEn: "Acute", labelIt: "Acuto" },
+  { id: "recovering", labelEn: "Recovering", labelIt: "In recupero" },
+  { id: "chronic", labelEn: "Chronic", labelIt: "Cronico" },
+  { id: "resolved", labelEn: "Resolved", labelIt: "Risolto" },
 ];
 
-export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: OnboardingWizardProps) {
-  const [step, setStep] = useState<number>(1);
+export function OnboardingWizard({
+  initialBaseline,
+  initialStep,
+  focus = "full",
+  onSaved,
+  onCancel,
+}: OnboardingWizardProps) {
+  const { t, locale } = useI18n();
+  const visibleSteps = FOCUS_STEPS[focus];
+  const [step, setStep] = useState<number>(() => {
+    const requested = initialStep ?? visibleSteps[0] ?? 1;
+    return visibleSteps.includes(requested) ? requested : (visibleSteps[0] ?? 1);
+  });
+  const stepIndex = visibleSteps.indexOf(step);
+  const previousStep = stepIndex > 0 ? visibleSteps[stepIndex - 1] : null;
+  const nextStep =
+    stepIndex >= 0 && stepIndex < visibleSteps.length - 1 ? visibleSteps[stepIndex + 1] : null;
+  const stepLabel = (value: number): string => {
+    const labels =
+      locale === "it"
+        ? ["Dati fisici", "Salute", "Obiettivo", "Disponibilità", "Attrezzatura", "Riepilogo"]
+        : ["Physical data", "Health", "Goal", "Availability", "Equipment", "Summary"];
+    return labels[value - 1] ?? `Step ${value}`;
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -189,6 +294,20 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
   const [medicationDraft, setMedicationDraft] = useState("");
   const [capacityEstimate, setCapacityEstimate] = useState<CapacityEstimate | null>(null);
   const [estimateError, setEstimateError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  // Il riepilogo Garmin vive nella cache di React Query: lo aggiorna sia il sync
+  // del profilo sia quello della card Garmin, oltre al refetch periodico.
+  const garminSummary = useQuery({
+    queryKey: ["garmin-activities-summary"],
+    queryFn: requestGarminActivitySummary,
+    enabled: baseline.profile.capacity.source === "garmin",
+  });
+  const garminActivitySummary = garminSummary.data ?? null;
+  const garminSummaryLoading = garminSummary.isLoading;
+  const garminSummaryError = garminSummary.isError ? garminSummary.error.message : null;
+  const [garminSyncing, setGarminSyncing] = useState(false);
+  const [garminSyncNotice, setGarminSyncNotice] = useState<string | null>(null);
+  const [garminSyncError, setGarminSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,7 +323,12 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         if (body.available && !initialBaseline) {
           setBaseline((current) => ({
             ...current,
-            profile: { ...current.profile, capacity: body.capacity },
+            profile: {
+              ...current.profile,
+              // Il tempo 5K dichiarato (es. stima Garmin) non è ricavabile
+              // dalle attività: il ricalcolo non deve cancellarlo.
+              capacity: preserveDeclaredFiveK(body.capacity, current.profile.capacity),
+            },
           }));
         }
       } catch (err) {
@@ -249,6 +373,59 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
     }));
   };
 
+  /**
+   * Sincronizza gli ultimi 90 giorni e rilegge la capacità. Il riepilogo viene
+   * invalidato subito: il totale ore deve aggiornarsi anche se la lettura
+   * della capacità fallisce.
+   */
+  const syncGarminActivities = async () => {
+    setGarminSyncing(true);
+    setGarminSyncNotice(null);
+    setGarminSyncError(null);
+    try {
+      const syncResponse = await apiFetch("/api/integrations/garmin/sync?days=90", {
+        method: "POST",
+      });
+      const syncResult = (await syncResponse.json()) as GarminActivitySyncResult & {
+        message?: string;
+      };
+      if (!syncResponse.ok) {
+        throw new Error(
+          syncResult.message ?? `Sincronizzazione Garmin fallita (${syncResponse.status})`,
+        );
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["garmin-activities-summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["garmin-overview"] });
+
+      const capacityResponse = await apiFetch("/api/baseline/capacity");
+      if (!capacityResponse.ok) {
+        throw new Error(`Lettura delle attività Garmin fallita (${capacityResponse.status})`);
+      }
+      const estimate = (await capacityResponse.json()) as CapacityEstimate;
+      setCapacityEstimate(estimate);
+      if (estimate.available) {
+        setBaseline((current) => ({
+          ...current,
+          profile: {
+            ...current.profile,
+            capacity: preserveDeclaredFiveK(estimate.capacity, current.profile.capacity),
+          },
+        }));
+      }
+
+      setGarminSyncNotice(
+        syncResult.status === "partial"
+          ? `${syncResult.activities} attività sincronizzate. Alcuni dati accessori non sono disponibili.`
+          : `${syncResult.activities} attività sincronizzate.`,
+      );
+    } catch (err) {
+      setGarminSyncError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGarminSyncing(false);
+    }
+  };
+
   // Valutazione live: l'atleta vede subito se ciò che dichiara blocca il piano.
   const safety = assessSafety({ anamnesis: baseline.anamnesis });
 
@@ -282,24 +459,35 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
     });
   };
 
-  const handleDayToggle = (day: Weekday) => {
-    const currentDays = baseline.availability.days;
-    const exists = currentDays.some((d) => d.day === day);
-    const next = exists
-      ? currentDays.filter((d) => d.day !== day)
-      : [
-          ...currentDays,
-          {
-            day,
-            windows: [{ start: "07:00", end: "08:00" }],
-            maxDurationMin: 60,
-          },
-        ];
-    if (next.length === 0) return; // at least 1 day
+  const daysPerWeek = baseline.availability.daysPerWeek ?? baseline.availability.days.length;
+  const longSession = baseline.availability.longSession ?? null;
+
+  const updateAvailability = (count: number, nextLong: LongSessionAvailability | null) => {
     setBaseline({
       ...baseline,
-      availability: { ...baseline.availability, days: next },
+      availability: {
+        ...baseline.availability,
+        daysPerWeek: count,
+        longSession: nextLong,
+        days: resolveAvailabilityDays({ daysPerWeek: count, longSession: nextLong }),
+      },
     });
+  };
+
+  const handleLongSessionChange = (choice: string) => {
+    if (choice === "none") {
+      updateAvailability(daysPerWeek, null);
+      return;
+    }
+    if (choice === "weekend") {
+      updateAvailability(daysPerWeek, { when: "weekend", day: null });
+      return;
+    }
+    updateAvailability(daysPerWeek, { when: "weekday", day: longSession?.day ?? "wed" });
+  };
+
+  const handleLongSessionDay = (day: Weekday) => {
+    updateAvailability(daysPerWeek, { when: "weekday", day });
   };
 
   const handleEquipmentToggle = (item: EquipmentItem) => {
@@ -407,71 +595,98 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
       <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-400">
-            Onboarding · Livello 0 (Baseline)
+            {locale === "it"
+              ? "Onboarding · Livello 0 (Baseline)"
+              : "Onboarding · Level 0 (Baseline)"}
           </span>
           <h2 className="mt-1 text-2xl font-bold text-white">
-            {step === 1 && "1. Profilo Atleta"}
-            {step === 2 && "2. Anamnesi & Sicurezza"}
-            {step === 3 && "3. Obiettivi"}
-            {step === 4 && "4. Disponibilità Settimanale"}
-            {step === 5 && "5. Attrezzatura & Spazi"}
-            {step === 6 && "6. Riepilogo & Preferenze"}
+            {focus !== "full"
+              ? stepLabel(step)
+              : step === 1
+                ? locale === "it"
+                  ? "1. Profilo Atleta"
+                  : "1. Athlete Profile"
+                : step === 2
+                  ? locale === "it"
+                    ? "2. Anamnesi & Sicurezza"
+                    : "2. Medical History & Safety"
+                  : step === 3
+                    ? locale === "it"
+                      ? "3. Obiettivi"
+                      : "3. Goals"
+                    : step === 4
+                      ? locale === "it"
+                        ? "4. Disponibilità Settimanale"
+                        : "4. Weekly Availability"
+                      : step === 5
+                        ? locale === "it"
+                          ? "5. Attrezzatura & Spazi"
+                          : "5. Equipment & Spaces"
+                        : locale === "it"
+                          ? "6. Riepilogo & Preferenze"
+                          : "6. Summary & Preferences"}
           </h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400">Carica demo:</span>
-          <button
-            type="button"
-            onClick={() => loadPersona(beginnerPersona)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
-          >
-            Marco (5k)
-          </button>
-          <button
-            type="button"
-            onClick={() => loadPersona(intermediatePersona)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
-          >
-            Giulia (Mezza)
-          </button>
-          <button
-            type="button"
-            onClick={() => loadPersona(returningPersona)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
-          >
-            Sara (Rientro)
-          </button>
-          <button
-            type="button"
-            onClick={() => loadPersona(kneePainPersona)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
-          >
-            Luca (Ginocchio)
-          </button>
-        </div>
+        {focus === "full" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400">
+              {locale === "it" ? "Carica demo:" : "Load demo:"}
+            </span>
+            <button
+              type="button"
+              onClick={() => loadPersona(beginnerPersona)}
+              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+            >
+              Marco (5k)
+            </button>
+            <button
+              type="button"
+              onClick={() => loadPersona(intermediatePersona)}
+              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+            >
+              Giulia ({locale === "it" ? "Mezza" : "Half"})
+            </button>
+            <button
+              type="button"
+              onClick={() => loadPersona(returningPersona)}
+              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+            >
+              Sara ({locale === "it" ? "Rientro" : "Return"})
+            </button>
+            <button
+              type="button"
+              onClick={() => loadPersona(kneePainPersona)}
+              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
+            >
+              Luca ({locale === "it" ? "Ginocchio" : "Knee"})
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* Steps Progress */}
-      <div className="mt-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4 text-xs font-medium text-slate-400">
-        {[1, 2, 3, 4, 5, 6].map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStep(s)}
-            className={cn(
-              "flex flex-1 items-center justify-center rounded-lg py-1.5 transition",
-              step === s
-                ? "bg-lime-400 font-bold text-slate-950"
-                : s < step
-                  ? "bg-white/10 text-slate-200"
-                  : "bg-white/5 text-slate-500",
-            )}
-          >
-            Step {s}
-          </button>
-        ))}
-      </div>
+      {visibleSteps.length > 1 ? (
+        <div className="mt-6 flex items-center justify-between gap-2 border-b border-white/5 pb-4 text-xs font-medium text-slate-400">
+          {visibleSteps.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStep(s)}
+              className={cn(
+                "flex flex-1 items-center justify-center rounded-lg py-1.5 transition",
+                step === s
+                  ? "bg-lime-400 font-bold text-slate-950"
+                  : s < step
+                    ? "bg-white/10 text-slate-200"
+                    : "bg-white/5 text-slate-500",
+              )}
+            >
+              {focus === "full" ? `Step ${s}` : stepLabel(s)}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
@@ -484,7 +699,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         {step === 1 && (
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-semibold text-slate-300">
-              Data di nascita
+              {t.wizard.step1.birthDate}
               <input
                 type="date"
                 value={baseline.profile.birthDate}
@@ -499,7 +714,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
             </label>
 
             <label className="block text-xs font-semibold text-slate-300">
-              Sesso biologico
+              {t.wizard.step1.sex}
               <select
                 value={baseline.profile.sex}
                 onChange={(e) =>
@@ -513,15 +728,17 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                 }
                 className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
               >
-                <option value="male">Maschio</option>
-                <option value="female">Femmina</option>
-                <option value="other">Altro</option>
-                <option value="prefer_not_to_say">Preferisco non dichiarare</option>
+                <option value="male">{t.wizard.step1.male}</option>
+                <option value="female">{t.wizard.step1.female}</option>
+                <option value="other">{t.wizard.step1.other}</option>
+                <option value="prefer_not_to_say">
+                  {locale === "it" ? "Preferisco non dichiarare" : "Prefer not to say"}
+                </option>
               </select>
             </label>
 
             <label className="block text-xs font-semibold text-slate-300">
-              Altezza (cm)
+              {t.wizard.step1.height}
               <input
                 type="number"
                 value={baseline.profile.heightCm}
@@ -539,7 +756,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
             </label>
 
             <label className="block text-xs font-semibold text-slate-300">
-              Peso attuale (kg)
+              {t.wizard.step1.weight}
               <input
                 type="number"
                 value={baseline.profile.weightKg}
@@ -559,7 +776,9 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-300">
-                  Storia sportiva ({primarySport})
+                  {locale === "it"
+                    ? `Storia sportiva (${primarySport})`
+                    : `Athletic History (${primarySport})`}
                 </span>
                 <span className="rounded-full bg-lime-400/10 px-3 py-1 text-[11px] font-bold text-lime-300 ring-1 ring-inset ring-lime-400/30">
                   {experienceTierLabel(derivedTier)}
@@ -568,7 +787,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
               <p className="mt-1 text-[11px] text-slate-400">{tierRationale}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <label className="block text-xs font-semibold text-slate-300">
-                  Livello raggiunto
+                  {locale === "it" ? "Livello raggiunto" : "Training level achieved"}
                   <select
                     value={historyEntry.level}
                     onChange={(e) => updateHistory({ level: e.target.value as TrainingLevel })}
@@ -576,13 +795,13 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   >
                     {TRAINING_LEVELS.map((level) => (
                       <option key={level.id} value={level.id}>
-                        {level.label}
+                        {locale === "it" ? level.labelIt : level.labelEn}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="block text-xs font-semibold text-slate-300">
-                  Anni di pratica
+                  {locale === "it" ? "Anni di pratica" : "Years of practice"}
                   <input
                     type="number"
                     min={0}
@@ -595,7 +814,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   />
                 </label>
                 <label className="block text-xs font-semibold text-slate-300">
-                  Fermo da (mesi)
+                  {locale === "it" ? "Fermo da (mesi)" : "Break duration (months)"}
                   <input
                     type="number"
                     min={0}
@@ -610,208 +829,318 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-300">
-                  Capacità attuale ({primarySport})
-                </span>
-                <span
-                  className={cn(
-                    "rounded-full px-3 py-1 text-[11px] font-bold ring-1 ring-inset",
-                    baseline.profile.capacity.source === "garmin"
-                      ? "bg-sky-400/10 text-sky-300 ring-sky-400/30"
+            {focus === "full" ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-300">
+                    {locale === "it"
+                      ? `Capacità attuale (${primarySport})`
+                      : `Current capacity (${primarySport})`}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1 text-[11px] font-bold ring-1 ring-inset",
+                      baseline.profile.capacity.source === "garmin"
+                        ? "bg-sky-400/10 text-sky-300 ring-sky-400/30"
+                        : baseline.profile.capacity.source === "calibration"
+                          ? "bg-amber-400/10 text-amber-300 ring-amber-400/30"
+                          : "bg-white/5 text-slate-300 ring-white/10",
+                    )}
+                  >
+                    {baseline.profile.capacity.source === "garmin"
+                      ? locale === "it"
+                        ? "Da Garmin"
+                        : "From Garmin"
                       : baseline.profile.capacity.source === "calibration"
-                        ? "bg-amber-400/10 text-amber-300 ring-amber-400/30"
-                        : "bg-white/5 text-slate-300 ring-white/10",
-                  )}
-                >
-                  {baseline.profile.capacity.source === "garmin"
-                    ? "Da Garmin"
-                    : baseline.profile.capacity.source === "calibration"
-                      ? "Settimana di test"
-                      : "Inserito a mano"}
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Quello che sai fare oggi, non quello che hai fatto in passato. È questo che decide
-                il carico di partenza.
-              </p>
-
-              {baseline.profile.capacity.source === "garmin" && capacityEstimate?.available ? (
-                <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div className="rounded-xl bg-white/5 p-3">
-                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                        Settimane continue
-                      </div>
-                      <div className="text-lg font-bold text-white">
-                        {baseline.profile.capacity.activeWeeks}
-                      </div>
-                    </div>
-                    <div className="rounded-xl bg-white/5 p-3">
-                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                        Sedute / sett.
-                      </div>
-                      <div className="text-lg font-bold text-white">
-                        {baseline.profile.capacity.weeklySessions}
-                      </div>
-                    </div>
-                    <div className="rounded-xl bg-white/5 p-3">
-                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                        Uscita più lunga
-                      </div>
-                      <div className="text-lg font-bold text-white">
-                        {baseline.profile.capacity.longestRecentSessionMin} min
-                      </div>
-                    </div>
-                    <div className="rounded-xl bg-white/5 p-3">
-                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                        5k stimato
-                      </div>
-                      <div className="text-lg font-bold text-white">
-                        {format5k(baseline.profile.capacity.recent5kSec)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                    <span>
-                      {capacityEstimate.coverage.activities} attività, ultima{" "}
-                      {capacityEstimate.coverage.lastActivityDate ?? "—"}.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateCapacity({ source: "manual" })}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-semibold text-slate-200 hover:bg-white/10"
-                    >
-                      Modifica a mano
-                    </button>
-                  </div>
+                        ? locale === "it"
+                          ? "Settimana di test"
+                          : "Test week"
+                        : locale === "it"
+                          ? "Inserito a mano"
+                          : "Manual entry"}
+                  </span>
                 </div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {capacityEstimate?.available ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setBaseline({
-                          ...baseline,
-                          profile: { ...baseline.profile, capacity: capacityEstimate.capacity },
-                        })
-                      }
-                      className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-400/20"
-                    >
-                      Usa i dati Garmin ({capacityEstimate.coverage.activities} attività)
-                    </button>
-                  ) : null}
-
-                  <label className="flex items-center gap-3 text-xs text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={baseline.profile.capacity.source === "calibration"}
-                      onChange={(e) =>
-                        updateCapacity({ source: e.target.checked ? "calibration" : "manual" })
-                      }
-                      className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
-                    />
-                    <span>
-                      Non ho dati né riferimenti: usa la{" "}
-                      <strong>settimana 1 come test di capacità</strong> (RPE 4-5, nessun lavoro
-                      intenso).
-                    </span>
-                  </label>
-
-                  <div className="grid gap-3 sm:grid-cols-4">
-                    <label className="block text-xs font-semibold text-slate-300">
-                      Settimane continue
-                      <input
-                        type="number"
-                        min={0}
-                        value={baseline.profile.capacity.activeWeeks}
-                        onChange={(e) =>
-                          updateCapacity({
-                            activeWeeks: Number.parseInt(e.target.value, 10) || 0,
-                          })
-                        }
-                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                      />
-                    </label>
-                    <label className="block text-xs font-semibold text-slate-300">
-                      Sedute / settimana
-                      <input
-                        type="number"
-                        min={0}
-                        max={14}
-                        value={baseline.profile.capacity.weeklySessions}
-                        onChange={(e) =>
-                          updateCapacity({
-                            weeklySessions: Number.parseInt(e.target.value, 10) || 0,
-                          })
-                        }
-                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                      />
-                    </label>
-                    <label className="block text-xs font-semibold text-slate-300">
-                      Uscita più lunga (min)
-                      <input
-                        type="number"
-                        min={0}
-                        value={baseline.profile.capacity.longestRecentSessionMin}
-                        onChange={(e) =>
-                          updateCapacity({
-                            longestRecentSessionMin: Number.parseInt(e.target.value, 10) || 0,
-                          })
-                        }
-                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                      />
-                    </label>
-                    <label className="block text-xs font-semibold text-slate-300">
-                      5k recente (min:sec)
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="es. 25:30"
-                        value={
-                          baseline.profile.capacity.recent5kSec
-                            ? format5k(baseline.profile.capacity.recent5kSec)
-                            : ""
-                        }
-                        onChange={(e) => updateCapacity({ recent5kSec: parse5k(e.target.value) })}
-                        className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-              {estimateError ? (
-                <p className="mt-2 text-[11px] text-amber-300">
-                  Impossibile leggere i dati Garmin: {estimateError}
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {locale === "it"
+                    ? "Quello che sai fare oggi, non quello che hai fatto in passato. È questo che decide il carico di partenza."
+                    : "What you can currently perform, not your past peak. This sets your initial baseline load."}
                 </p>
-              ) : null}
-            </div>
 
-            <div className="sm:col-span-2">
-              <span className="block text-xs font-semibold text-slate-300">Sport praticati</span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {ALL_SPORTS.map((s) => {
-                  const active = baseline.profile.sports.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => handleSportToggle(s.id)}
-                      className={cn(
-                        "rounded-xl px-3 py-2 text-xs font-medium transition",
-                        active
-                          ? "bg-lime-400 font-bold text-slate-950"
-                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
-                      )}
-                    >
-                      {s.label}
-                    </button>
-                  );
-                })}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void syncGarminActivities()}
+                    disabled={garminSyncing}
+                    className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {garminSyncing
+                      ? locale === "it"
+                        ? "Sincronizzazione in corso…"
+                        : "Syncing…"
+                      : locale === "it"
+                        ? "Sincronizza Garmin · ultimi 90 giorni"
+                        : "Sync Garmin · last 90 days"}
+                  </button>
+                  <span className="text-[11px] text-slate-400">
+                    {locale === "it"
+                      ? "Totale ore calcolato dalle attività Garmin, tutti gli sport."
+                      : "Total hours from Garmin activities, all sports."}
+                  </span>
+                </div>
+
+                {garminSyncNotice ? (
+                  <p className="mt-2 text-[11px] text-emerald-300" role="status">
+                    {garminSyncNotice}
+                  </p>
+                ) : null}
+                {garminSyncError ? (
+                  <p className="mt-2 text-[11px] text-rose-300" role="alert">
+                    {garminSyncError}
+                  </p>
+                ) : null}
+                {garminSummaryError ? (
+                  <p className="mt-2 text-[11px] text-rose-300" role="alert">
+                    {garminSummaryError}
+                  </p>
+                ) : null}
+
+                {garminActivitySummary ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-white/5 p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        {locale === "it" ? "Attività negli ultimi 3 mesi" : "Activities (3 months)"}
+                      </div>
+                      <div className="text-lg font-bold text-white">
+                        {garminActivitySummary.totalActivities}
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-white/5 p-3">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                        {locale === "it" ? "Ore totali" : "Total hours"}
+                      </div>
+                      <div className="text-lg font-bold text-white">
+                        {formatActivityDuration(garminActivitySummary.durationSeconds)}
+                      </div>
+                    </div>
+                  </div>
+                ) : garminSummaryLoading ? (
+                  <p className="mt-2 text-[11px] text-slate-400" role="status">
+                    {locale === "it" ? "Caricamento riepilogo Garmin…" : "Loading Garmin summary…"}
+                  </p>
+                ) : null}
+
+                {baseline.profile.capacity.source === "garmin" && capacityEstimate?.available ? (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                          {locale === "it" ? "Settimane continue" : "Active weeks"}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {baseline.profile.capacity.activeWeeks}
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                          {locale === "it" ? "Sedute / sett." : "Sessions / wk"}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {baseline.profile.capacity.weeklySessions}
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                          {locale === "it" ? "Uscita più lunga" : "Longest session"}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {baseline.profile.capacity.longestRecentSessionMin} min
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-white/5 p-3">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                          {locale === "it" ? "5k stimato" : "Est. 5k"}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {format5k(baseline.profile.capacity.recent5kSec)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                      <span>
+                        {locale === "it"
+                          ? `${capacityEstimate.coverage.activities} attività, ultima ${capacityEstimate.coverage.lastActivityDate ?? "—"}.`
+                          : `${capacityEstimate.coverage.activities} activities, latest ${capacityEstimate.coverage.lastActivityDate ?? "—"}.`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateCapacity({ source: "manual" })}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-semibold text-slate-200 hover:bg-white/10"
+                      >
+                        {locale === "it" ? "Modifica a mano" : "Edit manually"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    {capacityEstimate?.available ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBaseline({
+                            ...baseline,
+                            profile: {
+                              ...baseline.profile,
+                              capacity: preserveDeclaredFiveK(
+                                capacityEstimate.capacity,
+                                baseline.profile.capacity,
+                              ),
+                            },
+                          })
+                        }
+                        className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-400/20"
+                      >
+                        {locale === "it"
+                          ? `Usa i dati Garmin (${capacityEstimate.coverage.activities} attività)`
+                          : `Use Garmin data (${capacityEstimate.coverage.activities} activities)`}
+                      </button>
+                    ) : null}
+
+                    <label className="flex items-center gap-3 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={baseline.profile.capacity.source === "calibration"}
+                        onChange={(e) =>
+                          updateCapacity({ source: e.target.checked ? "calibration" : "manual" })
+                        }
+                        className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
+                      />
+                      <span>
+                        {locale === "it" ? (
+                          <>
+                            Non ho dati né riferimenti: usa la{" "}
+                            <strong>settimana 1 come test di capacità</strong> (RPE 4-5, nessun
+                            lavoro intenso).
+                          </>
+                        ) : (
+                          <>
+                            No baseline data: use{" "}
+                            <strong>week 1 as a capacity calibration test</strong> (RPE 4-5, no
+                            intense work).
+                          </>
+                        )}
+                      </span>
+                    </label>
+
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        {locale === "it" ? "Settimane continue" : "Continuous weeks"}
+                        <input
+                          type="number"
+                          min={0}
+                          value={baseline.profile.capacity.activeWeeks}
+                          onChange={(e) =>
+                            updateCapacity({
+                              activeWeeks: Number.parseInt(e.target.value, 10) || 0,
+                            })
+                          }
+                          className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="block text-xs font-semibold text-slate-300">
+                        {locale === "it" ? "Sedute / settimana" : "Sessions / week"}
+                        <input
+                          type="number"
+                          min={0}
+                          max={14}
+                          value={baseline.profile.capacity.weeklySessions}
+                          onChange={(e) =>
+                            updateCapacity({
+                              weeklySessions: Number.parseInt(e.target.value, 10) || 0,
+                            })
+                          }
+                          className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="block text-xs font-semibold text-slate-300">
+                        {locale === "it" ? "Uscita più lunga (min)" : "Longest session (min)"}
+                        <input
+                          type="number"
+                          min={0}
+                          value={baseline.profile.capacity.longestRecentSessionMin}
+                          onChange={(e) =>
+                            updateCapacity({
+                              longestRecentSessionMin: Number.parseInt(e.target.value, 10) || 0,
+                            })
+                          }
+                          className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="block text-xs font-semibold text-slate-300">
+                        {locale === "it" ? "5k recente (min:sec)" : "Recent 5k (min:sec)"}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="es. 25:30"
+                          value={
+                            baseline.profile.capacity.recent5kSec
+                              ? format5k(baseline.profile.capacity.recent5kSec)
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const seconds = parse5k(e.target.value);
+                            updateCapacity({
+                              recent5kSec: seconds,
+                              recent5kSource: seconds === null ? undefined : "declared",
+                            });
+                          }}
+                          className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        />
+                        <span className="mt-1 block text-[11px] font-normal text-slate-400">
+                          {locale === "it"
+                            ? "Puoi usare la stima 5K di Garmin Connect: resta un dato dichiarato e non viene sovrascritta dal ricalcolo."
+                            : "You can use the Garmin Connect 5K estimate: it stays a declared value and is not overwritten by recalculation."}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+                {estimateError ? (
+                  <p className="mt-2 text-[11px] text-amber-300">
+                    {locale === "it"
+                      ? `Impossibile leggere i dati Garmin: ${estimateError}`
+                      : `Unable to read Garmin data: ${estimateError}`}
+                  </p>
+                ) : null}
               </div>
-            </div>
+            ) : null}
+
+            {focus === "full" ? (
+              <div className="sm:col-span-2">
+                <span className="block text-xs font-semibold text-slate-300">
+                  {locale === "it" ? "Sport praticati" : "Practiced sports"}
+                </span>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ALL_SPORTS.map((s) => {
+                    const active = baseline.profile.sports.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleSportToggle(s.id)}
+                        className={cn(
+                          "rounded-xl px-3 py-2 text-xs font-medium transition",
+                          active
+                            ? "bg-lime-400 font-bold text-slate-950"
+                            : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                        )}
+                      >
+                        {locale === "it" ? s.labelIt : s.labelEn}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -834,28 +1163,24 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
                 />
                 <span>
-                  <strong>Idoneità all&apos;attività (PAR-Q):</strong> Non ho patologie
-                  cardiovascolari note, vertigini o controindicazioni mediche all&apos;esercizio
-                  fisico.
+                  <strong>{t.wizard.step2.parqTitle}:</strong> {t.wizard.step2.parqQuestion}
                 </span>
               </label>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
               <span className="block text-xs font-semibold text-amber-300">
-                Red flag medici (richiedono parere medico)
+                {t.wizard.step2.redFlagsTitle}
               </span>
-              <p className="mt-1 text-xs text-slate-400">
-                Seleziona ciò che ti riguarda: con un red flag attivo il piano non verrà generato.
-              </p>
+              <p className="mt-1 text-xs text-slate-400">{t.wizard.step2.redFlagsDescription}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {RED_FLAGS.map((flag) => {
-                  const active = baseline.anamnesis.redFlags.includes(flag);
+                  const active = baseline.anamnesis.redFlags.includes(flag.id);
                   return (
                     <button
-                      key={flag}
+                      key={flag.id}
                       type="button"
-                      onClick={() => handleRedFlagToggle(flag)}
+                      onClick={() => handleRedFlagToggle(flag.id)}
                       className={cn(
                         "rounded-xl px-3 py-2 text-xs font-medium transition",
                         active
@@ -863,33 +1188,33 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                           : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
                       )}
                     >
-                      {flag}
+                      {locale === "it" ? flag.labelIt : flag.labelEn}
                     </button>
                   );
                 })}
               </div>
               {baseline.anamnesis.redFlags.length > 0 ? (
                 <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
-                  Hai dichiarato {baseline.anamnesis.redFlags.length} red flag: la generazione del
-                  piano resterà bloccata finché non avrai un nullaosta medico.
+                  {locale === "it"
+                    ? `Hai dichiarato ${baseline.anamnesis.redFlags.length} red flag: la generazione del piano resterà bloccata finché non avrai un nullaosta medico.`
+                    : `You reported ${baseline.anamnesis.redFlags.length} red flag(s): plan generation will remain blocked until medical clearance is obtained.`}
                 </p>
               ) : null}
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-              <span className="block text-xs font-semibold text-slate-300">Patologie note</span>
-              <p className="mt-1 text-xs text-slate-400">
-                Serve a modulare intensità e recupero. Una patologia non controllata richiede un
-                nullaosta medico.
-              </p>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.wizard.step2.conditionsTitle}
+              </span>
+              <p className="mt-1 text-xs text-slate-400">{t.wizard.step2.conditionsDescription}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {CONDITIONS.map((condition) => {
-                  const active = baseline.anamnesis.conditions.includes(condition);
+                  const active = baseline.anamnesis.conditions.includes(condition.id);
                   return (
                     <button
-                      key={condition}
+                      key={condition.id}
                       type="button"
-                      onClick={() => handleConditionToggle(condition)}
+                      onClick={() => handleConditionToggle(condition.id)}
                       className={cn(
                         "rounded-xl px-3 py-2 text-xs font-medium transition",
                         active
@@ -897,22 +1222,25 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                           : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
                       )}
                     >
-                      {condition}
+                      {locale === "it" ? condition.labelIt : condition.labelEn}
                     </button>
                   );
                 })}
               </div>
               {baseline.anamnesis.conditions.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">Nessuna patologia dichiarata.</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {locale === "it"
+                    ? "Nessuna patologia dichiarata."
+                    : "No health conditions declared."}
+                </p>
               ) : null}
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-              <span className="block text-xs font-semibold text-slate-300">Farmaci assunti</span>
-              <p className="mt-1 text-xs text-slate-400">
-                Alcuni farmaci cambiano la risposta all&apos;esercizio (beta-bloccanti, diuretici,
-                anticoagulanti, terapia per il diabete).
-              </p>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.wizard.step2.medicationsTitle}
+              </span>
+              <p className="mt-1 text-xs text-slate-400">{t.wizard.step2.medicationsDescription}</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <input
                   type="text"
@@ -924,7 +1252,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                       handleAddMedication();
                     }
                   }}
-                  placeholder="Es. betabloccante"
+                  placeholder={t.wizard.step2.medicationPlaceholder}
                   className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
                 />
                 <button
@@ -933,11 +1261,13 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   disabled={medicationDraft.trim().length === 0}
                   className="rounded-xl bg-lime-400 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
                 >
-                  Aggiungi
+                  {t.wizard.step2.addMedication}
                 </button>
               </div>
               {baseline.anamnesis.medications.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">Nessun farmaco dichiarato.</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {locale === "it" ? "Nessun farmaco dichiarato." : "No medications declared."}
+                </p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {baseline.anamnesis.medications.map((medication) => (
@@ -960,7 +1290,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                           })
                         }
                         className="text-rose-400 hover:text-rose-300"
-                        aria-label={`Rimuovi ${medication}`}
+                        aria-label={`${t.common.delete} ${medication}`}
                       >
                         ×
                       </button>
@@ -986,8 +1316,8 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   )}
                 >
                   {safety.severity === "block"
-                    ? "Generazione del piano bloccata"
-                    : "Allenamento possibile con cautela"}
+                    ? t.wizard.step2.safetyBlockedNotice
+                    : t.wizard.step2.safetyCautionNotice}
                 </p>
                 <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-slate-200">
                   {safety.reasons.map((reason) => (
@@ -996,7 +1326,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                 </ul>
                 {safety.requiresMedicalClearance ? (
                   <p className="mt-2 text-xs text-slate-300">
-                    Serve un nullaosta medico prima di generare il piano.
+                    {t.wizard.step2.safetyMedicalClearanceNotice}
                   </p>
                 ) : null}
               </div>
@@ -1004,14 +1334,14 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
 
             <div>
               <span className="block text-xs font-semibold text-slate-300">
-                Infortuni, dolori o risentimenti attivi
+                {t.wizard.step2.injuriesTitle}
               </span>
               <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                 <input
                   type="text"
                   value={injuryDraft.area}
                   onChange={(event) => setInjuryDraft({ ...injuryDraft, area: event.target.value })}
-                  placeholder="Zona (es. ginocchio dx)"
+                  placeholder={t.wizard.step2.injuryAreaPlaceholder}
                   className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white"
                 />
                 <select
@@ -1026,12 +1356,12 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                 >
                   {INJURY_STATUSES.map((status) => (
                     <option key={status.id} value={status.id}>
-                      {status.label}
+                      {locale === "it" ? status.labelIt : status.labelEn}
                     </option>
                   ))}
                 </select>
                 <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-                  Dolore
+                  {t.wizard.step2.injuryPain}
                   <input
                     type="number"
                     min={0}
@@ -1053,11 +1383,13 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   disabled={injuryDraft.area.trim().length === 0}
                   className="rounded-xl bg-lime-400 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
                 >
-                  Aggiungi
+                  {t.wizard.step2.addInjury}
                 </button>
               </div>
               {baseline.anamnesis.injuries.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">Nessun infortunio dichiarato.</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {locale === "it" ? "Nessun infortunio dichiarato." : "No injuries declared."}
+                </p>
               ) : (
                 <div className="mt-2 space-y-2">
                   {baseline.anamnesis.injuries.map((inj, idx) => (
@@ -1070,7 +1402,8 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                           {inj.area.replace("_", " ")}
                         </strong>
                         <span className="ml-2 text-slate-400">
-                          (Stato: {inj.status}, Dolore: {inj.painLevel}/10)
+                          ({locale === "it" ? "Stato" : "Status"}: {inj.status},{" "}
+                          {locale === "it" ? "Dolore" : "Pain"}: {inj.painLevel}/10)
                         </span>
                         {inj.notes ? <p className="mt-1 text-slate-400">{inj.notes}</p> : null}
                       </div>
@@ -1085,7 +1418,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                         }}
                         className="text-rose-400 hover:text-rose-300"
                       >
-                        Rimuovi
+                        {t.common.delete}
                       </button>
                     </div>
                   ))}
@@ -1094,7 +1427,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
             </div>
 
             <label className="block text-xs font-semibold text-slate-300">
-              Note libere e contesto clinico
+              {t.wizard.step2.notesTitle}
               <textarea
                 rows={3}
                 value={baseline.anamnesis.freeText ?? ""}
@@ -1104,7 +1437,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                     anamnesis: { ...baseline.anamnesis, freeText: e.target.value },
                   })
                 }
-                placeholder="Es. Leggero fastidio tendineo dopo uscite lunghe; nessun farmaco assunto."
+                placeholder={t.wizard.step2.notesPlaceholder}
                 className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white"
               />
             </label>
@@ -1114,7 +1447,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         {step === 3 && (
           <div className="space-y-4">
             <label className="block text-xs font-semibold text-slate-300">
-              Obiettivo Principale
+              {locale === "it" ? "Obiettivo Principale" : "Primary Goal"}
               <input
                 type="text"
                 value={baseline.goals.primary.description}
@@ -1127,14 +1460,14 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                     },
                   })
                 }
-                placeholder="Es. Completare 5k in meno di 28 minuti"
+                placeholder={t.wizard.step3.goalDescriptionPlaceholder}
                 className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-semibold text-slate-300">
-                Tipo di obiettivo
+                {t.wizard.step3.goalType}
                 <select
                   value={baseline.goals.primary.type}
                   onChange={(e) =>
@@ -1151,16 +1484,24 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   }
                   className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                 >
-                  <option value="performance">Performance / Tempo</option>
-                  <option value="race">Gara / Evento</option>
-                  <option value="health">Salute &amp; Benessere</option>
-                  <option value="habit">Costanza / Abitudine</option>
-                  <option value="strength">Forza / Carico</option>
+                  <option value="performance">
+                    {locale === "it" ? "Performance / Tempo" : "Performance / Time"}
+                  </option>
+                  <option value="race">{locale === "it" ? "Gara / Evento" : "Race / Event"}</option>
+                  <option value="health">
+                    {locale === "it" ? "Salute & Benessere" : "Health & Well-being"}
+                  </option>
+                  <option value="habit">
+                    {locale === "it" ? "Costanza / Abitudine" : "Consistency / Habit"}
+                  </option>
+                  <option value="strength">
+                    {locale === "it" ? "Forza / Carico" : "Strength / Load"}
+                  </option>
                 </select>
               </label>
 
               <label className="block text-xs font-semibold text-slate-300">
-                Data target (opzionale)
+                {t.wizard.step3.targetDate}
                 <input
                   type="date"
                   value={baseline.goals.primary.targetDate ?? ""}
@@ -1184,65 +1525,117 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         )}
 
         {step === 4 && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div>
               <span className="block text-xs font-semibold text-slate-300">
-                Seleziona i giorni della settimana in cui puoi allenarti
+                {locale === "it"
+                  ? "Quanti giorni a settimana puoi allenarti?"
+                  : "How many days per week can you train?"}
               </span>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {locale === "it"
+                  ? "Non serve indicare i minuti: la durata la decide il piano in base al carico."
+                  : "No need to enter minutes: the plan decides duration from the load."}
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {WEEKDAYS.map((d) => {
-                  const active = baseline.availability.days.some((day) => day.day === d.id);
+                {[1, 2, 3, 4, 5, 6, 7].map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    aria-pressed={daysPerWeek === count}
+                    onClick={() => updateAvailability(count, longSession)}
+                    className={cn(
+                      "rounded-xl px-4 py-2 text-xs font-medium transition",
+                      daysPerWeek === count
+                        ? "bg-lime-400 font-bold text-slate-950"
+                        : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                    )}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">
+                {locale === "it" ? "Giorni proposti: " : "Suggested days: "}
+                {baseline.availability.days
+                  .map(
+                    (day) =>
+                      WEEKDAYS.find((weekday) => weekday.id === day.day)?.[
+                        locale === "it" ? "labelIt" : "labelEn"
+                      ] ?? day.day,
+                  )
+                  .join(", ")}
+                .
+              </p>
+            </div>
+
+            <div>
+              <span className="block text-xs font-semibold text-slate-300">
+                {t.wizard.step4.longSessionDay}
+              </span>
+              <p className="mt-1 text-[11px] text-slate-400">{t.wizard.step4.longSessionHint}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { value: "none", label: t.wizard.step4.noLongDay },
+                  {
+                    value: "weekend",
+                    label: locale === "it" ? "Sì, nel fine settimana" : "Yes, at the weekend",
+                  },
+                  {
+                    value: "weekday",
+                    label: locale === "it" ? "Sì, in un giorno scelto" : "Yes, on a chosen day",
+                  },
+                ].map((option) => {
+                  const selected =
+                    option.value === "none"
+                      ? longSession === null
+                      : option.value === "weekend"
+                        ? longSession?.when === "weekend"
+                        : longSession?.when === "weekday";
                   return (
                     <button
-                      key={d.id}
+                      key={option.value}
                       type="button"
-                      onClick={() => handleDayToggle(d.id)}
+                      aria-pressed={selected}
+                      onClick={() => handleLongSessionChange(option.value)}
                       className={cn(
-                        "rounded-xl px-4 py-2 text-xs font-medium transition",
-                        active
+                        "rounded-xl px-3 py-2 text-xs font-medium transition",
+                        selected
                           ? "bg-lime-400 font-bold text-slate-950"
                           : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
                       )}
                     >
-                      {d.label}
+                      {option.label}
                     </button>
                   );
                 })}
               </div>
+
+              {longSession?.when === "weekday" ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {WEEKDAYS.map((day) => (
+                    <button
+                      key={day.id}
+                      type="button"
+                      aria-pressed={longSession.day === day.id}
+                      onClick={() => handleLongSessionDay(day.id)}
+                      className={cn(
+                        "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                        longSession.day === day.id
+                          ? "bg-lime-400 font-bold text-slate-950"
+                          : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {locale === "it" ? day.labelIt : day.labelEn}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
-            <div className="mt-4 space-y-2">
-              <span className="block text-xs font-semibold text-slate-300">
-                Durata massima per sessione nei giorni selezionati
-              </span>
-              {baseline.availability.days.map((d) => (
-                <div
-                  key={d.day}
-                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs"
-                >
-                  <span className="font-semibold uppercase text-white">{d.day}</span>
-                  <label className="flex items-center gap-2">
-                    <span className="sr-only">Minuti per {d.day}</span>
-                    <input
-                      type="number"
-                      value={d.maxDurationMin}
-                      onChange={(e) => {
-                        const val = Number.parseInt(e.target.value, 10) || 45;
-                        const nextDays = baseline.availability.days.map((cur) =>
-                          cur.day === d.day ? { ...cur, maxDurationMin: val } : cur,
-                        );
-                        setBaseline({
-                          ...baseline,
-                          availability: { ...baseline.availability, days: nextDays },
-                        });
-                      }}
-                      className="w-16 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-center text-white"
-                    />
-                    <span className="text-slate-400">min</span>
-                  </label>
-                </div>
-              ))}
-            </div>
+            <p className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[11px] text-slate-400">
+              {t.wizard.step4.balanceHint}
+            </p>
           </div>
         )}
 
@@ -1261,7 +1654,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   }
                   className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
                 />
-                <span>Accesso a palestra attrezzata</span>
+                <span>{t.wizard.step5.gymAccessLabel}</span>
               </label>
 
               <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm text-white">
@@ -1276,13 +1669,13 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   }
                   className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
                 />
-                <span>Accesso a piscina</span>
+                <span>{locale === "it" ? "Accesso a piscina" : "Swimming pool access"}</span>
               </label>
             </div>
 
             <div>
               <span className="block text-xs font-semibold text-slate-300">
-                Attrezzatura disponibile a casa o personale
+                {t.wizard.step5.equipmentTitle}
               </span>
               <div className="mt-2 flex flex-wrap gap-2">
                 {EQUIPMENT_OPTIONS.map((item) => {
@@ -1299,7 +1692,7 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                           : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
                       )}
                     >
-                      {item.label}
+                      {locale === "it" ? item.labelIt : item.labelEn}
                     </button>
                   );
                 })}
@@ -1311,35 +1704,62 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         {step === 6 && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-lime-400/20 bg-lime-400/5 p-4 text-xs text-lime-200">
-              <h3 className="font-bold text-white">Ecco cosa ho capito (Riepilogo Baseline L0):</h3>
+              <h3 className="font-bold text-white">
+                {locale === "it"
+                  ? "Ecco cosa ho capito (Riepilogo Baseline L0):"
+                  : "Baseline L0 Profile Summary:"}
+              </h3>
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 <li>
-                  <strong>Atleta:</strong> {baseline.profile.sex}, {baseline.profile.heightCm} cm,{" "}
-                  {baseline.profile.weightKg} kg, livello{" "}
+                  <strong>{locale === "it" ? "Atleta:" : "Athlete:"}</strong> {baseline.profile.sex}
+                  , {baseline.profile.heightCm} cm, {baseline.profile.weightKg} kg,{" "}
+                  {locale === "it" ? "livello" : "tier"}{" "}
                   <strong>{experienceTierLabel(derivedTier)}</strong> (
                   {baseline.profile.capacity.source === "garmin"
-                    ? "capacità misurata da Garmin"
+                    ? locale === "it"
+                      ? "capacità misurata da Garmin"
+                      : "capacity from Garmin"
                     : baseline.profile.capacity.source === "calibration"
-                      ? "settimana 1 di calibrazione"
-                      : "capacità inserita a mano"}
+                      ? locale === "it"
+                        ? "settimana 1 di calibrazione"
+                        : "week 1 calibration"
+                      : locale === "it"
+                        ? "capacità inserita a mano"
+                        : "manually provided"}
                   ).
                 </li>
                 <li>
-                  <strong>Sport:</strong> {baseline.profile.sports.join(", ")}.
+                  <strong>{locale === "it" ? "Sport:" : "Sports:"}</strong>{" "}
+                  {baseline.profile.sports
+                    .map((s) =>
+                      locale === "it"
+                        ? (ALL_SPORTS.find((sp) => sp.id === s)?.labelIt ?? s)
+                        : (ALL_SPORTS.find((sp) => sp.id === s)?.labelEn ?? s),
+                    )
+                    .join(", ")}
+                  .
                 </li>
                 <li>
-                  <strong>Obiettivo:</strong> {baseline.goals.primary.description}.
+                  <strong>{locale === "it" ? "Obiettivo:" : "Goal:"}</strong>{" "}
+                  {baseline.goals.primary.description}.
                 </li>
                 <li>
-                  <strong>Disponibilità:</strong> {baseline.availability.days.length}{" "}
-                  giorni/settimana ({baseline.availability.days.map((d) => d.day).join(", ")}).
+                  <strong>{locale === "it" ? "Disponibilità:" : "Availability:"}</strong>{" "}
+                  {baseline.availability.days.length}{" "}
+                  {locale === "it" ? "giorni/settimana" : "days/week"} (
+                  {baseline.availability.days.map((d) => d.day.toUpperCase()).join(", ")}).
                 </li>
                 <li>
-                  <strong>Salute:</strong>{" "}
+                  <strong>{locale === "it" ? "Salute:" : "Health & Safety:"}</strong>{" "}
                   {baseline.anamnesis.injuries.length === 0
-                    ? "Nessun infortunio"
+                    ? locale === "it"
+                      ? "Nessun infortunio"
+                      : "No active injuries"
                     : baseline.anamnesis.injuries
-                        .map((i) => `${i.area} (dolore ${i.painLevel}/10)`)
+                        .map(
+                          (i) =>
+                            `${i.area} (${locale === "it" ? "dolore" : "pain"} ${i.painLevel}/10)`,
+                        )
                         .join(", ")}
                   .
                 </li>
@@ -1348,29 +1768,31 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-semibold text-slate-300">
-                Orario preferito
+                {locale === "it" ? "Unità di misura" : "Measurement units"}
                 <select
-                  value={baseline.preferences.preferredTrainingTime}
+                  value={baseline.preferences.units}
                   onChange={(e) =>
                     setBaseline({
                       ...baseline,
                       preferences: {
                         ...baseline.preferences,
-                        preferredTrainingTime: e.target.value as PreferredTrainingTime,
+                        units: e.target.value as "metric" | "imperial",
                       },
                     })
                   }
                   className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                 >
-                  <option value="morning">Mattina</option>
-                  <option value="lunch">Pausa pranzo</option>
-                  <option value="afternoon">Pomeriggio</option>
-                  <option value="evening">Sera</option>
+                  <option value="metric">
+                    {locale === "it" ? "Metrico (km, kg, cm)" : "Metric (km, kg, cm)"}
+                  </option>
+                  <option value="imperial">
+                    {locale === "it" ? "Imperiale (mi, lb, ft)" : "Imperial (mi, lb, ft)"}
+                  </option>
                 </select>
               </label>
 
               <label className="block text-xs font-semibold text-slate-300">
-                Tono del coach
+                {locale === "it" ? "Tono del coach" : "Coach tone"}
                 <select
                   value={baseline.preferences.tone}
                   onChange={(e) =>
@@ -1384,9 +1806,15 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
                   }
                   className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                 >
-                  <option value="direct">Diretto ed essenziale</option>
-                  <option value="supportive">Incoraggiante ed empatico</option>
-                  <option value="analytical">Analitico e scientifico</option>
+                  <option value="direct">
+                    {locale === "it" ? "Diretto ed essenziale" : "Direct & concise"}
+                  </option>
+                  <option value="supportive">
+                    {locale === "it" ? "Incoraggiante ed empatico" : "Supportive & empathetic"}
+                  </option>
+                  <option value="analytical">
+                    {locale === "it" ? "Analitico e scientifico" : "Analytical & data-driven"}
+                  </option>
                 </select>
               </label>
             </div>
@@ -1396,36 +1824,32 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
 
       {draftRestored && !isEditing ? (
         <p className="mt-4 rounded-xl border border-sky-400/30 bg-sky-400/10 p-3 text-xs text-sky-200">
-          Bozza ripristinata: avevi lasciato l&apos;onboarding a metà. Puoi riprenderlo da dove eri.
+          {t.wizard.draftRestoredNotice}
         </p>
       ) : null}
 
       {/* Navigation Buttons */}
-      {/*
-        Barra sempre visibile mentre si compila: con sei step e form lunghi il
-        pulsante di salvataggio non deve dipendere dallo scroll.
-      */}
       <div className="sticky bottom-0 z-10 -mx-6 mt-8 flex items-center justify-between gap-3 rounded-b-3xl border-t border-white/10 bg-slate-900/95 px-6 py-3 backdrop-blur sm:-mx-8 sm:px-8">
-        {step > 1 ? (
+        {previousStep !== null ? (
           <button
             type="button"
-            onClick={() => setStep((s) => Math.max(1, s - 1))}
+            onClick={() => setStep(previousStep)}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white hover:bg-white/10"
           >
-            Indietro
+            {t.common.back}
           </button>
         ) : onCancel ? (
           <button
             type="button"
             onClick={() => {
-              if (dirty && !window.confirm("Hai modifiche non salvate. Uscire comunque?")) {
+              if (dirty && !window.confirm(t.wizard.confirmExit)) {
                 return;
               }
               onCancel?.();
             }}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-400 hover:bg-white/10"
           >
-            Annulla
+            {t.common.cancel}
           </button>
         ) : (
           <div />
@@ -1434,28 +1858,32 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
         <div className="flex flex-wrap items-center justify-end gap-2">
           {dirty ? (
             <span className="mr-1 text-[11px] font-medium text-amber-300">
-              Modifiche non salvate
+              {t.wizard.unsavedChangesBadge}
             </span>
           ) : null}
 
-          {isEditing && step < 6 ? (
+          {isEditing && nextStep !== null ? (
             <button
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
               className="rounded-xl border border-lime-400/40 bg-lime-400/10 px-4 py-2 text-xs font-bold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-50"
             >
-              {isSubmitting ? "Salvataggio…" : "Salva modifiche"}
+              {isSubmitting
+                ? t.common.saving
+                : locale === "it"
+                  ? "Salva modifiche"
+                  : "Save changes"}
             </button>
           ) : null}
 
-          {step < 6 ? (
+          {nextStep !== null ? (
             <button
               type="button"
-              onClick={() => setStep((s) => Math.min(6, s + 1))}
+              onClick={() => setStep(nextStep)}
               className="rounded-xl bg-lime-400 px-5 py-2 text-xs font-bold text-slate-950 transition hover:bg-lime-300"
             >
-              Avanti
+              {t.common.next}
             </button>
           ) : (
             <button
@@ -1464,7 +1892,13 @@ export function OnboardingWizard({ initialBaseline, onSaved, onCancel }: Onboard
               disabled={isSubmitting}
               className="rounded-xl bg-lime-400 px-6 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 disabled:opacity-50"
             >
-              {isSubmitting ? "Salvataggio…" : isEditing ? "Salva modifiche" : "Salva Baseline L0"}
+              {isSubmitting
+                ? t.common.saving
+                : isEditing
+                  ? locale === "it"
+                    ? "Salva modifiche"
+                    : "Save changes"
+                  : t.wizard.saveBaseline}
             </button>
           )}
         </div>

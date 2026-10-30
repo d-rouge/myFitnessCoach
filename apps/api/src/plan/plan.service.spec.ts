@@ -2,10 +2,14 @@ import { type Baseline, beginnerPersona } from "@health-trainer/domain";
 import { describe, expect, it, vi } from "vitest";
 import { AthleteService } from "../athlete/athlete.service.js";
 import type { MongoService } from "../database/mongo.service.js";
+import type { MethodologyService } from "./methodology.service.js";
 import { PlanService } from "./plan.service.js";
 
 function planService(mongo: MongoService): PlanService {
-  return new PlanService(mongo, new AthleteService(mongo));
+  const methodology = {
+    latest: async () => null,
+  } as unknown as MethodologyService;
+  return new PlanService(mongo, new AthleteService(mongo), methodology);
 }
 
 function mongoWithBaseline(baseline: Baseline): MongoService {

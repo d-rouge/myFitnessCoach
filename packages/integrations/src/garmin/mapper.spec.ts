@@ -102,6 +102,7 @@ describe("Garmin mapper", () => {
       source: "garmin",
       externalId: "123",
       sport: "running",
+      activityType: "running",
       start: "2026-10-25T06:30:00.000Z",
       localDate: "2026-10-25",
       durationSec: 3000,

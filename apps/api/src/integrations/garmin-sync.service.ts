@@ -2,6 +2,7 @@ import {
   countActivities,
   countDailyMetricsBySource,
   finishSyncRun,
+  getActivitiesBySourceInDateRange,
   getActivityByExternalId,
   getRecentActivities,
   getRecentDailyMetricsBySource,
@@ -17,11 +18,13 @@ import {
   type ActivityAnalysis,
   addDaysIso,
   type DailyMetrics,
+  type Sport,
   todayLocalDate,
 } from "@health-trainer/domain";
 import {
   buildGarminDailyMetrics,
   type DatedGarminRaw,
+  type GarminPersonalClient,
   mapGarminActivities,
   parseGarminActivityZip,
 } from "@health-trainer/integrations";
@@ -60,6 +63,25 @@ export interface GarminMetricsDto {
   steps: number | null;
   stressAvg: number | null;
   bodyBatteryEnd: number | null;
+}
+
+export interface GarminActivitySummary {
+  from: string;
+  to: string;
+  totalActivities: number;
+  durationSeconds: number;
+  bySport: Array<{
+    sport: Sport;
+    activities: number;
+    durationSeconds: number;
+  }>;
+  entries: Array<{
+    id: string;
+    date: string;
+    sport: Sport;
+    title: string | null;
+    durationSeconds: number;
+  }>;
 }
 
 export interface GarminOverview {
@@ -112,6 +134,23 @@ const mapLimit = async <T, R>(
   return results;
 };
 
+async function fetchActivities(
+  client: GarminPersonalClient,
+  startDate: string,
+  endDate: string,
+): Promise<unknown[]> {
+  const activities: unknown[] = [];
+  const pageSize = 100;
+  for (let start = 0; ; start += pageSize) {
+    const page = await client.searchActivities({ start, limit: pageSize, startDate, endDate });
+    if (!Array.isArray(page)) {
+      throw new Error("Garmin activity search returned an invalid response");
+    }
+    activities.push(...page);
+    if (page.length < pageSize) return activities;
+  }
+}
+
 const safe = async <T>(
   label: string,
   date: string,
@@ -143,12 +182,13 @@ export class GarminSyncService {
   }
 
   async sync(userId: string, days = 7): Promise<GarminSyncResult> {
-    const syncDays = Math.min(30, Math.max(1, Math.trunc(days)));
+    const syncDays = Math.min(90, Math.max(1, Math.trunc(days)));
     const db = await this.db();
     const provider = GARMIN_PROVIDER;
     const timeZone = await getUserTimeZone(db, userId);
     const to = todayIso(timeZone);
     const from = daysAgoIso(syncDays - 1, timeZone);
+    const metricsFrom = daysAgoIso(Math.min(syncDays, 30) - 1, timeZone);
     const fetchedAt = new Date().toISOString();
     const errors: string[] = [];
 
@@ -163,9 +203,9 @@ export class GarminSyncService {
       const client = this.garmin.getClient();
 
       const [activitiesRaw, summariesRaw, bodyBatteryRaw, weightRaw] = await Promise.all([
-        client.searchActivities({ start: 0, limit: 100, startDate: from, endDate: to }),
-        client.getDailySummaries(from, to),
-        client.getBodyBattery(from, to),
+        fetchActivities(client, from, to),
+        client.getDailySummaries(metricsFrom, to),
+        client.getBodyBattery(metricsFrom, to),
         client.getWeightMeasurements(daysAgoIso(Math.max(syncDays, 30), timeZone), to),
       ]);
 
@@ -174,7 +214,7 @@ export class GarminSyncService {
         fetchedAt,
       });
 
-      const dates = eachDate(from, to);
+      const dates = eachDate(metricsFrom, to);
       const daily = await mapLimit(dates, 3, async (date) => {
         const [sleep, hrv, heartRate, spo2] = await Promise.all([
           safe("sleep", date, () => client.getDailySleep(date)),
@@ -283,6 +323,46 @@ export class GarminSyncService {
   async getActivityAnalysis(userId: string, activityId: string): Promise<ActivityAnalysis | null> {
     const db = await this.db();
     return getStoredActivityAnalysis(db, userId, GARMIN_PROVIDER, activityId);
+  }
+
+  async activitySummary(userId: string, days = 90): Promise<GarminActivitySummary> {
+    const windowDays = Math.min(90, Math.max(1, Math.trunc(days)));
+    const db = await this.db();
+    const timeZone = await getUserTimeZone(db, userId);
+    const to = todayIso(timeZone);
+    const from = daysAgoIso(windowDays - 1, timeZone);
+    const activities = await getActivitiesBySourceInDateRange(
+      db,
+      userId,
+      GARMIN_PROVIDER,
+      from,
+      to,
+    );
+    const bySport = new Map<Sport, { activities: number; durationSeconds: number }>();
+
+    for (const activity of activities) {
+      const current = bySport.get(activity.sport) ?? { activities: 0, durationSeconds: 0 };
+      current.activities += 1;
+      current.durationSeconds += activity.durationSec;
+      bySport.set(activity.sport, current);
+    }
+
+    return {
+      from,
+      to,
+      totalActivities: activities.length,
+      durationSeconds: activities.reduce((total, activity) => total + activity.durationSec, 0),
+      bySport: [...bySport.entries()]
+        .map(([sport, totals]) => ({ sport, ...totals }))
+        .sort((a, b) => b.durationSeconds - a.durationSeconds),
+      entries: activities.map((activity) => ({
+        id: activity.externalId,
+        date: activity.localDate,
+        sport: activity.sport,
+        title: activity.title ?? null,
+        durationSeconds: activity.durationSec,
+      })),
+    };
   }
 
   async overview(userId: string, days = 7): Promise<GarminOverview> {

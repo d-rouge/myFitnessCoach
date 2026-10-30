@@ -29,14 +29,19 @@ import {
 import { AthleteService } from "../athlete/athlete.service.js";
 import { getUserTimeZone } from "../common/user-timezone.js";
 import { MongoService } from "../database/mongo.service.js";
+import { MethodologyService } from "./methodology.service.js";
 
 @Injectable()
 export class PlanService {
   private readonly logger = new Logger(PlanService.name);
 
+  /** Oltre questo tempo la metodologia va rivalutata: dati e quadro sono cambiati. */
+  private static readonly METHODOLOGY_MAX_AGE_DAYS = 14;
+
   constructor(
     private readonly mongo: MongoService,
     private readonly athlete: AthleteService,
+    private readonly methodology: MethodologyService,
   ) {}
 
   private async db() {
@@ -92,10 +97,57 @@ export class PlanService {
 
     this.assertSafeToPlan(baseline);
 
+    // L'ultima metodologia vale solo se è stata scelta per l'obiettivo
+    // corrente: dopo un cambio di goal va rivalutata, non riusata.
+    const latestMethodology = await this.methodology.latest(userId);
+    const methodologyAgeDays = latestMethodology
+      ? (Date.now() - Date.parse(latestMethodology.createdAt)) / 86_400_000
+      : null;
+    const methodologyIsFresh =
+      methodologyAgeDays !== null && methodologyAgeDays <= PlanService.METHODOLOGY_MAX_AGE_DAYS;
+    const methodology =
+      latestMethodology &&
+      methodologyIsFresh &&
+      latestMethodology.goalDescription === baseline.goals.primary.description
+        ? {
+            name: latestMethodology.decision.methodology,
+            rationale: `${latestMethodology.decision.why} (confidenza: ${latestMethodology.decision.confidence})`,
+            structure: latestMethodology.decision.weeklyStructure,
+            periodization: latestMethodology.decision.periodization,
+            ...(latestMethodology.decision.phases
+              ? // Le fasi decise dal modello coprono l'intero arco: se ci sono,
+                // il generatore le usa al posto di quelle deterministiche.
+                { phases: latestMethodology.decision.phases }
+              : // Senza fasi LLM la struttura descrive il primo blocco: la
+                // finestra di recupero se è attiva, altrimenti il primo
+                // mesociclo di carico+scarico.
+                recentContext.postRaceRecovery.active
+                ? { applyThroughWeek: recentContext.postRaceRecovery.weeks }
+                : latestMethodology.decision.periodization
+                  ? {
+                      applyThroughWeek:
+                        latestMethodology.decision.periodization.loadWeeks +
+                        latestMethodology.decision.periodization.deloadWeeks,
+                    }
+                  : {}),
+          }
+        : undefined;
+    if (latestMethodology && !methodology) {
+      this.logger.warn(
+        `Metodologia ignorata per utente ${userId}: ${
+          !methodologyIsFresh ? "scaduta, serve una nuova analisi" : "obiettivo cambiato"
+        }.`,
+      );
+    }
+
     let macroPlan: MacroPlan;
     let microPlan: MicroPlan;
     try {
-      macroPlan = generateMacroPlan(baseline, { ...options, recentContext });
+      macroPlan = generateMacroPlan(baseline, {
+        ...options,
+        recentContext,
+        ...(methodology ? { methodology } : {}),
+      });
       // Also automatically generate and save Week 1 MicroPlan
       microPlan = generateMicroPlan(baseline, macroPlan, 1, {
         startDate: macroPlan.startDate,

@@ -1,12 +1,13 @@
 import type { Review } from "@health-trainer/domain";
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useI18n } from "../i18n";
 import { apiFetch } from "../lib/api";
 
 async function fetchLatestReview(): Promise<Review | null> {
   const res = await apiFetch("/api/review/latest");
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error("Errore nel recupero della review");
+  if (!res.ok) throw new Error("Failed to fetch review");
   return res.json() as Promise<Review>;
 }
 
@@ -17,7 +18,7 @@ async function triggerWeeklyReview(): Promise<Review> {
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore nel calcolo della review");
+    throw new Error(body.message ?? "Failed to calculate weekly review");
   }
   return res.json() as Promise<Review>;
 }
@@ -29,12 +30,13 @@ async function triggerAdvanceWeek(): Promise<{ review: Review }> {
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore nell'avanzamento settimana");
+    throw new Error(body.message ?? "Failed to advance week");
   }
   return res.json() as Promise<{ review: Review }>;
 }
 
 export function WeeklyReviewCard() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
 
   const reviewQuery = useQuery({
@@ -76,11 +78,11 @@ export function WeeklyReviewCard() {
   const decisionLabel = (decision: string) => {
     switch (decision) {
       case "progress":
-        return "Progredisci (+10% Carico)";
+        return t.review.decisions.progress;
       case "deload":
-        return "Settimana di Scarico (Deload)";
+        return t.review.decisions.deload;
       default:
-        return "Continua & Consolida";
+        return t.review.decisions.maintain;
     }
   };
 
@@ -89,13 +91,10 @@ export function WeeklyReviewCard() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-400">
-            Livello 4 · Review Settimanale &amp; Adattamento Macrociclo
+            {t.review.badge}
           </span>
-          <h3 className="mt-1 text-xl font-bold text-white">Review &amp; Decisione del Coach</h3>
-          <p className="mt-1 text-xs text-slate-400">
-            Valuta aderenza alle sessioni, carico totale ed episodi di dolore per decidere il
-            prossimo microciclo.
-          </p>
+          <h3 className="mt-1 text-xl font-bold text-white">{t.review.title}</h3>
+          <p className="mt-1 text-xs text-slate-400">{t.review.description}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -105,7 +104,7 @@ export function WeeklyReviewCard() {
             disabled={reviewMutation.isPending}
             className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-50"
           >
-            {reviewMutation.isPending ? "Analisi in corso…" : "Calcola Review Settimana"}
+            {reviewMutation.isPending ? t.review.calculating : t.review.calculateNow}
           </button>
         </div>
       </div>
@@ -127,11 +126,11 @@ export function WeeklyReviewCard() {
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div className="flex items-center gap-3">
               <span className="text-xs text-slate-400">
-                Periodo: {review.startDate} → {review.endDate}
+                {review.startDate} → {review.endDate}
               </span>
               <span className="text-slate-600">·</span>
               <span className="text-xs text-slate-400">
-                Sessioni completate:{" "}
+                {t.review.metrics.completedSessions}:{" "}
                 <strong className="text-white">
                   {review.completedSessionsCount} / {review.plannedSessionsCount}
                 </strong>
@@ -139,7 +138,7 @@ export function WeeklyReviewCard() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Decisione:</span>
+              <span className="text-xs text-slate-400">{t.common.status}:</span>
               <span
                 className={cn(
                   "rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset",
@@ -153,18 +152,20 @@ export function WeeklyReviewCard() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl bg-white/[0.02] p-3 text-center">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400">Aderenza</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                {t.review.metrics.adherenceScore}
+              </span>
               <p className="mt-1 text-2xl font-black text-lime-300">{review.adherencePct}%</p>
             </div>
             <div className="rounded-xl bg-white/[0.02] p-3 text-center">
               <span className="text-[10px] uppercase tracking-wider text-slate-400">
-                Durata Totale
+                {t.wizard.step4.sessionDuration}
               </span>
               <p className="mt-1 text-2xl font-black text-white">{review.totalDurationMin} min</p>
             </div>
             <div className="rounded-xl bg-white/[0.02] p-3 text-center">
               <span className="text-[10px] uppercase tracking-wider text-slate-400">
-                Episodi Dolore
+                {t.wizard.step2.injuriesTitle}
               </span>
               <p
                 className={cn(
@@ -177,16 +178,22 @@ export function WeeklyReviewCard() {
             </div>
           </div>
 
+          {review.methodologyReview ? (
+            <p className="rounded-xl border border-sky-400/20 bg-sky-400/[0.06] p-3 text-xs text-sky-200">
+              Metodologia {review.methodologyReview.refreshed ? "rivalutata" : "confermata"}:{" "}
+              <strong>{review.methodologyReview.methodology}</strong> · confidenza{" "}
+              {review.methodologyReview.confidence}
+            </p>
+          ) : null}
+
           <div className="space-y-2 pt-2">
-            <h4 className="text-xs font-semibold text-slate-300">Razionale del verdetto:</h4>
+            <h4 className="text-xs font-semibold text-slate-300">{t.review.metrics.rationale}:</h4>
             <p className="text-xs leading-5 text-slate-400">{review.decisionRationale}</p>
           </div>
 
           {review.nextCycleRecommendations.length > 0 && (
             <div className="space-y-1.5 pt-2">
-              <h4 className="text-xs font-semibold text-slate-300">
-                Raccomandazioni prossimo ciclo:
-              </h4>
+              <h4 className="text-xs font-semibold text-slate-300">{t.planBoard.tips}:</h4>
               <ul className="list-inside list-disc space-y-1 text-xs text-slate-400">
                 {review.nextCycleRecommendations.map((rec) => (
                   <li key={rec}>{rec}</li>
@@ -202,9 +209,7 @@ export function WeeklyReviewCard() {
               disabled={advanceMutation.isPending}
               className="rounded-xl bg-lime-400 px-5 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 disabled:opacity-50"
             >
-              {advanceMutation.isPending
-                ? "Avanzamento in corso…"
-                : "Applica & Genera Prossima Settimana"}
+              {advanceMutation.isPending ? t.review.advancing : t.review.advanceWeek}
             </button>
           </div>
         </div>

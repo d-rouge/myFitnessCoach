@@ -8,6 +8,7 @@ import type {
 import { cn } from "@health-trainer/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
+import { useI18n } from "../i18n";
 import { apiFetch, getHevyApiKey, setHevyApiKey } from "../lib/api";
 import { DownloadButton } from "./DownloadButton";
 import { WeeklyReviewCard } from "./WeeklyReviewCard";
@@ -55,20 +56,20 @@ const SPORT_COLORS: Record<Sport, { bg: string; text: string; ring: string }> = 
 async function fetchMacroPlan(): Promise<MacroPlan | null> {
   const res = await apiFetch("/api/plan/macro");
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error("Errore caricamento macro-piano");
+  if (!res.ok) throw new Error("Failed to load macro plan");
   return res.json() as Promise<MacroPlan>;
 }
 
 async function fetchMicroPlan(): Promise<MicroPlan | null> {
   const res = await apiFetch("/api/plan/micro");
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error("Errore caricamento micro-piano");
+  if (!res.ok) throw new Error("Failed to load micro plan");
   return res.json() as Promise<MicroPlan>;
 }
 
 async function fetchTodaySession(): Promise<TodaySessionResponse> {
   const res = await apiFetch("/api/plan/today");
-  if (!res.ok) throw new Error("Errore caricamento sessione odierna");
+  if (!res.ok) throw new Error("Failed to load today's session");
   return res.json() as Promise<TodaySessionResponse>;
 }
 
@@ -78,7 +79,7 @@ async function fetchCoachAdvice(sessionId?: string): Promise<CoachAdviceResponse
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId }),
   });
-  if (!res.ok) throw new Error("Errore caricamento consiglio coach");
+  if (!res.ok) throw new Error("Failed to load coach advice");
   return res.json() as Promise<CoachAdviceResponse>;
 }
 
@@ -90,7 +91,7 @@ async function generatePlan(): Promise<{ macroPlan: MacroPlan; microPlan: MicroP
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore generazione piano");
+    throw new Error(body.message ?? "Failed to generate plan");
   }
   return res.json() as Promise<{ macroPlan: MacroPlan; microPlan: MicroPlan }>;
 }
@@ -110,7 +111,7 @@ async function recordManualActivityApi(payload: {
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore salvataggio attività manuale");
+    throw new Error(body.message ?? "Failed to save manual activity");
   }
   return res.json() as Promise<{ comparison?: SessionComparisonResult }>;
 }
@@ -126,7 +127,7 @@ async function uploadFitApi(payload: {
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore upload file FIT");
+    throw new Error(body.message ?? "Failed to upload FIT file");
   }
   return res.json() as Promise<{ comparison?: SessionComparisonResult }>;
 }
@@ -142,12 +143,13 @@ async function exportHevyApi(input: {
   });
   if (!res.ok) {
     const body = (await res.json()) as { message?: string };
-    throw new Error(body.message ?? "Errore esportazione Hevy");
+    throw new Error(body.message ?? "Failed to export to Hevy");
   }
   return res.json() as Promise<{ success: boolean; message: string }>;
 }
 
 export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [selectedAlternative, setSelectedAlternative] = useState<string | null>(null);
   const [showRecordForm, setShowRecordForm] = useState(false);
@@ -239,15 +241,15 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
       <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-400">
-            Livello 1–3 · Piano &amp; Coaching Loop
+            {t.planBoard.badge}
           </span>
           <h2 className="mt-1 text-2xl font-bold text-white">
-            {macro.data ? macro.data.goalDescription : "Piano di Allenamento"}
+            {macro.data ? macro.data.goalDescription : t.planBoard.title}
           </h2>
           <p className="mt-1 text-xs text-slate-400">
             {macro.data
-              ? `${macro.data.totalWeeks} settimane totali · Fasi strutturate · Board multisport`
-              : "Genera il macrociclo e il microciclo settimanale basandoti sui vincoli della tua baseline."}
+              ? `${macro.data.totalWeeks} ${t.common.weeks} · ${t.planBoard.structure}`
+              : t.planBoard.noBaselineNotice}
           </p>
         </div>
 
@@ -259,10 +261,10 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
             className="rounded-xl bg-lime-400 px-5 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 disabled:opacity-50"
           >
             {generateMutation.isPending
-              ? "Generazione in corso…"
+              ? t.planBoard.generatingPlan
               : hasPlan
-                ? "Rigenera Piano"
-                : "Genera Piano Deterministico"}
+                ? t.planBoard.generatePlan
+                : t.planBoard.generatePlan}
           </button>
         </div>
       </div>
@@ -275,17 +277,15 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
 
       {hasPlan && (
         <>
-          {/* Card "OGGI" */}
+          {/* Card "TODAY" */}
           <div className="rounded-3xl border border-lime-400/30 bg-lime-950/20 p-6 shadow-2xl">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-lime-400">
-                  Focus di Oggi · {today.data?.today ?? ""}
+                  {t.planBoard.todayWorkout} · {today.data?.today ?? ""}
                 </span>
                 <h3 className="mt-1 text-xl font-bold text-white">
-                  {today.data?.session
-                    ? today.data.session.title
-                    : "Giornata di Riposo Attivo o Recupero"}
+                  {today.data?.session ? today.data.session.title : t.planBoard.restDayTitle}
                 </h3>
               </div>
 
@@ -299,7 +299,8 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                       SPORT_COLORS[today.data.session.sport].ring,
                     )}
                   >
-                    {today.data.session.sport.toUpperCase()}
+                    {t.planBoard.sports[today.data.session.sport] ??
+                      today.data.session.sport.toUpperCase()}
                   </span>
                   <span
                     className={cn(
@@ -309,7 +310,9 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                         : "bg-white/10 text-slate-300 ring-white/10",
                     )}
                   >
-                    {today.data.session.status === "completed" ? "Completata" : "Pianificata"}
+                    {today.data.session.status === "completed"
+                      ? t.common.success
+                      : t.wizard.step3.title}
                   </span>
                 </div>
               ) : null}
@@ -318,31 +321,25 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
             {today.data?.session ? (
               <div className="mt-4 space-y-4">
                 <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300">
+                  <span>{t.planBoard.duration(today.data.session.durationMin)}</span>
+                  <span>·</span>
                   <span>
-                    Durata:{" "}
-                    <strong className="text-white">{today.data.session.durationMin} min</strong>
+                    {t.planBoard.targetIntensity(
+                      `RPE ${today.data.session.intensity.rpe}/10 (${today.data.session.intensity.target})`,
+                    )}
                   </span>
                   <span>·</span>
                   <span>
-                    Intensità:{" "}
-                    <strong className="text-white">
-                      RPE {today.data.session.intensity.rpe}/10 (
-                      {today.data.session.intensity.target})
-                    </strong>
-                  </span>
-                  <span>·</span>
-                  <span>
-                    Luogo:{" "}
                     <strong className="capitalize text-white">{today.data.session.location}</strong>
                   </span>
                 </div>
 
-                {/* AI Coach Advice Box (Task 1.8) */}
+                {/* AI Coach Advice Box */}
                 {coachAdvice.data?.advice && (
                   <div className="rounded-2xl border border-lime-400/20 bg-lime-400/5 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-lime-400">
-                        AI Coach Briefing
+                        {t.planBoard.coachAdviceTitle}
                       </span>
                       <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">
                         {coachAdvice.data.meta.model} ({coachAdvice.data.meta.latencyMs}ms)
@@ -360,7 +357,8 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
 
                     {coachAdvice.data.advice.caution && (
                       <div className="mt-2 rounded-xl bg-amber-400/10 p-2.5 text-xs text-amber-300 ring-1 ring-amber-400/20">
-                        <strong>Attenzione:</strong> {coachAdvice.data.advice.caution}
+                        <strong>{t.planBoard.cautionLabel}:</strong>{" "}
+                        {coachAdvice.data.advice.caution}
                       </div>
                     )}
 
@@ -379,7 +377,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                 {/* Structured Blocks */}
                 <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Struttura della sessione
+                    {t.planBoard.structure}
                   </span>
                   <div className="mt-3 space-y-2">
                     {today.data.session.blocks.map((block, bIdx) => {
@@ -387,9 +385,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                       return (
                         <div key={blockKey} className="space-y-1.5">
                           {block.repeat > 1 && (
-                            <p className="text-xs font-bold text-lime-400">
-                              Ripeti {block.repeat} volte:
-                            </p>
+                            <p className="text-xs font-bold text-lime-400">{block.repeat}×:</p>
                           )}
                           {block.steps.map((step, sIdx) => {
                             const stepKey = `step-${bIdx}-${sIdx}-${step.kind}-${step.durationMin ?? step.distanceM ?? ""}`;
@@ -399,11 +395,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                                 className="flex items-center justify-between rounded-xl bg-white/[0.02] px-3 py-2 text-xs"
                               >
                                 <span className="font-semibold capitalize text-white">
-                                  {step.kind === "warmup" && "Riscaldamento"}
-                                  {step.kind === "work" && "Lavoro principale"}
-                                  {step.kind === "recovery" && "Recupero"}
-                                  {step.kind === "cooldown" && "Defaticamento"}
-                                  {step.kind === "mobility" && "Mobilità"}
+                                  {step.kind}
                                 </span>
                                 <span className="text-slate-300">
                                   {step.durationMin ? `${step.durationMin} min` : ""}
@@ -420,44 +412,48 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                 </div>
 
                 {/* Alternatives */}
-                <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs">
-                  <span className="font-semibold text-slate-300">
-                    Poco tempo o affaticamento? Alternative disponibili:
-                  </span>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {today.data.session.alternatives.map((alt) => (
-                      <button
-                        type="button"
-                        key={alt.label}
-                        onClick={() => setSelectedAlternative(alt.label)}
-                        className={cn(
-                          "cursor-pointer rounded-xl border p-3 text-left transition",
-                          selectedAlternative === alt.label
-                            ? "border-lime-400 bg-lime-400/10 text-white"
-                            : "border-white/5 bg-black/20 text-slate-300 hover:border-white/10",
-                        )}
-                      >
-                        <strong className="block text-white">{alt.label}</strong>
-                        <p className="mt-1 text-[11px] leading-4 text-slate-400">{alt.changes}</p>
-                      </button>
-                    ))}
+                {today.data.session.alternatives.length > 0 && (
+                  <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs">
+                    <span className="font-semibold text-slate-300">
+                      {t.planBoard.alternatives}:
+                    </span>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {today.data.session.alternatives.map((alt) => (
+                        <button
+                          type="button"
+                          key={alt.label}
+                          onClick={() => setSelectedAlternative(alt.label)}
+                          className={cn(
+                            "cursor-pointer rounded-xl border p-3 text-left transition",
+                            selectedAlternative === alt.label
+                              ? "border-lime-400 bg-lime-400/10 text-white"
+                              : "border-white/5 bg-black/20 text-slate-300 hover:border-white/10",
+                          )}
+                        >
+                          <strong className="block text-white">{alt.label}</strong>
+                          <p className="mt-1 text-[11px] leading-4 text-slate-400">{alt.changes}</p>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Last Comparison Feedback */}
                 {lastComparison && (
                   <div className="rounded-2xl border border-emerald-400/30 bg-emerald-950/20 p-4 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-emerald-300">
-                        Confronto Effettivo vs Pianificato:
+                        {t.planBoard.comparisonTitle}:
                       </span>
                       <span className="font-bold text-white">
-                        {lastComparison.adherenceScore}% aderenza
+                        {lastComparison.adherenceScore}% {t.review.metrics.adherenceScore}
                       </span>
                     </div>
                     <p className="mt-1 text-slate-300">{lastComparison.summary}</p>
                     {lastComparison.flags.length > 0 && (
-                      <p className="mt-1 text-amber-300">Flag: {lastComparison.flags.join(", ")}</p>
+                      <p className="mt-1 text-amber-300">
+                        Flags: {lastComparison.flags.join(", ")}
+                      </p>
                     )}
                   </div>
                 )}
@@ -473,11 +469,13 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                 {showRecordForm && (
                   <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-3">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-white">
-                      Registra Esecuzione Effettiva
+                      {t.planBoard.manualLogTitle}
                     </h4>
                     <div className="grid gap-3 sm:grid-cols-4">
                       <div>
-                        <span className="text-[11px] text-slate-400 block mb-1">Durata (min)</span>
+                        <span className="text-[11px] text-slate-400 block mb-1">
+                          {t.planBoard.manualDuration}
+                        </span>
                         <input
                           type="number"
                           value={recordDuration}
@@ -486,11 +484,13 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                         />
                       </div>
                       <div>
-                        <span className="text-[11px] text-slate-400 block mb-1">Distanza (km)</span>
+                        <span className="text-[11px] text-slate-400 block mb-1">
+                          {t.planBoard.manualDistance}
+                        </span>
                         <input
                           type="number"
                           step="0.1"
-                          placeholder="es. 5.2"
+                          placeholder="5.0"
                           value={recordDistance}
                           onChange={(e) => setRecordDistance(e.target.value)}
                           className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
@@ -498,11 +498,11 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                       </div>
                       <div>
                         <span className="text-[11px] text-slate-400 block mb-1">
-                          FC Media (bpm)
+                          {t.integrations.avgHr} (bpm)
                         </span>
                         <input
                           type="number"
-                          placeholder="es. 145"
+                          placeholder="145"
                           value={recordHr}
                           onChange={(e) => setRecordHr(e.target.value)}
                           className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
@@ -510,7 +510,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                       </div>
                       <div>
                         <span className="text-[11px] text-slate-400 block mb-1">
-                          RPE Sforzo (1-10)
+                          {t.planBoard.manualRpe}
                         </span>
                         <input
                           type="number"
@@ -524,11 +524,10 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                     </div>
                     <div>
                       <span className="text-[11px] text-slate-400 block mb-1">
-                        Note e Sensazioni
+                        {t.planBoard.manualNotes}
                       </span>
                       <input
                         type="text"
-                        placeholder="es. Gambe leggere, ritmo costante"
                         value={recordNotes}
                         onChange={(e) => setRecordNotes(e.target.value)}
                         className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white"
@@ -537,7 +536,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                     <div className="flex items-center justify-between pt-2">
                       <div className="flex items-center gap-2">
                         <label className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10">
-                          Carica file .FIT
+                          {t.planBoard.uploadFit}
                           <input
                             type="file"
                             accept=".fit"
@@ -546,7 +545,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                           />
                         </label>
                         {uploadFitMutation.isPending && (
-                          <span className="text-xs text-slate-400">Elaborazione FIT…</span>
+                          <span className="text-xs text-slate-400">{t.planBoard.uploadingFit}</span>
                         )}
                       </div>
 
@@ -556,7 +555,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                           onClick={() => setShowRecordForm(false)}
                           className="rounded-xl px-3 py-1.5 text-xs text-slate-400 hover:text-white"
                         >
-                          Annulla
+                          {t.common.cancel}
                         </button>
                         <button
                           type="button"
@@ -575,7 +574,9 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                           disabled={manualRecordMutation.isPending}
                           className="rounded-xl bg-lime-400 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-lime-300 disabled:opacity-50"
                         >
-                          {manualRecordMutation.isPending ? "Salvataggio…" : "Salva Risultato"}
+                          {manualRecordMutation.isPending
+                            ? t.planBoard.manualSaving
+                            : t.planBoard.manualSave}
                         </button>
                       </div>
                     </div>
@@ -588,7 +589,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                       htmlFor="hevy-api-key"
                       className="block text-[11px] font-semibold uppercase tracking-wider text-purple-200"
                     >
-                      Chiave API Hevy
+                      {t.planBoard.hevyApiKey}
                     </label>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <input
@@ -596,7 +597,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                         type="password"
                         value={hevyApiKey}
                         onChange={(event) => setHevyApiKeyState(event.target.value)}
-                        placeholder="Opzionale se HEVY_API_KEY è già sul server"
+                        placeholder="HEVY_API_KEY"
                         autoComplete="off"
                         className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white"
                       />
@@ -605,20 +606,14 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                         onClick={() => {
                           setHevyApiKey(hevyApiKey);
                           setHevyFeedback(
-                            hevyApiKey.trim()
-                              ? "Chiave Hevy salvata in questo browser."
-                              : "Chiave Hevy rimossa dal browser.",
+                            hevyApiKey.trim() ? t.planBoard.hevyConfigured : t.common.none,
                           );
                         }}
                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                       >
-                        Salva chiave
+                        {t.planBoard.saveHevyKey}
                       </button>
                     </div>
-                    <p className="mt-1.5 text-[11px] leading-4 text-slate-500">
-                      La chiave resta nel browser e viene inviata solo per l&apos;export. Se il
-                      server ha già <code>HEVY_API_KEY</code>, puoi lasciare il campo vuoto.
-                    </p>
                   </div>
                 )}
 
@@ -634,7 +629,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                         filename={`${today.data.session.id}.fit`}
                         className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20"
                       >
-                        Scarica Workout (.FIT)
+                        {t.planBoard.downloadFit}
                       </DownloadButton>
                     )}
 
@@ -651,7 +646,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                         disabled={exportHevyMutation.isPending}
                         className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-3 py-2 text-xs font-semibold text-purple-300 transition hover:bg-purple-400/20 disabled:opacity-50"
                       >
-                        {exportHevyMutation.isPending ? "Esporto…" : "Esporta su Hevy"}
+                        {exportHevyMutation.isPending ? t.common.loading : t.planBoard.syncHevy}
                       </button>
                     )}
 
@@ -660,43 +655,43 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                       onClick={() => setShowRecordForm(!showRecordForm)}
                       className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                     >
-                      {showRecordForm ? "Chiudi Form" : "Registra Dati Sessione"}
+                      {showRecordForm ? t.common.close : t.planBoard.recordActivity}
                     </button>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {today.data.session.status === "completed" ? (
                       <span className="rounded-xl bg-emerald-400/20 px-4 py-2 text-xs font-bold text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-                        Sessione completata
+                        {t.common.success}
                       </span>
                     ) : null}
                   </div>
                 </div>
               </div>
             ) : (
-              <p className="mt-3 text-xs leading-5 text-slate-400">
-                Oggi nessun allenamento ad alto carico in programma. Dedica 15 minuti a mobilità,
-                passeggiata leggera o recupero attivo.
-              </p>
+              <p className="mt-3 text-xs leading-5 text-slate-400">{t.planBoard.restDayMessage}</p>
             )}
           </div>
 
-          {/* Board Settimanale Multisport */}
+          {/* Weekly Board */}
           <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Microciclo · Settimana {micro.data?.weekIndex}
+                  {t.planBoard.macrocycleInfo(
+                    micro.data?.weekIndex ?? 1,
+                    macro.data?.totalWeeks ?? 1,
+                  )}
                 </span>
-                <h3 className="mt-0.5 text-lg font-bold text-white">
-                  Board Settimanale Multisport
-                </h3>
+                <h3 className="mt-0.5 text-lg font-bold text-white">{t.planBoard.weeksList}</h3>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Volume: {micro.data?.weeklyVolumeMin} min</span>
+                <span>
+                  {t.wizard.step4.sessionDuration}: {micro.data?.weeklyVolumeMin} min
+                </span>
                 {micro.data?.deload ? (
                   <span className="rounded-full bg-amber-400/10 px-2.5 py-0.5 text-amber-300 ring-1 ring-inset ring-amber-400/30">
-                    Settimana di scarico
+                    {t.review.decisions.deload}
                   </span>
                 ) : null}
               </div>
@@ -731,7 +726,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                             colors.ring,
                           )}
                         >
-                          {sess.sport}
+                          {t.planBoard.sports[sess.sport] ?? sess.sport}
                         </span>
                         <span className="text-[11px] font-medium text-slate-400">{sess.date}</span>
                       </div>
@@ -751,7 +746,7 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                           isCompleted ? "text-emerald-300" : "text-slate-400",
                         )}
                       >
-                        {isCompleted ? "Completata" : "In programma"}
+                        {isCompleted ? t.common.success : t.common.loading}
                       </span>
                     </div>
                   </div>
@@ -760,15 +755,15 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
             </div>
           </div>
 
-          {/* Review Settimanale Component (Task 1.7) */}
+          {/* Weekly Review Component */}
           <WeeklyReviewCard />
 
-          {/* Macrociclo Timeline */}
+          {/* Macrocycle Timeline */}
           <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl">
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Macrociclo · Progressione delle Fasi
+              {t.baseline.periodization}
             </span>
-            <h3 className="mt-1 text-lg font-bold text-white">Timeline del Piano (Fasi L1)</h3>
+            <h3 className="mt-1 text-lg font-bold text-white">{t.planBoard.title}</h3>
             <p className="mt-1 text-xs text-slate-400">{macro.data?.rationale}</p>
 
             <div className="mt-6 space-y-3">
@@ -789,12 +784,12 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-bold text-white">
-                          Fase {idx + 1}
+                          {idx + 1}
                         </span>
                         <strong className="text-sm text-white">{phase.name}</strong>
                         {isCurrent && (
                           <span className="rounded-full bg-lime-400/20 px-2 py-0.5 text-[10px] font-bold uppercase text-lime-300">
-                            Fase Attuale
+                            {t.planBoard.currentPhase(phase.name)}
                           </span>
                         )}
                       </div>
@@ -803,10 +798,12 @@ export function TrainingPlanBoard({ hasBaseline }: TrainingPlanBoardProps) {
 
                     <div className="text-right text-xs text-slate-400 whitespace-nowrap">
                       <span>
-                        Settimane {phase.startWeek}–{phase.endWeek}
+                        {t.common.weeks} {phase.startWeek}–{phase.endWeek}
                       </span>
                       {phase.weeklyVolumeMin ? (
-                        <p className="text-slate-500">~{phase.weeklyVolumeMin} min/settimana</p>
+                        <p className="text-slate-500">
+                          ~{phase.weeklyVolumeMin} min/{t.common.weeks}
+                        </p>
                       ) : null}
                     </div>
                   </div>

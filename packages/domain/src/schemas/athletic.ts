@@ -1,5 +1,18 @@
 import { z } from "zod";
-import { SportSchema, TrainingLevelSchema } from "./common";
+import { IsoDateSchema, SportSchema, TrainingLevelSchema } from "./common";
+
+/**
+ * General sports background, independent of the sport in the current goal.
+ * Context only: recent capacity, not this label, gates the starting load.
+ */
+export const AthleteBackgroundSchema = z.enum([
+  "occasional",
+  "consistent",
+  "amateur_competitive",
+  "elite",
+]);
+
+export type AthleteBackground = z.infer<typeof AthleteBackgroundSchema>;
 
 /**
  * One sport the athlete has practiced, with the two things that actually
@@ -34,6 +47,8 @@ export const AthleticHistorySchema = z.object({
  * and (when available) a recent 5k time.
  */
 export const CurrentCapacitySchema = z.object({
+  /** Athlete-local date of the most recent session, when known. */
+  lastActivityDate: IsoDateSchema.nullable().default(null),
   /** Consecutive weeks of training in the current block. 0 = restarting now. */
   activeWeeks: z.number().int().min(0).max(520).default(0),
   /** Sessions per week actually done in the last 4 weeks. */
@@ -42,6 +57,15 @@ export const CurrentCapacitySchema = z.object({
   longestRecentSessionMin: z.number().int().min(0).max(600).default(0),
   /** Most recent 5k time in seconds, if the athlete knows it. */
   recent5kSec: z.number().int().min(0).max(20000).nullable().default(null),
+  /**
+   * Da dove viene `recent5kSec`.
+   * - `declared`: l'atleta l'ha inserito (es. la race prediction di Garmin
+   *   Connect). Va conservato quando la capacità viene ricalcolata dalle
+   *   attività: un numero dichiarato non è un dato da sovrascrivere.
+   * - `measured` (o assente, per i documenti già salvati): derivato dalle
+   *   attività con Riegel, quindi può essere ricalcolato a ogni sync.
+   */
+  recent5kSource: z.enum(["measured", "declared"]).optional(),
   /**
    * Where the numbers come from.
    * - `garmin`: recomputed server-side from imported activities on save and on

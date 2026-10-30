@@ -11,11 +11,15 @@ import {
 } from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { ZodValidationPipe } from "../common/zod-validation.pipe.js";
+import { InterviewService } from "./interview.service.js";
+import { MethodologyService } from "./methodology.service.js";
 import {
   type GenerateMacroInput,
   GenerateMacroSchema,
   type GenerateMicroInput,
   GenerateMicroSchema,
+  type InterviewMessageInput,
+  InterviewMessageSchema,
   type MicroQueryInput,
   MicroQuerySchema,
   type UpdateSessionInput,
@@ -25,7 +29,11 @@ import { PlanService } from "./plan.service.js";
 
 @Controller("plan")
 export class PlanController {
-  constructor(private readonly planService: PlanService) {}
+  constructor(
+    private readonly planService: PlanService,
+    private readonly methodologyService: MethodologyService,
+    private readonly interviewService: InterviewService,
+  ) {}
 
   @Get("macro")
   async getMacro(@CurrentUser() user: User) {
@@ -42,6 +50,41 @@ export class PlanController {
     @Body(new ZodValidationPipe(GenerateMacroSchema)) body: GenerateMacroInput,
   ) {
     return this.planService.generateMacroPlan(user.id, body);
+  }
+
+  /** Chiede all'LLM la metodologia più efficace con i dati attuali. */
+  @Post("methodology")
+  async evaluateMethodology(@CurrentUser() user: User) {
+    return this.methodologyService.evaluate(user.id);
+  }
+
+  @Get("methodology/latest")
+  async latestMethodology(@CurrentUser() user: User) {
+    return { evaluation: await this.methodologyService.latest(user.id) };
+  }
+
+  @Post("interview")
+  async startInterview(@CurrentUser() user: User) {
+    return this.interviewService.start(user.id);
+  }
+
+  @Get("interview/latest")
+  async latestInterview(@CurrentUser() user: User) {
+    return { interview: await this.interviewService.latest(user.id) };
+  }
+
+  @Post("interview/:id/message")
+  async interviewMessage(
+    @CurrentUser() user: User,
+    @Param("id") interviewId: string,
+    @Body(new ZodValidationPipe(InterviewMessageSchema)) body: InterviewMessageInput,
+  ) {
+    return this.interviewService.message(user.id, interviewId, body.message);
+  }
+
+  @Post("interview/:id/generate")
+  async generateFromInterview(@CurrentUser() user: User, @Param("id") interviewId: string) {
+    return this.interviewService.generate(user.id, interviewId);
   }
 
   @Get("micro")

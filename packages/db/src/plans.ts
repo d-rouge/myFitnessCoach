@@ -92,6 +92,33 @@ export async function getRecentMicroPlans(db: Db, userId: string, limit = 6): Pr
   });
 }
 
+/**
+ * Tutte le settimane del piano corrente, in ordine cronologico.
+ *
+ * Serve al loop di fattibilità: il piano parte dalla prima seduta completata e
+ * può durare più di 6 settimane, quindi un limite sulle settimane recenti
+ * perderebbe l'inizio del piano.
+ */
+export async function getMicroPlansByMacroPlan(
+  db: Db,
+  userId: string,
+  macroPlanId: string,
+): Promise<MicroPlan[]> {
+  const collection = db.collection<StoredMicroPlan>(COLLECTIONS.microPlans);
+  const docs = await collection.find({ userId, macroPlanId }).sort({ weekIndex: 1 }).toArray();
+
+  return docs.map((doc) => {
+    const {
+      _id: _,
+      userId: _u,
+      createdAt: _c,
+      updatedAt: _up,
+      ...plan
+    } = doc as unknown as StoredMicroPlan & { _id: unknown };
+    return plan as MicroPlan;
+  });
+}
+
 export async function saveMicroPlan(db: Db, userId: string, plan: MicroPlan): Promise<void> {
   const collection = db.collection<StoredMicroPlan>(COLLECTIONS.microPlans);
   const now = new Date().toISOString();

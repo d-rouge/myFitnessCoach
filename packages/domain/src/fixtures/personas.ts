@@ -11,11 +11,13 @@ export const beginnerPersona: Baseline = {
     sex: "male",
     heightCm: 178,
     weightKg: 78,
+    athleteBackground: null,
     experienceTier: "novice",
     history: {
       sports: [{ sport: "running", level: "none", yearsRegular: 0, detrainingMonths: 0 }],
     },
     capacity: {
+      lastActivityDate: null,
       activeWeeks: 8,
       weeklySessions: 3,
       longestRecentSessionMin: 40,
@@ -85,7 +87,6 @@ export const beginnerPersona: Baseline = {
   preferences: {
     dislikedExercises: ["burpees"],
     dislikedSports: ["swimming"],
-    preferredTrainingTime: "morning",
     tone: "direct",
     units: "metric",
     audioCues: true,
@@ -106,11 +107,13 @@ export const intermediatePersona: Baseline = {
     sex: "female",
     heightCm: 168,
     weightKg: 60,
+    athleteBackground: "consistent",
     experienceTier: "trained",
     history: {
       sports: [{ sport: "running", level: "amateur", yearsRegular: 4, detrainingMonths: 0 }],
     },
     capacity: {
+      lastActivityDate: null,
       activeWeeks: 60,
       weeklySessions: 5,
       longestRecentSessionMin: 90,
@@ -198,7 +201,6 @@ export const intermediatePersona: Baseline = {
   preferences: {
     dislikedExercises: [],
     dislikedSports: [],
-    preferredTrainingTime: "afternoon",
     tone: "analytical",
     units: "metric",
     audioCues: true,
@@ -219,11 +221,13 @@ export const kneePainPersona: Baseline = {
     sex: "male",
     heightCm: 182,
     weightKg: 84,
+    athleteBackground: "consistent",
     experienceTier: "trained",
     history: {
       sports: [{ sport: "running", level: "amateur", yearsRegular: 3, detrainingMonths: 6 }],
     },
     capacity: {
+      lastActivityDate: null,
       activeWeeks: 10,
       weeklySessions: 3,
       longestRecentSessionMin: 50,
@@ -308,7 +312,6 @@ export const kneePainPersona: Baseline = {
   preferences: {
     dislikedExercises: ["jump_squats", "box_jumps", "walking_lunges"],
     dislikedSports: ["running"],
-    preferredTrainingTime: "evening",
     tone: "direct",
     units: "metric",
     audioCues: true,
@@ -335,11 +338,13 @@ export const returningPersona: Baseline = {
     sex: "female",
     heightCm: 170,
     weightKg: 62,
+    athleteBackground: "amateur_competitive",
     experienceTier: "returning",
     history: {
       sports: [{ sport: "running", level: "competitive", yearsRegular: 12, detrainingMonths: 24 }],
     },
     capacity: {
+      lastActivityDate: null,
       activeWeeks: 3,
       weeklySessions: 2,
       longestRecentSessionMin: 35,
@@ -398,7 +403,6 @@ export const returningPersona: Baseline = {
   preferences: {
     dislikedExercises: [],
     dislikedSports: [],
-    preferredTrainingTime: "morning",
     tone: "supportive",
     units: "metric",
     audioCues: true,

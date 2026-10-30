@@ -6,6 +6,7 @@ const IsoDateSchema = z
 
 export const GenerateMacroSchema = z.object({
   startDate: IsoDateSchema.optional(),
+  targetDate: IsoDateSchema.optional(),
   totalWeeks: z.coerce.number().int().min(1).max(52).optional(),
 });
 
@@ -25,6 +26,12 @@ export const UpdateSessionSchema = z
   .refine((patch) => Object.keys(patch).length > 0, {
     message: "Almeno un campo è richiesto",
   });
+
+export const InterviewMessageSchema = z.object({
+  message: z.string().min(1).max(2000),
+});
+
+export type InterviewMessageInput = z.infer<typeof InterviewMessageSchema>;
 
 export type GenerateMacroInput = z.infer<typeof GenerateMacroSchema>;
 export type GenerateMicroInput = z.infer<typeof GenerateMicroSchema>;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AthleticHistorySchema, CurrentCapacitySchema } from "./athletic";
+import { AthleteBackgroundSchema, AthleticHistorySchema, CurrentCapacitySchema } from "./athletic";
 import { ExperienceTierSchema, IsoDateSchema, SexSchema, SportSchema, ToneSchema } from "./common";
 
 export const ProfileSchema = z.object({
@@ -7,6 +7,8 @@ export const ProfileSchema = z.object({
   sex: SexSchema,
   heightCm: z.number().min(100).max(250),
   weightKg: z.number().min(30).max(300),
+  /** General past sports background; it does not determine current capacity. */
+  athleteBackground: AthleteBackgroundSchema.nullable().default(null),
   /**
    * Derived from `history` + `capacity` for the primary goal sport.
    * Recomputed on every save; any client-supplied value is overwritten.
