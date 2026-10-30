@@ -595,44 +595,28 @@ export function OnboardingWizard({
       <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-400">
-            {locale === "it"
-              ? "Onboarding · Livello 0 (Baseline)"
-              : "Onboarding · Level 0 (Baseline)"}
+            {t.ui.onboardingLevel0Baseline}
           </span>
           <h2 className="mt-1 text-2xl font-bold text-white">
             {focus !== "full"
               ? stepLabel(step)
               : step === 1
-                ? locale === "it"
-                  ? "1. Profilo Atleta"
-                  : "1. Athlete Profile"
+                ? t.ui.k1AthleteProfile
                 : step === 2
-                  ? locale === "it"
-                    ? "2. Anamnesi & Sicurezza"
-                    : "2. Medical History & Safety"
+                  ? t.ui.k2MedicalHistorySafety
                   : step === 3
-                    ? locale === "it"
-                      ? "3. Obiettivi"
-                      : "3. Goals"
+                    ? t.ui.k3Goals
                     : step === 4
-                      ? locale === "it"
-                        ? "4. Disponibilità Settimanale"
-                        : "4. Weekly Availability"
+                      ? t.ui.k4WeeklyAvailability
                       : step === 5
-                        ? locale === "it"
-                          ? "5. Attrezzatura & Spazi"
-                          : "5. Equipment & Spaces"
-                        : locale === "it"
-                          ? "6. Riepilogo & Preferenze"
-                          : "6. Summary & Preferences"}
+                        ? t.ui.k5EquipmentSpaces
+                        : t.ui.k6SummaryPreferences}
           </h2>
         </div>
 
         {focus === "full" ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-400">
-              {locale === "it" ? "Carica demo:" : "Load demo:"}
-            </span>
+            <span className="text-xs text-slate-400">{t.ui.loadDemo}</span>
             <button
               type="button"
               onClick={() => loadPersona(beginnerPersona)}
@@ -645,21 +629,21 @@ export function OnboardingWizard({
               onClick={() => loadPersona(intermediatePersona)}
               className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
             >
-              Giulia ({locale === "it" ? "Mezza" : "Half"})
+              Giulia ({t.ui.half})
             </button>
             <button
               type="button"
               onClick={() => loadPersona(returningPersona)}
               className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
             >
-              Sara ({locale === "it" ? "Rientro" : "Return"})
+              Sara ({t.ui.return})
             </button>
             <button
               type="button"
               onClick={() => loadPersona(kneePainPersona)}
               className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10"
             >
-              Luca ({locale === "it" ? "Ginocchio" : "Knee"})
+              Luca ({t.ui.knee})
             </button>
           </div>
         ) : null}
@@ -731,9 +715,7 @@ export function OnboardingWizard({
                 <option value="male">{t.wizard.step1.male}</option>
                 <option value="female">{t.wizard.step1.female}</option>
                 <option value="other">{t.wizard.step1.other}</option>
-                <option value="prefer_not_to_say">
-                  {locale === "it" ? "Preferisco non dichiarare" : "Prefer not to say"}
-                </option>
+                <option value="prefer_not_to_say">{t.ui.preferNotToSay}</option>
               </select>
             </label>
 
@@ -787,7 +769,7 @@ export function OnboardingWizard({
               <p className="mt-1 text-[11px] text-slate-400">{tierRationale}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <label className="block text-xs font-semibold text-slate-300">
-                  {locale === "it" ? "Livello raggiunto" : "Training level achieved"}
+                  {t.ui.trainingLevelAchieved}
                   <select
                     value={historyEntry.level}
                     onChange={(e) => updateHistory({ level: e.target.value as TrainingLevel })}
@@ -801,7 +783,7 @@ export function OnboardingWizard({
                   </select>
                 </label>
                 <label className="block text-xs font-semibold text-slate-300">
-                  {locale === "it" ? "Anni di pratica" : "Years of practice"}
+                  {t.ui.yearsOfPractice}
                   <input
                     type="number"
                     min={0}
@@ -814,7 +796,7 @@ export function OnboardingWizard({
                   />
                 </label>
                 <label className="block text-xs font-semibold text-slate-300">
-                  {locale === "it" ? "Fermo da (mesi)" : "Break duration (months)"}
+                  {t.ui.breakDurationMonths}
                   <input
                     type="number"
                     min={0}
@@ -848,22 +830,14 @@ export function OnboardingWizard({
                     )}
                   >
                     {baseline.profile.capacity.source === "garmin"
-                      ? locale === "it"
-                        ? "Da Garmin"
-                        : "From Garmin"
+                      ? t.ui.fromGarmin
                       : baseline.profile.capacity.source === "calibration"
-                        ? locale === "it"
-                          ? "Settimana di test"
-                          : "Test week"
-                        : locale === "it"
-                          ? "Inserito a mano"
-                          : "Manual entry"}
+                        ? t.ui.testWeek
+                        : t.ui.manualEntry}
                   </span>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  {locale === "it"
-                    ? "Quello che sai fare oggi, non quello che hai fatto in passato. È questo che decide il carico di partenza."
-                    : "What you can currently perform, not your past peak. This sets your initial baseline load."}
+                  {t.ui.whatYouCanCurrentlyPerformNotYourPastPeakThisSet}
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -873,18 +847,10 @@ export function OnboardingWizard({
                     disabled={garminSyncing}
                     className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20 disabled:cursor-wait disabled:opacity-60"
                   >
-                    {garminSyncing
-                      ? locale === "it"
-                        ? "Sincronizzazione in corso…"
-                        : "Syncing…"
-                      : locale === "it"
-                        ? "Sincronizza Garmin · ultimi 90 giorni"
-                        : "Sync Garmin · last 90 days"}
+                    {garminSyncing ? t.ui.syncing_2 : t.ui.syncGarminLast90Days}
                   </button>
                   <span className="text-[11px] text-slate-400">
-                    {locale === "it"
-                      ? "Totale ore calcolato dalle attività Garmin, tutti gli sport."
-                      : "Total hours from Garmin activities, all sports."}
+                    {t.ui.totalHoursFromGarminActivitiesAllSports}
                   </span>
                 </div>
 
@@ -908,7 +874,7 @@ export function OnboardingWizard({
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-white/5 p-3">
                       <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                        {locale === "it" ? "Attività negli ultimi 3 mesi" : "Activities (3 months)"}
+                        {t.ui.activities3Months}
                       </div>
                       <div className="text-lg font-bold text-white">
                         {garminActivitySummary.totalActivities}
@@ -916,7 +882,7 @@ export function OnboardingWizard({
                     </div>
                     <div className="rounded-xl bg-white/5 p-3">
                       <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                        {locale === "it" ? "Ore totali" : "Total hours"}
+                        {t.ui.totalHours}
                       </div>
                       <div className="text-lg font-bold text-white">
                         {formatActivityDuration(garminActivitySummary.durationSeconds)}
@@ -925,7 +891,7 @@ export function OnboardingWizard({
                   </div>
                 ) : garminSummaryLoading ? (
                   <p className="mt-2 text-[11px] text-slate-400" role="status">
-                    {locale === "it" ? "Caricamento riepilogo Garmin…" : "Loading Garmin summary…"}
+                    {t.ui.loadingGarminSummary}
                   </p>
                 ) : null}
 
@@ -934,7 +900,7 @@ export function OnboardingWizard({
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       <div className="rounded-xl bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                          {locale === "it" ? "Settimane continue" : "Active weeks"}
+                          {t.ui.activeWeeks}
                         </div>
                         <div className="text-lg font-bold text-white">
                           {baseline.profile.capacity.activeWeeks}
@@ -942,7 +908,7 @@ export function OnboardingWizard({
                       </div>
                       <div className="rounded-xl bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                          {locale === "it" ? "Sedute / sett." : "Sessions / wk"}
+                          {t.ui.sessionsWk}
                         </div>
                         <div className="text-lg font-bold text-white">
                           {baseline.profile.capacity.weeklySessions}
@@ -950,7 +916,7 @@ export function OnboardingWizard({
                       </div>
                       <div className="rounded-xl bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                          {locale === "it" ? "Uscita più lunga" : "Longest session"}
+                          {t.ui.longestSession}
                         </div>
                         <div className="text-lg font-bold text-white">
                           {baseline.profile.capacity.longestRecentSessionMin} min
@@ -958,7 +924,7 @@ export function OnboardingWizard({
                       </div>
                       <div className="rounded-xl bg-white/5 p-3">
                         <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                          {locale === "it" ? "5k stimato" : "Est. 5k"}
+                          {t.ui.est5k}
                         </div>
                         <div className="text-lg font-bold text-white">
                           {format5k(baseline.profile.capacity.recent5kSec)}
@@ -976,7 +942,7 @@ export function OnboardingWizard({
                         onClick={() => updateCapacity({ source: "manual" })}
                         className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-semibold text-slate-200 hover:bg-white/10"
                       >
-                        {locale === "it" ? "Modifica a mano" : "Edit manually"}
+                        {t.ui.editManually}
                       </button>
                     </div>
                   </div>
@@ -1033,7 +999,7 @@ export function OnboardingWizard({
 
                     <div className="grid gap-3 sm:grid-cols-4">
                       <label className="block text-xs font-semibold text-slate-300">
-                        {locale === "it" ? "Settimane continue" : "Continuous weeks"}
+                        {t.ui.continuousWeeks}
                         <input
                           type="number"
                           min={0}
@@ -1047,7 +1013,7 @@ export function OnboardingWizard({
                         />
                       </label>
                       <label className="block text-xs font-semibold text-slate-300">
-                        {locale === "it" ? "Sedute / settimana" : "Sessions / week"}
+                        {t.ui.sessionsWeek}
                         <input
                           type="number"
                           min={0}
@@ -1062,7 +1028,7 @@ export function OnboardingWizard({
                         />
                       </label>
                       <label className="block text-xs font-semibold text-slate-300">
-                        {locale === "it" ? "Uscita più lunga (min)" : "Longest session (min)"}
+                        {t.ui.longestSessionMin}
                         <input
                           type="number"
                           min={0}
@@ -1076,11 +1042,11 @@ export function OnboardingWizard({
                         />
                       </label>
                       <label className="block text-xs font-semibold text-slate-300">
-                        {locale === "it" ? "5k recente (min:sec)" : "Recent 5k (min:sec)"}
+                        {t.ui.recent5kMinSec}
                         <input
                           type="text"
                           inputMode="numeric"
-                          placeholder={locale === "it" ? "es. 25:30" : "e.g. 25:30"}
+                          placeholder={t.ui.eG2530}
                           value={
                             baseline.profile.capacity.recent5kSec
                               ? format5k(baseline.profile.capacity.recent5kSec)
@@ -1096,9 +1062,7 @@ export function OnboardingWizard({
                           className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                         />
                         <span className="mt-1 block text-[11px] font-normal text-slate-400">
-                          {locale === "it"
-                            ? "Puoi usare la stima 5K di Garmin Connect: resta un dato dichiarato e non viene sovrascritta dal ricalcolo."
-                            : "You can use the Garmin Connect 5K estimate: it stays a declared value and is not overwritten by recalculation."}
+                          {t.ui.youCanUseTheGarminConnect5KEstimateItStaysADecla}
                         </span>
                       </label>
                     </div>
@@ -1117,7 +1081,7 @@ export function OnboardingWizard({
             {focus === "full" ? (
               <div className="sm:col-span-2">
                 <span className="block text-xs font-semibold text-slate-300">
-                  {locale === "it" ? "Sport praticati" : "Practiced sports"}
+                  {t.ui.practicedSports}
                 </span>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {ALL_SPORTS.map((s) => {
@@ -1228,11 +1192,7 @@ export function OnboardingWizard({
                 })}
               </div>
               {baseline.anamnesis.conditions.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  {locale === "it"
-                    ? "Nessuna patologia dichiarata."
-                    : "No health conditions declared."}
-                </p>
+                <p className="mt-2 text-xs text-slate-500">{t.ui.noHealthConditionsDeclared}</p>
               ) : null}
             </div>
 
@@ -1265,9 +1225,7 @@ export function OnboardingWizard({
                 </button>
               </div>
               {baseline.anamnesis.medications.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  {locale === "it" ? "Nessun farmaco dichiarato." : "No medications declared."}
-                </p>
+                <p className="mt-2 text-xs text-slate-500">{t.ui.noMedicationsDeclared}</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {baseline.anamnesis.medications.map((medication) => (
@@ -1387,9 +1345,7 @@ export function OnboardingWizard({
                 </button>
               </div>
               {baseline.anamnesis.injuries.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  {locale === "it" ? "Nessun infortunio dichiarato." : "No injuries declared."}
-                </p>
+                <p className="mt-2 text-xs text-slate-500">{t.ui.noInjuriesDeclared}</p>
               ) : (
                 <div className="mt-2 space-y-2">
                   {baseline.anamnesis.injuries.map((inj, idx) => (
@@ -1402,8 +1358,7 @@ export function OnboardingWizard({
                           {inj.area.replace("_", " ")}
                         </strong>
                         <span className="ml-2 text-slate-400">
-                          ({locale === "it" ? "Stato" : "Status"}: {inj.status},{" "}
-                          {locale === "it" ? "Dolore" : "Pain"}: {inj.painLevel}/10)
+                          ({t.ui.status}: {inj.status}, {t.ui.pain}: {inj.painLevel}/10)
                         </span>
                         {inj.notes ? <p className="mt-1 text-slate-400">{inj.notes}</p> : null}
                       </div>
@@ -1447,7 +1402,7 @@ export function OnboardingWizard({
         {step === 3 && (
           <div className="space-y-4">
             <label className="block text-xs font-semibold text-slate-300">
-              {locale === "it" ? "Obiettivo Principale" : "Primary Goal"}
+              {t.ui.primaryGoal}
               <input
                 type="text"
                 value={baseline.goals.primary.description}
@@ -1484,19 +1439,11 @@ export function OnboardingWizard({
                   }
                   className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                 >
-                  <option value="performance">
-                    {locale === "it" ? "Performance / Tempo" : "Performance / Time"}
-                  </option>
-                  <option value="race">{locale === "it" ? "Gara / Evento" : "Race / Event"}</option>
-                  <option value="health">
-                    {locale === "it" ? "Salute & Benessere" : "Health & Well-being"}
-                  </option>
-                  <option value="habit">
-                    {locale === "it" ? "Costanza / Abitudine" : "Consistency / Habit"}
-                  </option>
-                  <option value="strength">
-                    {locale === "it" ? "Forza / Carico" : "Strength / Load"}
-                  </option>
+                  <option value="performance">{t.ui.performanceTime}</option>
+                  <option value="race">{t.ui.raceEvent}</option>
+                  <option value="health">{t.ui.healthWellBeing}</option>
+                  <option value="habit">{t.ui.consistencyHabit}</option>
+                  <option value="strength">{t.ui.strengthLoad}</option>
                 </select>
               </label>
 
@@ -1528,14 +1475,10 @@ export function OnboardingWizard({
           <div className="space-y-5">
             <div>
               <span className="block text-xs font-semibold text-slate-300">
-                {locale === "it"
-                  ? "Quanti giorni a settimana puoi allenarti?"
-                  : "How many days per week can you train?"}
+                {t.ui.howManyDaysPerWeekCanYouTrain}
               </span>
               <p className="mt-1 text-[11px] text-slate-400">
-                {locale === "it"
-                  ? "Non serve indicare i minuti: la durata la decide il piano in base al carico."
-                  : "No need to enter minutes: the plan decides duration from the load."}
+                {t.ui.noNeedToEnterMinutesThePlanDecidesDurationFromTh}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5, 6, 7].map((count) => (
@@ -1556,7 +1499,7 @@ export function OnboardingWizard({
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-slate-400">
-                {locale === "it" ? "Giorni proposti: " : "Suggested days: "}
+                {t.ui.suggestedDays}
                 {baseline.availability.days
                   .map(
                     (day) =>
@@ -1579,11 +1522,11 @@ export function OnboardingWizard({
                   { value: "none", label: t.wizard.step4.noLongDay },
                   {
                     value: "weekend",
-                    label: locale === "it" ? "Sì, nel fine settimana" : "Yes, at the weekend",
+                    label: t.ui.yesAtTheWeekend,
                   },
                   {
                     value: "weekday",
-                    label: locale === "it" ? "Sì, in un giorno scelto" : "Yes, on a chosen day",
+                    label: t.ui.yesOnAChosenDay,
                   },
                 ].map((option) => {
                   const selected =
@@ -1669,7 +1612,7 @@ export function OnboardingWizard({
                   }
                   className="h-4 w-4 rounded border-white/20 bg-white/10 text-lime-400"
                 />
-                <span>{locale === "it" ? "Accesso a piscina" : "Swimming pool access"}</span>
+                <span>{t.ui.swimmingPoolAccess}</span>
               </label>
             </div>
 
@@ -1704,32 +1647,21 @@ export function OnboardingWizard({
         {step === 6 && (
           <div className="space-y-4">
             <div className="rounded-2xl border border-lime-400/20 bg-lime-400/5 p-4 text-xs text-lime-200">
-              <h3 className="font-bold text-white">
-                {locale === "it"
-                  ? "Ecco cosa ho capito (Riepilogo Baseline L0):"
-                  : "Baseline L0 Profile Summary:"}
-              </h3>
+              <h3 className="font-bold text-white">{t.ui.baselineL0ProfileSummary}</h3>
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 <li>
-                  <strong>{locale === "it" ? "Atleta:" : "Athlete:"}</strong> {baseline.profile.sex}
-                  , {baseline.profile.heightCm} cm, {baseline.profile.weightKg} kg,{" "}
-                  {locale === "it" ? "livello" : "tier"}{" "}
+                  <strong>{t.ui.athlete}</strong> {baseline.profile.sex},{" "}
+                  {baseline.profile.heightCm} cm, {baseline.profile.weightKg} kg, {t.ui.tier}{" "}
                   <strong>{experienceTierLabel(derivedTier)}</strong> (
                   {baseline.profile.capacity.source === "garmin"
-                    ? locale === "it"
-                      ? "capacità misurata da Garmin"
-                      : "capacity from Garmin"
+                    ? t.ui.capacityFromGarmin
                     : baseline.profile.capacity.source === "calibration"
-                      ? locale === "it"
-                        ? "settimana 1 di calibrazione"
-                        : "week 1 calibration"
-                      : locale === "it"
-                        ? "capacità inserita a mano"
-                        : "manually provided"}
+                      ? t.ui.week1Calibration
+                      : t.ui.manuallyProvided}
                   ).
                 </li>
                 <li>
-                  <strong>{locale === "it" ? "Sport:" : "Sports:"}</strong>{" "}
+                  <strong>{t.ui.sports}</strong>{" "}
                   {baseline.profile.sports
                     .map((s) =>
                       locale === "it"
@@ -1740,26 +1672,19 @@ export function OnboardingWizard({
                   .
                 </li>
                 <li>
-                  <strong>{locale === "it" ? "Obiettivo:" : "Goal:"}</strong>{" "}
-                  {baseline.goals.primary.description}.
+                  <strong>{t.ui.goal}</strong> {baseline.goals.primary.description}.
                 </li>
                 <li>
-                  <strong>{locale === "it" ? "Disponibilità:" : "Availability:"}</strong>{" "}
-                  {baseline.availability.days.length}{" "}
-                  {locale === "it" ? "giorni/settimana" : "days/week"} (
+                  <strong>{t.ui.availability}</strong> {baseline.availability.days.length}{" "}
+                  {t.ui.daysWeek} (
                   {baseline.availability.days.map((d) => d.day.toUpperCase()).join(", ")}).
                 </li>
                 <li>
-                  <strong>{locale === "it" ? "Salute:" : "Health & Safety:"}</strong>{" "}
+                  <strong>{t.ui.healthSafety}</strong>{" "}
                   {baseline.anamnesis.injuries.length === 0
-                    ? locale === "it"
-                      ? "Nessun infortunio"
-                      : "No active injuries"
+                    ? t.ui.noActiveInjuries_2
                     : baseline.anamnesis.injuries
-                        .map(
-                          (i) =>
-                            `${i.area} (${locale === "it" ? "dolore" : "pain"} ${i.painLevel}/10)`,
-                        )
+                        .map((i) => `${i.area} (${t.ui.pain_2} ${i.painLevel}/10)`)
                         .join(", ")}
                   .
                 </li>
@@ -1768,7 +1693,7 @@ export function OnboardingWizard({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-semibold text-slate-300">
-                {locale === "it" ? "Unità di misura" : "Measurement units"}
+                {t.ui.measurementUnits}
                 <select
                   value={baseline.preferences.units}
                   onChange={(e) =>
@@ -1782,17 +1707,13 @@ export function OnboardingWizard({
                   }
                   className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                 >
-                  <option value="metric">
-                    {locale === "it" ? "Metrico (km, kg, cm)" : "Metric (km, kg, cm)"}
-                  </option>
-                  <option value="imperial">
-                    {locale === "it" ? "Imperiale (mi, lb, ft)" : "Imperial (mi, lb, ft)"}
-                  </option>
+                  <option value="metric">{t.ui.metricKmKgCm}</option>
+                  <option value="imperial">{t.ui.imperialMiLbFt}</option>
                 </select>
               </label>
 
               <label className="block text-xs font-semibold text-slate-300">
-                {locale === "it" ? "Tono del coach" : "Coach tone"}
+                {t.ui.coachTone}
                 <select
                   value={baseline.preferences.tone}
                   onChange={(e) =>
@@ -1806,15 +1727,9 @@ export function OnboardingWizard({
                   }
                   className="mt-1 block w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
                 >
-                  <option value="direct">
-                    {locale === "it" ? "Diretto ed essenziale" : "Direct & concise"}
-                  </option>
-                  <option value="supportive">
-                    {locale === "it" ? "Incoraggiante ed empatico" : "Supportive & empathetic"}
-                  </option>
-                  <option value="analytical">
-                    {locale === "it" ? "Analitico e scientifico" : "Analytical & data-driven"}
-                  </option>
+                  <option value="direct">{t.ui.directConcise}</option>
+                  <option value="supportive">{t.ui.supportiveEmpathetic}</option>
+                  <option value="analytical">{t.ui.analyticalDataDriven}</option>
                 </select>
               </label>
             </div>
@@ -1869,11 +1784,7 @@ export function OnboardingWizard({
               disabled={isSubmitting}
               className="rounded-xl border border-lime-400/40 bg-lime-400/10 px-4 py-2 text-xs font-bold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-50"
             >
-              {isSubmitting
-                ? t.common.saving
-                : locale === "it"
-                  ? "Salva modifiche"
-                  : "Save changes"}
+              {isSubmitting ? t.common.saving : t.ui.saveChanges}
             </button>
           ) : null}
 
@@ -1895,9 +1806,7 @@ export function OnboardingWizard({
               {isSubmitting
                 ? t.common.saving
                 : isEditing
-                  ? locale === "it"
-                    ? "Salva modifiche"
-                    : "Save changes"
+                  ? t.ui.saveChanges
                   : t.wizard.saveBaseline}
             </button>
           )}

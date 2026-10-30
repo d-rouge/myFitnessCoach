@@ -654,7 +654,7 @@ function Dashboard({ user }: { user: SessionUser }) {
           <LanguageSelector />
           {user ? (
             <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-              {locale === "it" ? "Atleta:" : "Athlete:"} {user.name} ({user.email})
+              {t.ui.athlete} {user.name} ({user.email})
             </span>
           ) : null}
           <button
@@ -681,7 +681,7 @@ function Dashboard({ user }: { user: SessionUser }) {
       <section className="mt-8">
         {baseline.isLoading ? (
           <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
-            {locale === "it" ? "Caricamento profilo atleta…" : "Loading athlete profile…"}
+            {t.ui.loadingAthleteProfile}
           </div>
         ) : !baseline.data || isEditingBaseline ? (
           <OnboardingWizard
@@ -698,8 +698,8 @@ function Dashboard({ user }: { user: SessionUser }) {
           <>
             <div className="grid gap-4 xl:grid-cols-2">
               <Card
-                title={locale === "it" ? "Dati fisici & salute" : "Physical data & health"}
-                eyebrow={locale === "it" ? "Profilo · anamnesi" : "Profile · anamnesis"}
+                title={t.ui.physicalDataHealth}
+                eyebrow={t.ui.profileAnamnesis}
                 className="border-white/10"
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -711,57 +711,41 @@ function Dashboard({ user }: { user: SessionUser }) {
                     {baseline.data.profile.weightKg} kg
                   </span>
                   <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-300 ring-1 ring-inset ring-white/10">
-                    {locale === "it" ? "Aggiornato il" : "Updated"}{" "}
-                    {formatDate(baseline.data.validFrom.slice(0, 10))}
+                    {t.ui.updated} {formatDate(baseline.data.validFrom.slice(0, 10))}
                   </span>
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Anamnesi & dolori:" : "Medical & injuries:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.medicalInjuries}</span>
                     <p className="mt-1 font-semibold text-white">
                       {baseline.data.anamnesis.injuries.length === 0
-                        ? locale === "it"
-                          ? "Nessun infortunio attivo"
-                          : "No active injuries"
+                        ? t.ui.noActiveInjuries
                         : baseline.data.anamnesis.injuries
                             .map((injury) => `${injury.area} (${injury.painLevel}/10)`)
                             .join(", ")}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Patologie:" : "Conditions:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.conditions}</span>
                     <p className="mt-1 font-semibold text-white">
                       {baseline.data.anamnesis.conditions.length === 0
-                        ? locale === "it"
-                          ? "Nessuna dichiarata"
-                          : "None reported"
+                        ? t.ui.noneReported
                         : baseline.data.anamnesis.conditions.join(", ")}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Farmaci:" : "Medications:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.medications}</span>
                     <p className="mt-1 font-semibold text-white">
                       {baseline.data.anamnesis.medications.length === 0
-                        ? locale === "it"
-                          ? "Nessuno"
-                          : "None"
+                        ? t.ui.none
                         : baseline.data.anamnesis.medications.join(", ")}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Background sportivo:" : "Sports background:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.sportsBackground}</span>
                     <p className="mt-1 font-semibold capitalize text-white">
-                      {baseline.data.profile.athleteBackground ??
-                        (locale === "it" ? "Non indicato" : "Not set")}
+                      {baseline.data.profile.athleteBackground ?? t.ui.notSet}
                     </p>
                   </div>
                 </div>
@@ -772,21 +756,21 @@ function Dashboard({ user }: { user: SessionUser }) {
                     onClick={() => openBaselineEditor(1, "health")}
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
                   >
-                    {locale === "it" ? "Modifica dati fisici" : "Edit physical data"}
+                    {t.ui.editPhysicalData}
                   </button>
                   <button
                     type="button"
                     onClick={() => openBaselineEditor(2, "health")}
                     className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
                   >
-                    {locale === "it" ? "Segnala un problema" : "Report a problem"}
+                    {t.ui.reportAProblem}
                   </button>
                 </div>
               </Card>
 
               <Card
-                title={locale === "it" ? "Obiettivo corrente" : "Current goal"}
-                eyebrow={locale === "it" ? "Allenamento · piano" : "Training · plan"}
+                title={t.ui.currentGoal}
+                eyebrow={t.ui.trainingPlan}
                 className="border-lime-400/20 bg-lime-950/10"
               >
                 <h3 className="text-lg font-bold text-white">
@@ -794,17 +778,13 @@ function Dashboard({ user }: { user: SessionUser }) {
                 </h3>
                 <p className="mt-1 text-xs text-slate-400">
                   {baseline.data.goals.primary.targetDate
-                    ? `${locale === "it" ? "Data target:" : "Target date:"} ${baseline.data.goals.primary.targetDate}`
-                    : locale === "it"
-                      ? "Nessuna data target: il piano usa un orizzonte standard."
-                      : "No target date: the plan uses a standard horizon."}
+                    ? `${t.ui.targetDate} ${baseline.data.goals.primary.targetDate}`
+                    : t.ui.noTargetDateThePlanUsesAStandardHorizon}
                 </p>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Sport attivi:" : "Active sports:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.activeSports}</span>
                     <p className="mt-1 font-semibold capitalize text-white">
                       {baseline.data.profile.sports
                         .map((sport) => t.planBoard.sports[sport] || sport)
@@ -813,45 +793,27 @@ function Dashboard({ user }: { user: SessionUser }) {
                   </div>
 
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Disponibilità:" : "Availability:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.availability}</span>
                     <p className="mt-1 font-semibold text-white">
                       {baseline.data.availability.daysPerWeek ??
                         baseline.data.availability.days.length}{" "}
-                      {locale === "it" ? "giorni/settimana" : "days/week"} ·{" "}
+                      {t.ui.daysWeek} ·{" "}
                       {baseline.data.availability.longSession
                         ? baseline.data.availability.longSession.when === "weekend"
-                          ? locale === "it"
-                            ? "seduta lunga nel weekend"
-                            : "long session at the weekend"
-                          : `${locale === "it" ? "seduta lunga il" : "long session on"} ${baseline.data.availability.longSession.day ?? "—"}`
-                        : locale === "it"
-                          ? "nessuna seduta lunga dedicata"
-                          : "no dedicated long session"}
+                          ? t.ui.longSessionAtTheWeekend
+                          : `${t.ui.longSessionOn} ${baseline.data.availability.longSession.day ?? "—"}`
+                        : t.ui.noDedicatedLongSession}
                     </p>
                   </div>
 
                   <div className="rounded-2xl border border-white/5 bg-black/20 p-3 text-xs sm:col-span-2">
-                    <span className="text-slate-400">
-                      {locale === "it" ? "Attrezzatura a casa:" : "Home equipment:"}
-                    </span>
+                    <span className="text-slate-400">{t.ui.homeEquipment}</span>
                     <p className="mt-1 font-semibold text-white">
                       {baseline.data.equipment.items.length === 0
-                        ? locale === "it"
-                          ? "Nessuna attrezzatura dichiarata"
-                          : "No equipment reported"
+                        ? t.ui.noEquipmentReported
                         : baseline.data.equipment.items.join(", ")}
-                      {baseline.data.equipment.gymAccess
-                        ? locale === "it"
-                          ? " · accesso in palestra"
-                          : " · gym access"
-                        : ""}
-                      {baseline.data.equipment.poolAccess
-                        ? locale === "it"
-                          ? " · accesso in piscina"
-                          : " · pool access"
-                        : ""}
+                      {baseline.data.equipment.gymAccess ? t.ui.gymAccess : ""}
+                      {baseline.data.equipment.poolAccess ? t.ui.poolAccess : ""}
                     </p>
                   </div>
                 </div>
@@ -864,14 +826,14 @@ function Dashboard({ user }: { user: SessionUser }) {
                     onClick={() => openBaselineEditor(3, "goal")}
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
                   >
-                    {locale === "it" ? "Modifica obiettivo" : "Edit goal"}
+                    {t.ui.editGoal}
                   </button>
                   <button
                     type="button"
                     onClick={() => openBaselineEditor(4, "training")}
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/10"
                   >
-                    {locale === "it" ? "Disponibilità & attrezzatura" : "Availability & equipment"}
+                    {t.ui.availabilityEquipment}
                   </button>
                   <button
                     type="button"
@@ -880,12 +842,8 @@ function Dashboard({ user }: { user: SessionUser }) {
                     className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20 disabled:opacity-60"
                   >
                     {feasibilityMutation.isPending
-                      ? locale === "it"
-                        ? "Calcolo Feasibility…"
-                        : "Calculating Feasibility…"
-                      : locale === "it"
-                        ? "Verifica Feasibility 5K"
-                        : "Verify 5K Feasibility"}
+                      ? t.ui.calculatingFeasibility
+                      : t.ui.verify5KFeasibility}
                   </button>
                 </div>
 
@@ -901,16 +859,12 @@ function Dashboard({ user }: { user: SessionUser }) {
             </div>
 
             <Card
-              title={
-                locale === "it" ? "Imposta il piano con il coach" : "Set up the plan with the coach"
-              }
-              eyebrow={locale === "it" ? "Allenamento · intervista" : "Training · interview"}
+              title={t.ui.setUpThePlanWithTheCoach}
+              eyebrow={t.ui.trainingInterview}
               className="mt-4 border-sky-400/20 bg-sky-950/10"
             >
               <p className="text-xs leading-5 text-slate-300">
-                {locale === "it"
-                  ? "Il piano nasce da un'intervista guidata: il coach legge obiettivo, Garmin e ultime due settimane, chiede quello che manca, sceglie la metodologia e poi genera il piano."
-                  : "The plan comes from a guided interview: the coach reads goal, Garmin and the last two weeks, asks what is missing, chooses the methodology and then generates the plan."}
+                {t.ui.thePlanComesFromAGuidedInterviewTheCoachReadsGoa}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -918,9 +872,7 @@ function Dashboard({ user }: { user: SessionUser }) {
                   onClick={() => setIsInterviewOpen(true)}
                   className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20"
                 >
-                  {locale === "it"
-                    ? "Imposta il piano con il coach"
-                    : "Set up the plan with the coach"}
+                  {t.ui.setUpThePlanWithTheCoach}
                 </button>
                 <button
                   type="button"
@@ -929,12 +881,8 @@ function Dashboard({ user }: { user: SessionUser }) {
                   className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20 disabled:opacity-60"
                 >
                   {methodologyMutation.isPending
-                    ? locale === "it"
-                      ? "Analisi metodologia…"
-                      : "Analysing methodology…"
-                    : locale === "it"
-                      ? "Analizza metodologia"
-                      : "Analyse methodology"}
+                    ? t.ui.analysingMethodology
+                    : t.ui.analyseMethodology}
                 </button>
               </div>
 
@@ -966,40 +914,34 @@ function Dashboard({ user }: { user: SessionUser }) {
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
         <Card title="API" eyebrow="Runtime">
           <div className="flex items-center justify-between gap-4">
-            <span>{locale === "it" ? "Stato del servizio" : "Service status"}</span>
+            <span>{t.ui.serviceStatus}</span>
             <StatusPill status={apiStatus} />
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">
             {health.isError
-              ? locale === "it"
-                ? "API non raggiungibile. Avvia `npm run dev:api`."
-                : "API unreachable. Start `npm run dev:api`."
+              ? t.ui.aPIUnreachableStartNpmRunDevApi
               : health.data
                 ? `Uptime ${health.data.uptimeSec}s · ${new Date(health.data.timestamp).toLocaleTimeString()}`
-                : locale === "it"
-                  ? "Verifica in corso…"
-                  : "Checking…"}
+                : t.ui.checking}
           </p>
         </Card>
 
-        <Card title="MongoDB" eyebrow={locale === "it" ? "Persistenza" : "Persistence"}>
+        <Card title="MongoDB" eyebrow={t.ui.persistence}>
           <div className="flex items-center justify-between gap-4">
-            <span>{locale === "it" ? "Connessione" : "Connection"}</span>
+            <span>{t.ui.connection}</span>
             <StatusPill status={health.data?.checks.mongo.status ?? "unchecked"} />
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">
             {health.data?.checks.mongo.error ??
               (health.data?.checks.mongo.latencyMs !== undefined
                 ? `${health.data.checks.mongo.latencyMs} ms`
-                : locale === "it"
-                  ? "MongoDB locale: avvialo e riprova."
-                  : "Local MongoDB: start it and retry.")}
+                : t.ui.localMongoDBStartItAndRetry)}
           </p>
         </Card>
 
-        <Card title="Garmin Personal" eyebrow={locale === "it" ? "Integrazione" : "Integration"}>
+        <Card title="Garmin Personal" eyebrow={t.ui.integration}>
           <div className="flex items-center justify-between gap-4">
-            <span>{locale === "it" ? "Chiave API" : "API Key"}</span>
+            <span>{t.ui.aPIKey}</span>
             <StatusPill status={health.data?.checks.garmin.status ?? "unchecked"} />
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1009,13 +951,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={garminCheck.isPending}
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {garminCheck.isPending
-                ? locale === "it"
-                  ? "Verifica…"
-                  : "Checking…"
-                : locale === "it"
-                  ? "Verifica chiave"
-                  : "Check key"}
+              {garminCheck.isPending ? t.ui.checking_2 : t.ui.checkKey}
             </button>
             <button
               type="button"
@@ -1023,13 +959,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={garminSync.isPending || overview.isLoading}
               className="rounded-xl bg-lime-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {garminSync.isPending
-                ? locale === "it"
-                  ? "Sincronizzo…"
-                  : "Syncing…"
-                : locale === "it"
-                  ? "Sincronizza ora"
-                  : "Sync now"}
+              {garminSync.isPending ? t.ui.syncing : t.ui.syncNow}
             </button>
           </div>
           {garminCheck.data ? (
@@ -1041,28 +971,22 @@ function Dashboard({ user }: { user: SessionUser }) {
             >
               {garminCheck.data.ok
                 ? `OK · ${garminCheck.data.latencyMs} ms`
-                : (garminCheck.data.error ??
-                  (locale === "it" ? "Verifica fallita" : "Check failed"))}
+                : (garminCheck.data.error ?? t.ui.checkFailed)}
             </p>
           ) : garminCheck.isError ? (
             <p className="mt-3 text-xs leading-5 text-rose-300">{garminCheck.error.message}</p>
           ) : null}
           {garminSync.isSuccess ? (
             <p className="mt-3 text-xs leading-5 text-emerald-300">
-              Sync {garminSync.data.status}: {garminSync.data.activities}{" "}
-              {locale === "it" ? "attività" : "activities"}, {garminSync.data.metrics}{" "}
-              {locale === "it" ? "giorni di metriche" : "metric days"}.
+              Sync {garminSync.data.status}: {garminSync.data.activities} {t.ui.activities},{" "}
+              {garminSync.data.metrics} {t.ui.metricDays}.
             </p>
           ) : garminSync.isError ? (
             <p className="mt-3 text-xs leading-5 text-rose-300">{garminSync.error.message}</p>
           ) : null}
         </Card>
 
-        <Card
-          title={locale === "it" ? "Dominio condiviso" : "Shared Domain"}
-          eyebrow={locale === "it" ? "Regole" : "Rules"}
-          className="lg:col-span-2"
-        >
+        <Card title={t.ui.sharedDomain} eyebrow={t.ui.rules} className="lg:col-span-2">
           <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-center">
             <div className="flex h-24 w-24 flex-col items-center justify-center rounded-3xl bg-lime-300/10 ring-1 ring-inset ring-lime-300/30">
               <span className="text-3xl font-bold text-lime-300">{readiness.score}</span>
@@ -1089,7 +1013,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               <div className="mt-3 flex flex-wrap gap-2">
                 {readiness.flags.length === 0 ? (
                   <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
-                    {locale === "it" ? "nessun flag" : "no flags"}
+                    {t.ui.noFlags}
                   </span>
                 ) : (
                   readiness.flags.map((flag) => (
@@ -1106,81 +1030,43 @@ function Dashboard({ user }: { user: SessionUser }) {
           </div>
         </Card>
 
-        <Card
-          title={locale === "it" ? "Fase 1 Completata" : "Phase 1 Complete"}
-          eyebrow={locale === "it" ? "Stato MVP" : "MVP Status"}
-        >
+        <Card title={t.ui.phase1Complete} eyebrow={t.ui.mVPStatus}>
           <ul className="space-y-1.5 text-xs leading-5 text-slate-300">
-            <li className="text-lime-300 font-semibold">
-              {locale === "it" ? "✓ Baseline L0 & Wizard 6 step" : "✓ Baseline L0 & 6-step Wizard"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it"
-                ? "✓ Macro & Micro Plan Multisport"
-                : "✓ Multisport Macro & Micro Plan"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it"
-                ? "✓ Morning Check-in & Adattamento"
-                : "✓ Morning Check-in & Real-time Adaptation"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it" ? "✓ Tracciamento & Upload FIT" : "✓ Activity Tracking & FIT Upload"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it"
-                ? "✓ AI Coach Briefing deterministico"
-                : "✓ Deterministic AI Coach Briefing"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it" ? "✓ Export FIT & Hevy Pro" : "✓ FIT & Hevy Pro Export"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it"
-                ? "✓ Review settimanale & Avanzamento"
-                : "✓ Weekly Review & Progression"}
-            </li>
-            <li className="text-lime-300 font-semibold">
-              {locale === "it"
-                ? "✓ Backup JSON & Data Sovereignty"
-                : "✓ JSON Backup & Data Sovereignty"}
-            </li>
+            <li className="text-lime-300 font-semibold">{t.ui.baselineL06StepWizard}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.multisportMacroMicroPlan}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.morningCheckInRealTimeAdaptation}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.activityTrackingFITUpload}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.deterministicAICoachBriefing}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.fITHevyProExport}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.weeklyReviewProgression}</li>
+            <li className="text-lime-300 font-semibold">{t.ui.jSONBackupDataSovereignty}</li>
           </ul>
         </Card>
       </div>
 
-      <Card
-        title={locale === "it" ? "Dati Garmin" : "Garmin Data"}
-        eyebrow={locale === "it" ? "Ultimi 7 giorni" : "Last 7 days"}
-        className="mt-4"
-      >
+      <Card title={t.ui.garminData} eyebrow={t.ui.last7Days} className="mt-4">
         <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             <SyncPill status={data?.status ?? "never"} locale={locale} />
             <span>
               {data?.lastSync
-                ? `${locale === "it" ? "Ultimo sync:" : "Last sync:"} ${formatDateTime(data.lastSync)}`
-                : locale === "it"
-                  ? "Nessun sync"
-                  : "Never synced"}
+                ? `${t.ui.lastSync} ${formatDateTime(data.lastSync)}`
+                : t.ui.neverSynced}
             </span>
             <span className="text-slate-600">·</span>
             <span>
-              {data?.counts.activities ?? 0}{" "}
-              {locale === "it" ? "attività totali" : "total activities"}
+              {data?.counts.activities ?? 0} {t.ui.totalActivities}
             </span>
             <span className="text-slate-600">·</span>
             <span>
-              {data?.counts.metrics ?? 0} {locale === "it" ? "giorni di metriche" : "metric days"}
+              {data?.counts.metrics ?? 0} {t.ui.metricDays}
             </span>
           </div>
           {data?.error ? <span className="text-xs text-rose-300">{data.error}</span> : null}
         </div>
 
         {overview.isLoading ? (
-          <p className="py-6 text-sm text-slate-500">
-            {locale === "it" ? "Carico i dati Garmin…" : "Loading Garmin data…"}
-          </p>
+          <p className="py-6 text-sm text-slate-500">{t.ui.loadingGarminData}</p>
         ) : overview.isError ? (
           <p className="py-6 text-sm text-rose-300">{overview.error.message}</p>
         ) : !data || data.counts.activities === 0 ? (
@@ -1199,7 +1085,7 @@ function Dashboard({ user }: { user: SessionUser }) {
           <div className="mt-4 grid gap-6 lg:grid-cols-2">
             <div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {locale === "it" ? "Attività recenti" : "Recent activities"}
+                {t.ui.recentActivities}
               </h3>
               <ul className="space-y-2">
                 {data.activities.map((activity) => {
@@ -1236,18 +1122,14 @@ function Dashboard({ user }: { user: SessionUser }) {
                         className="mt-3 rounded-lg border border-lime-300/30 bg-lime-300/10 px-2.5 py-1.5 text-[11px] font-semibold text-lime-300 transition hover:bg-lime-300/20 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {analyzeActivity.isPending && analyzeActivity.variables === activity.id
-                          ? locale === "it"
-                            ? "Analizzo FIT…"
-                            : "Analyzing FIT…"
-                          : locale === "it"
-                            ? "Analizza FIT"
-                            : "Analyze FIT"}
+                          ? t.ui.analyzingFIT
+                          : t.ui.analyzeFIT}
                       </button>
 
                       {analysis ? (
                         <details className="mt-2">
                           <summary className="cursor-pointer text-[11px] font-semibold text-slate-400">
-                            {locale === "it" ? "Brief pronto per l'LLM" : "LLM prompt briefing"}
+                            {t.ui.lLMPromptBriefing}
                           </summary>
                           <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-black/30 p-3 text-[11px] leading-5 text-slate-300">
                             {analysis.brief}
@@ -1265,23 +1147,17 @@ function Dashboard({ user }: { user: SessionUser }) {
 
             <div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {locale === "it" ? "Metriche giornaliere" : "Daily metrics"}
+                {t.ui.dailyMetrics}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="pb-2 pr-3 font-medium">
-                        {locale === "it" ? "Giorno" : "Day"}
-                      </th>
+                      <th className="pb-2 pr-3 font-medium">{t.ui.day}</th>
                       <th className="pb-2 pr-3 font-medium">RHR</th>
                       <th className="pb-2 pr-3 font-medium">HRV</th>
-                      <th className="pb-2 pr-3 font-medium">
-                        {locale === "it" ? "Sonno" : "Sleep"}
-                      </th>
-                      <th className="pb-2 pr-3 font-medium">
-                        {locale === "it" ? "Passi" : "Steps"}
-                      </th>
+                      <th className="pb-2 pr-3 font-medium">{t.ui.sleep}</th>
+                      <th className="pb-2 pr-3 font-medium">{t.ui.steps}</th>
                       <th className="pb-2 pr-3 font-medium">Stress</th>
                       <th className="pb-2 font-medium">Battery</th>
                     </tr>
@@ -1294,9 +1170,7 @@ function Dashboard({ user }: { user: SessionUser }) {
                         <td className="py-2 pr-3">{formatNumber(metric.hrvAvgMs, " ms")}</td>
                         <td className="py-2 pr-3">{formatSleep(metric.sleepMinutes)}</td>
                         <td className="py-2 pr-3">
-                          {metric.steps !== null
-                            ? metric.steps.toLocaleString(locale === "it" ? "it-IT" : "en-US")
-                            : "—"}
+                          {metric.steps !== null ? metric.steps.toLocaleString(t.ui.enUS) : "—"}
                         </td>
                         <td className="py-2 pr-3">{formatNumber(metric.stressAvg)}</td>
                         <td className="py-2">{formatNumber(metric.bodyBatteryEnd)}</td>
@@ -1310,28 +1184,22 @@ function Dashboard({ user }: { user: SessionUser }) {
         )}
       </Card>
 
-      <Card
-        title={locale === "it" ? "Nutrizione Yazio" : "Yazio Nutrition"}
-        eyebrow={locale === "it" ? "Ultimi 7 giorni" : "Last 7 days"}
-        className="mt-4"
-      >
+      <Card title={t.ui.yazioNutrition} eyebrow={t.ui.last7Days} className="mt-4">
         <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             <SyncPill status={yazioData?.status ?? "never"} locale={locale} />
             <span>
               {yazioData?.lastSync
-                ? `${locale === "it" ? "Ultimo sync:" : "Last sync:"} ${formatDateTime(yazioData.lastSync)}`
-                : locale === "it"
-                  ? "Nessun sync"
-                  : "Never synced"}
+                ? `${t.ui.lastSync} ${formatDateTime(yazioData.lastSync)}`
+                : t.ui.neverSynced}
             </span>
             <span className="text-slate-600">·</span>
             <span>
-              {yazioData?.counts.days ?? 0} {locale === "it" ? "giorni" : "days"}
+              {yazioData?.counts.days ?? 0} {t.ui.days}
             </span>
             <span className="text-slate-600">·</span>
             <span>
-              {yazioData?.counts.weightEntries ?? 0} {locale === "it" ? "pesi" : "weigh-ins"}
+              {yazioData?.counts.weightEntries ?? 0} {t.ui.weighIns}
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1341,13 +1209,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={yazioCheck.isPending}
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {yazioCheck.isPending
-                ? locale === "it"
-                  ? "Verifica…"
-                  : "Checking…"
-                : locale === "it"
-                  ? "Verifica Yazio"
-                  : "Check Yazio"}
+              {yazioCheck.isPending ? t.ui.checking_2 : t.ui.checkYazio}
             </button>
             <button
               type="button"
@@ -1355,13 +1217,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               disabled={yazioSync.isPending}
               className="rounded-xl bg-lime-300 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {yazioSync.isPending
-                ? locale === "it"
-                  ? "Sincronizzo…"
-                  : "Syncing…"
-                : locale === "it"
-                  ? "Sincronizza Yazio"
-                  : "Sync Yazio"}
+              {yazioSync.isPending ? t.ui.syncing : t.ui.syncYazio}
             </button>
           </div>
         </div>
@@ -1376,25 +1232,22 @@ function Dashboard({ user }: { user: SessionUser }) {
           >
             {yazioCheck.data.ok
               ? `OK · ${yazioCheck.data.latencyMs} ms · ${yazioCheck.data.baseUrl ?? ""}`
-              : (yazioCheck.data.error ?? (locale === "it" ? "Verifica fallita" : "Check failed"))}
+              : (yazioCheck.data.error ?? t.ui.checkFailed)}
           </p>
         ) : yazioCheck.isError ? (
           <p className="mt-3 text-xs text-rose-300">{yazioCheck.error.message}</p>
         ) : null}
         {yazioSync.isSuccess ? (
           <p className="mt-3 text-xs text-emerald-300">
-            Sync {yazioSync.data.status}: {yazioSync.data.nutritionDays}{" "}
-            {locale === "it" ? "giorni" : "days"}, {yazioSync.data.weightEntries}{" "}
-            {locale === "it" ? "pesi" : "weigh-ins"}.
+            Sync {yazioSync.data.status}: {yazioSync.data.nutritionDays} {t.ui.days},{" "}
+            {yazioSync.data.weightEntries} {t.ui.weighIns}.
           </p>
         ) : yazioSync.isError ? (
           <p className="mt-3 text-xs text-rose-300">{yazioSync.error.message}</p>
         ) : null}
 
         {yazioOverview.isLoading ? (
-          <p className="py-6 text-sm text-slate-500">
-            {locale === "it" ? "Carico i dati Yazio…" : "Loading Yazio data…"}
-          </p>
+          <p className="py-6 text-sm text-slate-500">{t.ui.loadingYazioData}</p>
         ) : yazioOverview.isError ? (
           <p className="py-6 text-sm text-rose-300">{yazioOverview.error.message}</p>
         ) : !yazioData || yazioData.days.length === 0 ? (
@@ -1432,15 +1285,13 @@ function Dashboard({ user }: { user: SessionUser }) {
             <table className="w-full text-left text-xs">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Giorno" : "Day"}</th>
+                  <th className="pb-2 pr-3 font-medium">{t.ui.day}</th>
                   <th className="pb-2 pr-3 font-medium">Kcal</th>
-                  <th className="pb-2 pr-3 font-medium">
-                    {locale === "it" ? "Proteine" : "Protein"}
-                  </th>
-                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Carbo" : "Carbs"}</th>
-                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Grassi" : "Fat"}</th>
-                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Acqua" : "Water"}</th>
-                  <th className="pb-2 pr-3 font-medium">{locale === "it" ? "Peso" : "Weight"}</th>
+                  <th className="pb-2 pr-3 font-medium">{t.ui.protein}</th>
+                  <th className="pb-2 pr-3 font-medium">{t.ui.carbs}</th>
+                  <th className="pb-2 pr-3 font-medium">{t.ui.fat}</th>
+                  <th className="pb-2 pr-3 font-medium">{t.ui.water}</th>
+                  <th className="pb-2 pr-3 font-medium">{t.ui.weight}</th>
                 </tr>
               </thead>
               <tbody className="text-slate-300">
@@ -1470,20 +1321,12 @@ function Dashboard({ user }: { user: SessionUser }) {
         )}
       </Card>
 
-      <Card
-        title={locale === "it" ? "Export Workout Garmin (.FIT)" : "Export Garmin Workout (.FIT)"}
-        eyebrow={locale === "it" ? "Export manuale" : "Manual export"}
-        className="mt-6"
-      >
+      <Card title={t.ui.exportGarminWorkoutFIT} eyebrow={t.ui.manualExport} className="mt-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold text-white">
-              {locale === "it" ? "5×800m Ripetute Corsa" : "5×800m Running Intervals"}
-            </h3>
+            <h3 className="font-semibold text-white">{t.ui.k5800mRunningIntervals}</h3>
             <p className="mt-1 text-xs text-slate-400">
-              {locale === "it"
-                ? "Riscaldamento 10 min (Zona 2) · 5× [800m @ 4:15–4:35/km + 200m recupero] · Defaticamento 10 min (Zona 1)."
-                : "Warm-up 10 min (Zone 2) · 5× [800m @ 4:15–4:35/km + 200m recovery] · Cool-down 10 min (Zone 1)."}
+              {t.ui.warmUp10MinZone25800m415435Km200mRecoveryCoolDow}
             </p>
           </div>
           <DownloadButton
@@ -1491,18 +1334,14 @@ function Dashboard({ user }: { user: SessionUser }) {
             filename="5x800m-intervals.fit"
             className="inline-flex items-center justify-center rounded-xl bg-lime-300 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-lime-200"
           >
-            {locale === "it" ? "Scarica workout (.FIT)" : "Download workout (.FIT)"}
+            {t.ui.downloadWorkoutFIT}
           </DownloadButton>
         </div>
         <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs text-slate-400">
-          <p className="font-medium text-slate-300">
-            {locale === "it"
-              ? "Come importare in Garmin Connect:"
-              : "How to import into Garmin Connect:"}
-          </p>
+          <p className="font-medium text-slate-300">{t.ui.howToImportIntoGarminConnect}</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
             <li>
-              {locale === "it" ? "Apri " : "Open "}
+              {t.ui.open}
               <a
                 href="https://connect.garmin.com/modern/workouts"
                 target="_blank"
@@ -1511,7 +1350,7 @@ function Dashboard({ user }: { user: SessionUser }) {
               >
                 Garmin Connect Workouts
               </a>{" "}
-              {locale === "it" ? "su computer." : "on your computer."}
+              {t.ui.onYourComputer}
             </li>
             <li>
               {locale === "it" ? (
@@ -1554,20 +1393,12 @@ function Dashboard({ user }: { user: SessionUser }) {
         </div>
       </Card>
 
-      <Card
-        title={t.system.dataManagementTitle}
-        eyebrow={locale === "it" ? "Privacy & Portabilità" : "Privacy & Portability"}
-        className="mt-6"
-      >
+      <Card title={t.system.dataManagementTitle} eyebrow={t.ui.privacyPortability} className="mt-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold text-white">
-              {locale === "it" ? "I tuoi dati appartengono a te" : "Your data belongs to you"}
-            </h3>
+            <h3 className="font-semibold text-white">{t.ui.yourDataBelongsToYou}</h3>
             <p className="mt-1 text-xs text-slate-400">
-              {locale === "it"
-                ? "Esporta l'intero storico in formato standard JSON aperto, ripristinalo su un altro ambiente o elimina ogni traccia dal server."
-                : "Export your complete history in open standard JSON format, restore it into another instance, or erase all records from the server."}
+              {t.ui.exportYourCompleteHistoryInOpenStandardJSONForma}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1620,15 +1451,8 @@ function Dashboard({ user }: { user: SessionUser }) {
       </Card>
 
       <footer className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          health-trainer ·{" "}
-          {locale === "it" ? "documentazione in `docs/`" : "documentation in `docs/`"}
-        </span>
-        <span>
-          {locale === "it"
-            ? "Strava escluso · dati salute local-first su Android"
-            : "Strava excluded · local-first health data on Android"}
-        </span>
+        <span>health-trainer · {t.ui.documentationInDocs}</span>
+        <span>{t.ui.stravaExcludedLocalFirstHealthDataOnAndroid}</span>
       </footer>
     </main>
   );
