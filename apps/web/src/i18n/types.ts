@@ -506,6 +506,13 @@ export type TranslationDictionary = {
   };
 
   ui: {
+    trainingPlan: string;
+    createPlanTitle: string;
+    createPlanDescription: string;
+    createPlan: string;
+    regeneratePlanTitle: string;
+    regeneratePlanDescription: string;
+    regeneratePlanWithTheCoach: string;
     methodologyChosenByTheCoach: string;
     athlete: string;
     loadingAthleteProfile: string;
@@ -523,7 +530,6 @@ export type TranslationDictionary = {
     editPhysicalData: string;
     reportAProblem: string;
     currentGoal: string;
-    trainingPlan: string;
     targetDate: string;
     noTargetDateThePlanUsesAStandardHorizon: string;
     activeSports: string;

@@ -531,6 +531,15 @@ export const it: TranslationDictionary = {
   },
 
   ui: {
+    trainingPlan: "Allenamento · piano",
+    createPlanTitle: "Crea il tuo piano",
+    createPlanDescription:
+      "Non hai ancora un piano. Il coach legge i dati, chiede quello che manca e crea con te il primo piano.",
+    createPlan: "Crea piano",
+    regeneratePlanTitle: "Rigenera il tuo piano",
+    regeneratePlanDescription:
+      "Hai già un piano. Il coach può rigenerarlo con i dati aggiornati, l'obiettivo corrente e la nuova intervista.",
+    regeneratePlanWithTheCoach: "Rigenera piano con il coach",
     methodologyChosenByTheCoach:
       "La metodologia viene scelta dal coach quando genera il piano, usando i dati e l'intervista.",
     athlete: "Atleta:",
@@ -549,7 +558,6 @@ export const it: TranslationDictionary = {
     editPhysicalData: "Modifica dati fisici",
     reportAProblem: "Segnala un problema",
     currentGoal: "Obiettivo corrente",
-    trainingPlan: "Allenamento · piano",
     targetDate: "Data target:",
     noTargetDateThePlanUsesAStandardHorizon:
       "Nessuna data target: il piano usa un orizzonte standard.",

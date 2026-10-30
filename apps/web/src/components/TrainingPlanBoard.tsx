@@ -53,7 +53,7 @@ const SPORT_COLORS: Record<Sport, { bg: string; text: string; ring: string }> = 
   other: { bg: "bg-slate-400/10", text: "text-slate-300", ring: "ring-slate-400/30" },
 };
 
-async function fetchMacroPlan(): Promise<MacroPlan | null> {
+export async function fetchMacroPlan(): Promise<MacroPlan | null> {
   const res = await apiFetch("/api/plan/macro");
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Failed to load macro plan");

@@ -16,7 +16,7 @@ import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { MorningCheckinCard } from "./components/MorningCheckinCard";
 import { OnboardingWizard, type ProfileFocus } from "./components/OnboardingWizard";
 import { PlanInterviewChat } from "./components/PlanInterviewChat";
-import { TrainingPlanBoard } from "./components/TrainingPlanBoard";
+import { fetchMacroPlan, TrainingPlanBoard } from "./components/TrainingPlanBoard";
 import { LanguageSelector, useI18n } from "./i18n";
 import {
   apiFetch,
@@ -598,6 +598,8 @@ function Dashboard({ user }: { user: SessionUser }) {
     queryKey: ["methodology"],
     queryFn: fetchLatestMethodology,
   });
+  const macroPlan = useQuery({ queryKey: ["macro-plan"], queryFn: fetchMacroPlan });
+  const hasPlan = Boolean(macroPlan.data);
 
   const apiStatus = health.isError ? "error" : health.data ? "ok" : "unchecked";
   const data = overview.data;
@@ -840,12 +842,12 @@ function Dashboard({ user }: { user: SessionUser }) {
             </div>
 
             <Card
-              title={t.ui.setUpThePlanWithTheCoach}
-              eyebrow={t.ui.trainingInterview}
+              title={hasPlan ? t.ui.regeneratePlanTitle : t.ui.createPlanTitle}
+              eyebrow={t.ui.trainingPlan}
               className="mt-4 border-sky-400/20 bg-sky-950/10"
             >
               <p className="text-xs leading-5 text-slate-300">
-                {t.ui.thePlanComesFromAGuidedInterviewTheCoachReadsGoa}
+                {hasPlan ? t.ui.regeneratePlanDescription : t.ui.createPlanDescription}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -853,7 +855,7 @@ function Dashboard({ user }: { user: SessionUser }) {
                   onClick={() => setIsInterviewOpen(true)}
                   className="rounded-xl border border-lime-400/30 bg-lime-400/10 px-4 py-2.5 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20"
                 >
-                  {t.ui.setUpThePlanWithTheCoach}
+                  {hasPlan ? t.ui.regeneratePlanWithTheCoach : t.ui.createPlan}
                 </button>
               </div>
 
