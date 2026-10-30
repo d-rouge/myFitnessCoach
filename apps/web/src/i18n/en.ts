@@ -527,6 +527,8 @@ export const en: TranslationDictionary = {
   },
 
   ui: {
+    methodologyChosenByTheCoach:
+      "The methodology is chosen by the coach when generating the plan, using the data and the interview.",
     athlete: "Athlete:",
     loadingAthleteProfile: "Loading athlete profile…",
     physicalDataHealth: "Physical data & health",

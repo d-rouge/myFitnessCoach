@@ -531,6 +531,8 @@ export const it: TranslationDictionary = {
   },
 
   ui: {
+    methodologyChosenByTheCoach:
+      "La metodologia viene scelta dal coach quando genera il piano, usando i dati e l'intervista.",
     athlete: "Atleta:",
     loadingAthleteProfile: "Caricamento profilo atleta…",
     physicalDataHealth: "Dati fisici & salute",

@@ -238,6 +238,7 @@ interface MethodologyEvaluation {
   promptVersion: string;
   provider: string;
   model: string;
+  goalDescription: string;
   envelope: MethodologyEnvelope;
   decision: MethodologyDecision;
   validation: MethodologyValidation;
@@ -248,20 +249,6 @@ async function fetchLatestMethodology(): Promise<MethodologyEvaluation | null> {
   if (!response.ok) return null;
   const body = (await response.json()) as { evaluation: MethodologyEvaluation | null };
   return body.evaluation;
-}
-
-async function analyzeMethodology(): Promise<MethodologyEvaluation> {
-  const response = await apiFetch("/api/plan/methodology", { method: "POST" });
-  const body = (await response.json()) as MethodologyEvaluation & {
-    message?: string;
-    issues?: string[];
-  };
-  if (!response.ok) {
-    throw new Error(
-      body.message ?? body.issues?.join("; ") ?? `Analisi metodologia fallita (${response.status})`,
-    );
-  }
-  return body;
 }
 
 const readiness = computeReadiness({
@@ -611,12 +598,6 @@ function Dashboard({ user }: { user: SessionUser }) {
     queryKey: ["methodology"],
     queryFn: fetchLatestMethodology,
   });
-  const methodologyMutation = useMutation({
-    mutationFn: analyzeMethodology,
-    onSuccess: (evaluation) => {
-      queryClient.setQueryData(["methodology"], evaluation);
-    },
-  });
 
   const apiStatus = health.isError ? "error" : health.data ? "ok" : "unchecked";
   const data = overview.data;
@@ -874,24 +855,14 @@ function Dashboard({ user }: { user: SessionUser }) {
                 >
                   {t.ui.setUpThePlanWithTheCoach}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => methodologyMutation.mutate()}
-                  disabled={methodologyMutation.isPending}
-                  className="rounded-xl border border-sky-400/30 bg-sky-400/10 px-4 py-2.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/20 disabled:opacity-60"
-                >
-                  {methodologyMutation.isPending
-                    ? t.ui.analysingMethodology
-                    : t.ui.analyseMethodology}
-                </button>
               </div>
 
-              {methodologyMutation.isError ? (
-                <p className="mt-3 text-xs leading-5 text-rose-300">
-                  {methodologyMutation.error.message}
-                </p>
+              <p className="mt-3 text-[11px] text-slate-400">{t.ui.methodologyChosenByTheCoach}</p>
+
+              {methodology.data &&
+              methodology.data.goalDescription === baseline.data.goals.primary.description ? (
+                <MethodologyResult evaluation={methodology.data} />
               ) : null}
-              {methodology.data ? <MethodologyResult evaluation={methodology.data} /> : null}
 
               {isInterviewOpen ? (
                 <PlanInterviewChat onClose={() => setIsInterviewOpen(false)} />

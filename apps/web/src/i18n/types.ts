@@ -506,6 +506,7 @@ export type TranslationDictionary = {
   };
 
   ui: {
+    methodologyChosenByTheCoach: string;
     athlete: string;
     loadingAthleteProfile: string;
     physicalDataHealth: string;
