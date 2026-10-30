@@ -73,6 +73,7 @@ async function generateFromInterview(interviewId: string): Promise<PlanInterview
 export function PlanInterviewChat({ onClose }: PlanInterviewChatProps) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
+  const sectionRef = useRef<HTMLElement | null>(null);
   const latest = useQuery({
     queryKey: ["plan-interview-latest"],
     queryFn: fetchLatestInterview,
@@ -117,13 +118,22 @@ export function PlanInterviewChat({ onClose }: PlanInterviewChatProps) {
     generateMutation.error?.message ??
     null;
 
-  // Opens when athlete clicks coach interview: starts new or resumes previous.
+  // Opens when athlete clicks coach interview: starts a new interview when
+  // none is active, or when the last one was already used to generate a plan.
   useEffect(() => {
-    if (latest.isSuccess && !latest.data && !autoStarted.current) {
+    if (
+      latest.isSuccess &&
+      (!latest.data || latest.data.status === "generated") &&
+      !autoStarted.current
+    ) {
       autoStarted.current = true;
       startMutation.mutate();
     }
   }, [latest.isSuccess, latest.data, startMutation]);
+
+  useEffect(() => {
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll should follow new messages
   useEffect(() => {
@@ -154,7 +164,10 @@ export function PlanInterviewChat({ onClose }: PlanInterviewChatProps) {
   };
 
   return (
-    <section className="mt-4 rounded-3xl border border-sky-400/20 bg-sky-950/20 p-5">
+    <section
+      ref={sectionRef}
+      className="mt-4 rounded-3xl border border-sky-400/20 bg-sky-950/20 p-5"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">
@@ -248,9 +261,9 @@ export function PlanInterviewChat({ onClose }: PlanInterviewChatProps) {
 
       {interview && interview.status !== "generated" ? (
         <>
-          {interview.questions.length > 0 ? (
+          {(interview.questions?.length ?? 0) > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {interview.questions.flatMap((question) => {
+              {(interview.questions ?? []).flatMap((question) => {
                 if (question.kind === "boolean") {
                   return [t.wizard.step2.parqYes, t.wizard.step2.parqNo].map((option) => (
                     <button
