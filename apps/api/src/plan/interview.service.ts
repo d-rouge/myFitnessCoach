@@ -24,6 +24,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { recordAiRun } from "../ai/ai-runs.js";
 import { createLlmProvider, llmSettings } from "../ai/llm.provider.js";
 import { AthleteService } from "../athlete/athlete.service.js";
 import { BaselineService } from "../baseline/baseline.service.js";
@@ -97,6 +98,7 @@ export class InterviewService {
   }
 
   private async ask(
+    userId: string,
     dossier: AthleteDossier,
     record: PlanInterviewRecord,
     lastUserMessage: string | null,
@@ -119,8 +121,16 @@ export class InterviewService {
       maxUserTurns: MAX_USER_TURNS,
     };
 
+    const run = {
+      userId,
+      task: "plan_interview",
+      promptVersion: INTERVIEW_PROMPT_VERSION,
+      provider: this.provider.id,
+      model: this.settings.model,
+    };
     try {
       for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const startedAt = Date.now();
         try {
           const response = await this.provider.generate({
             task: "chat",
@@ -135,8 +145,10 @@ export class InterviewService {
             temperature: 0.5,
             maxTokens: 1600,
           });
+          await recordAiRun(this.mongo, run, startedAt, { response });
           return response.data;
         } catch (error) {
+          await recordAiRun(this.mongo, run, startedAt, { error });
           // Findings con forma inattesa o JSON troncato sono transitori: un
           // secondo tentativo evita di interrompere l'intervista.
           if (error instanceof LlmProviderError && error.retryable && attempt === 1) {
@@ -203,7 +215,7 @@ export class InterviewService {
       questions: [],
     };
 
-    const turn = await this.ask(dossier, record, null);
+    const turn = await this.ask(userId, dossier, record, null);
     record.messages.push({ role: "assistant", content: turn.reply, createdAt: this.now() });
     record.findings = turn.findings;
     record.questions = turn.questions;
@@ -252,7 +264,7 @@ export class InterviewService {
 
     const dossier = await this.context(userId);
     record.messages.push({ role: "user", content: message, createdAt: this.now() });
-    const turn = await this.ask(dossier, record, message);
+    const turn = await this.ask(userId, dossier, record, message);
 
     record.findings = { ...record.findings, ...turn.findings };
     record.messages.push({ role: "assistant", content: turn.reply, createdAt: this.now() });

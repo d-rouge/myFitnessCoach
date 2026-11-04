@@ -43,7 +43,7 @@ these three pieces, it produces plans that no chatbot can produce.
 | Capacity and tier | computed, `rules/capacity.ts` and `rules/experience.ts` |
 | LLM | **DeepSeek hardwired**: `DeepSeekProvider` (JSON mode, thinking, `retryable` errors). `LLM_MODEL=deepseek-v4-pro`, `LLM_MODEL_FAST=deepseek-flash`. Without a key, `DeterministicCoachProvider` remains |
 | Plan memory | only saved documents: no summary used in later generations |
-| `ai_runs` | coach only: saves metadata and failures (`success: false`), **not** the payload or the verdict. Interview and methodology calls are not logged |
+| `ai_runs` | coach, interview and methodology: saves metadata and failures (`success: false`) for every attempt, **not** the payload or the verdict |
 | Coach (narration) | **DeepSeek active**: receives `recentContext`, cites the recent race, recovery window and ACWR |
 
 Consequence: today the plan is correct with respect to constraints; the choice of
@@ -342,7 +342,7 @@ Not part of the original sequence. `MethodologyService` asks the LLM for a
 - the **envelope is computed by code**, the opposite of D2 and §5: transitional, to be
   replaced by the Proposer's envelope challenged by the Critic;
 - it fills `planMemory.method` indirectly (`macroPlan.methodology`), but without
-  `generatedBy`/provenance (Phase B) and without `ai_runs` logging;
+  `generatedBy`/provenance (Phase B); `ai_runs` has metadata only, no payload;
 - the week skeleton it produces (`qualitySessions`, `longSessionMin`) is
   running-shaped: Phase B should define the training model per sport.
 

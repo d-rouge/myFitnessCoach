@@ -41,12 +41,12 @@
 | React/Vite web app with Garmin data + Yazio nutrition + FIT export + athlete profile | done |
 | Phase 1 loop (baseline, plan, check-in, review, export, backup, safety, auth) | done (see `FASI.md`) |
 | DeepSeek provider + coach with recent context | done (October 27, 2026) |
-| LLM methodology + coach interview + LLM phases/periodization | done (October 30, 2026); sessions still written by rules; gaps listed in `FASI.md` "Next steps" |
+| LLM methodology + coach interview + LLM phases/periodization | done (October 30, 2026); sessions still written by rules; backup/wipe and `ai_runs` gaps closed November 4, 2026 |
 | i18n it/en in the web app | done |
-| Total tests | 303 unit (302 green, 1 time-dependent red) + 14 e2e checks on real MongoDB (last run October 27, 2026) |
+| Total tests | 308 unit + 14 e2e checks on real MongoDB, all green (November 4, 2026) |
 | Local MongoDB `127.0.0.1:27017` | configured (managed by the user) |
 | Git repository | GitHub `d-rouge/myFitnessCoach`, branch + PR flow, CI on push/PR |
-| Next steps | see `FASI.md` "Next steps": methodology-layer gaps, 14-day validation, Phase 2 sport model |
+| Next steps | see `FASI.md` "Next steps": 14-day validation, Phase 2 sport model, F1-19 |
 
 **What remains valid from v0.1** (it is the heart of the project):
 

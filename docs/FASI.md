@@ -158,8 +158,7 @@ Prove that the key integrations **actually** work and create the skeleton to bui
 > 5 blocking issues, 7 serious, and 7 medium. After WS-0, Wave 1, and Wave 2, only
 > one postponed P2 (scheduler/credentials F1-19) and real-world use remain open. F1-18 (AI coach)
 > is closed: the coach consumes `RecentContext` and uses DeepSeek.
-> Unit tests: 303, of which 302 green and 1 red because a fixture date expired (see
-> "Next steps"). The multi-user e2e on real MongoDB (14 checks) was last run on October 27, 2026.
+> Unit tests: 308 green; the multi-user e2e on real MongoDB (14 checks) is green (November 4, 2026).
 > The checkboxes below have been realigned: those not verified are `[ ]`.
 >
 > **Methodology layer (October 30, 2026):** coach interview, LLM-chosen methodology with
@@ -187,8 +186,8 @@ Prove that the key integrations **actually** work and create the skeleton to bui
 > (21 days, gym included) and is wrong for experienced athletes and for
 > non-impact sports (F1-30).
 
-**Tests:** 303 unit (302 green) + 14 e2e checks (`npm run test:e2e`, temporary
-`health_trainer_e2e` database, last run October 27, 2026). Details and remaining limits in
+**Tests:** 308 unit + 14 e2e checks, all green on November 4, 2026 (`npm run test:e2e`, temporary
+`health_trainer_e2e` database). Details and remaining limits in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Domain and rules:** Complete L0–L4 schemas (baseline, preferences, medical history, plans, sessions, check-ins, review), 85 unit tests with edge cases and fixtures for 4 personas (Marco beginner 5k, Giulia half marathon + gym, Luca knee pain, Sara former competitive athlete returning).
 - **1.2 Onboarding:** Interactive 6-step wizard (`OnboardingWizard.tsx`) with complete medical history — red flags, known conditions, medications, injuries — and safety assessment shown in real time. Sticky save bar: when editing, you can save from any step; on first onboarding the draft remains in `sessionStorage` until it is completed, goals, availability, equipment, demo persona selector, and persistence on MongoDB (`athlete_baselines`) + API `/api/baseline`. _(WS-6: red flags and injuries can be entered from the wizard; saving is permitted, generation is blocked.)_
@@ -200,7 +199,7 @@ Prove that the key integrations **actually** work and create the skeleton to bui
 - **1.8 AI Coach:** Versioned schemas and prompts (`coach-advice-v1`), deterministic offline-first provider (`DeterministicCoachProvider`), tracking of `ai_runs` executions with token, latency, and model, endpoint `/api/ai/coach-advice` and coaching briefing card integrated into the UI.
 - **1.9 Security & Privacy (GDPR):** Credentials isolated in `secrets/`, local passwords hashed with scrypt in `auth_credentials` (never in the `users` document), full backup with `ai_runs`, restore per authenticated user and complete deletion (`DELETE /api/export/me`, which also removes credentials). _(F1-10 closed in WS-5; JWT authentication and secure defaults closed in WS-0; local accounts F1-24.)_
 
-**Green (verified on October 27, 2026 after Wave 2; unit count updated November 4, 2026):** 239 unit tests at the time (303 today), 14 e2e checks
+**Green (verified on October 27, 2026 after Wave 2; unit count updated November 4, 2026):** 239 unit tests at the time (308 today), 14 e2e checks
 on real MongoDB, workspace typecheck, `typecheck:scripts` and Biome lint pass;
 API and web builds complete. **Not covered:** Google login with real credentials (Google
 registration requires OAuth client and allowlist), Hevy export with a real key,
@@ -264,7 +263,7 @@ Use the app every day for 2 weeks: plan, workout, check-in, review, Garmin/Yazio
 
 - [x] Gym routine export → Hevy (exercise mapping, routine creation `POST /api/export/workouts/hevy/export`). _(WS-4: exercises derived from blocks, key required, session never invented. Export with a real key not yet tested.)_
 - [x] Running/bike/swim workout export → dynamic downloadable `.FIT` (`GET /api/export/workouts/session/:id.fit`) + Garmin import instructions. _(WS-4: strength/mobility rejected with 400; pace, power, cadence and HR zones mapped. Import into Garmin Connect not verified.)_
-- [x] Full JSON backup export (`GET /api/export/backup`) and restore (`POST /api/export/restore`). _(WS-5: `0.3.0` backup with `ai_runs`, idempotent restore limited to the authenticated user.)_
+- [x] Full JSON backup export (`GET /api/export/backup`) and restore (`POST /api/export/restore`). _(WS-5: `0.3.0` backup with `ai_runs`, idempotent restore limited to the authenticated user. November 4, 2026: `0.4.0` adds `methodology_decisions` and `plan_interviews`; `0.3.0` backups still restore.)_
 
 #### 1.7 Review
 
@@ -290,7 +289,7 @@ Use the app every day for 2 weeks: plan, workout, check-in, review, Garmin/Yazio
 - [x] **LLM methodology** (October 30, 2026): `POST /api/plan/methodology`, `MethodologyDecision` (methodology, weekly structure, periodization, phases, alternatives, risks, confidence) validated against `buildMethodologyEnvelope()` with one correction retry, saved in `methodology_decisions`. Plan generation uses it when ≤ 14 days old and for the same goal.
 - [x] **Coach interview** (October 30, 2026): `PlanInterviewChat.tsx` + `/api/plan/interview*`, max 6 replies, findings fed back into the methodology, target date can be updated; regenerating the plan always starts a new interview.
 - [x] **Methodology re-evaluation at the weekly review** (October 30, 2026): optional, the review stays valid if the model is down.
-- [ ] Interview and methodology calls logged in `ai_runs` (today only the coach is logged).
+- [x] Interview and methodology calls logged in `ai_runs` (November 4, 2026): every attempt, failures included, via `recordAiRun()`.
 
 #### 1.9 Security
 
@@ -298,7 +297,7 @@ Use the app every day for 2 weeks: plan, workout, check-in, review, Garmin/Yazio
 - [x] Log sanitization.
 - [x] Data portability: Full JSON backup export.
 - [x] Total data deletion / GDPR wipe (`DELETE /api/export/me`). _(WS-5: also deletes `users` and `ai_runs`; after the wipe `/api/me` responds 401.)_
-- [ ] **Regression since October 30, 2026:** `plan_interviews` and `methodology_decisions` are not in backup/restore nor in the wipe (`packages/db/src/backup.ts`). The interview chat contains health context: the wipe is not total until they are added.
+- [x] **Regression of October 30, 2026, fixed November 4, 2026:** `plan_interviews` and `methodology_decisions` are now in backup/restore and in the wipe; `backup.spec.ts` fails if a future collection is left out of the wipe.
 
 #### 1.10 LLM Architecture (partially implemented)
 
@@ -340,11 +339,12 @@ Binding order: each step presupposes the previous one.
 
 In order. Each item is small enough to be one PR.
 
-1. **Close the gaps of the methodology layer.**
-   - Add `plan_interviews` and `methodology_decisions` to backup, restore and wipe, with a compatibility test (bump the backup version).
-   - Log interview and methodology calls in `ai_runs` (model, prompt version, tokens, outcome).
-   - Make the time-dependent test in `apps/api/src/plan/plan.service.spec.ts` deterministic by pinning the clock.
-   - Re-run `npm run test:e2e` and extend it to cover the 503 of interview/methodology without a model.
+1. ~~**Close the gaps of the methodology layer.**~~ Done on November 4, 2026:
+   - [x] `plan_interviews` and `methodology_decisions` in backup (`0.4.0`), restore and wipe, with compatibility tests.
+   - [x] Interview and methodology calls logged in `ai_runs`.
+   - [x] Time-dependent tests made deterministic (`plan.service.spec.ts` pins the clock; the e2e compares dossier version and plan length with the real values instead of literals).
+   - [x] Pre-existing type errors fixed (`PlanMethodology.phases` now uses `MethodologyPhaseSchema`), so CI typecheck is green again.
+   - [ ] E2E check for the 503 of interview/methodology without a model: not added, because the e2e loads the root `.env` and with a real `LLM_API_KEY` it would call the paid model. It first needs a way to force the LLM off in the e2e API process.
 2. **14-day real-use validation** (Phase 1 acceptance criteria). Decide explicitly whether
    to run it now or after step 3: development has moved on without it.
 3. **Phase 2, starting from the sport model** (below): per-sport modules, then real strength

@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { ensureIndexes, type UserDataBackup, upsertUser } from "@health-trainer/db";
 import {
+  ATHLETE_DOSSIER_VERSION,
   type Baseline,
   beginnerPersona,
   intermediatePersona,
@@ -271,10 +272,15 @@ async function main(): Promise<void> {
       coverage: { activities: number };
       warnings: string[];
     }>(await request("/athlete/dossier", tokenA));
-    assertEqual(dossierA.version, 1, "dossier versionato");
+    assertEqual(dossierA.version, ATHLETE_DOSSIER_VERSION, "dossier versionato");
     assert(dossierA.identity.ageYears !== null, "l'età è calcolata dalla data di nascita");
     assertEqual(dossierA.planMemory.weekIndex, 1, "il dossier conosce la settimana corrente");
-    assertEqual(dossierA.planMemory.totalWeeks, 8, "il dossier conosce la durata del macrociclo");
+    // L'orizzonte dipende da oggi e dalla data target: si confronta con il piano generato.
+    assertEqual(
+      dossierA.planMemory.totalWeeks,
+      planA.macroPlan.totalWeeks,
+      "il dossier conosce la durata del macrociclo",
+    );
     // Nessuna attività importata: il buco va dichiarato, non nascosto con zeri.
     assert(
       dossierA.warnings.includes("no_activities"),

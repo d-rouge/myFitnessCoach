@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { IsoDateSchema } from "./common";
-import { MethodologyPeriodizationSchema, MethodologyWeeklyStructureSchema } from "./methodology";
+import {
+  MethodologyPeriodizationSchema,
+  MethodologyPhaseSchema,
+  MethodologyWeeklyStructureSchema,
+} from "./methodology";
 import { PlannedSessionSchema } from "./session";
 
 export const PlanPhaseSchema = z.object({
@@ -35,8 +39,12 @@ export const PlanMethodologySchema = z.object({
   rationale: z.string().min(1),
   structure: MethodologyWeeklyStructureSchema,
   periodization: MethodologyPeriodizationSchema.optional(),
-  /** Fasi decise dall'LLM: se presenti, il generatore le usa così come sono. */
-  phases: z.array(PlanPhaseSchema).optional(),
+  /**
+   * Fasi decise dall'LLM: se presenti, il generatore le usa così come sono.
+   * Sono fasi della metodologia (volume relativo, `volumeShare`), non ancora
+   * fasi del piano: il generatore le traduce in minuti.
+   */
+  phases: z.array(MethodologyPhaseSchema).optional(),
   /**
    * Fino a quale settimana vale questa struttura. Serve per le metodologie di
    * recupero post-gara: oltre la finestra il piano riprende la progressione

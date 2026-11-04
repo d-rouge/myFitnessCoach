@@ -146,9 +146,8 @@ timezone, UI auth/Hevy, e2e). F1-18 (coach with real context) is closed. F1-19
 Beyond Phase 1, the LLM methodology and the coach interview are implemented
 (`docs/METODOLOGIA-LLM.md`): an intermediate step towards `docs/ARCHITETTURA-LLM.md`.
 
-**Next step:** see "Next steps" in `docs/FASI.md`: fix the known gaps of the
-interview/methodology layer, the 14-day real-world validation, then Phase 2 starting
-from the sport-module refactor and real strength training.
+**Next step:** see "Next steps" in `docs/FASI.md`: the 14-day real-world validation,
+then Phase 2 starting from the sport-module refactor and real strength training.
 
 ---
 
@@ -161,7 +160,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (303 test)
+npm test                      # unit/contract test (308 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -272,7 +271,7 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 - **Check-in.** An automatic adaptation persists the entire session (duration, RPE, blocks) plus the notes in `sessions[].notes`, via `replacePlannedSession`; changing the status alone is not enough.
 - **FIT export.** Only `running`, `cycling`, `swimming`; strength/mobility/other → `400`. Textual targets are interpreted: `Z2`, `Passo 4:20-4:35/km`, `85-95 rpm`, `180-220 W`. Text that cannot be interpreted remains in the step notes.
 - **Hevy export.** Requires `body.apiKey` or `HEVY_API_KEY`. The validation order is session → sport (`strength`) → key, so that a real error is not masked. The session is never invented; exercises derive from the blocks, with a declared full-body fallback.
-- **Backup/restore.** The backup (`0.3.0`) includes `ai_runs`. The signature is `restoreUserData(db, backup, userId)`: the `userId` in the body is ignored, the restore is idempotent (delete+insert per collection) and validates the keys before deleting. `deleteUserData` also deletes `users` and `ai_runs`.
+- **Backup/restore.** The backup (`0.4.0`) includes `ai_runs`, `methodology_decisions` and `plan_interviews`; a `0.3.0` backup still restores (the missing collections come back empty, as in any snapshot restore). The signature is `restoreUserData(db, backup, userId)`: the `userId` in the body is ignored, the restore is idempotent (delete+insert per collection) and validates the keys before deleting. `deleteUserData` deletes every collection in `COLLECTIONS`, `users` included: `packages/db/src/backup.spec.ts` fails if a new collection is not added to the wipe.
 
 **Semantics consolidated in Wave 2 (do not regress):**
 
@@ -315,7 +314,7 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Avoid `moduleResolution: node10` and `baseUrl` (deprecated in TS 6).
 - **Node >= 22**, **npm workspaces**. No pnpm, no Turborepo.
 - `npm run dev` first runs `build:packages`: API and web import packages from `dist`, not from source.
-- **Current tests (November 4, 2026):** 303 unit tests (api 86, domain 141, integrations 40, ai 20, web 9, config 5, db 2): 302 green, 1 red. The red one is `plan.service.spec.ts` › "generates from a legacy baseline…": the fixture has a marathon on 2026-10-25 while the recovery window is computed from the real today, so the expected 3 weeks became 2. It is a time-dependent test, not a regression: pin the clock (`vi.setSystemTime`) instead of changing the expectation. E2E (14 checks) last verified October 27, 2026.
+- **Current tests (November 4, 2026):** 308 green unit tests (api 87, domain 141, integrations 40, ai 20, web 9, db 6, config 5) + 14 green e2e checks. Typecheck, `typecheck:scripts`, lint and build green. **Tests that depend on today** (recovery windows, plan horizon) must pin the clock with `vi.setSystemTime`, or compare against the generated plan instead of a literal: two such tests broke silently as the calendar moved.
 - **Athlete model (v2):** `profile.experience` has been removed. It is replaced by `profile.history` (what you have done), `profile.capacity` (what you can do now) and `profile.experienceTier` **derived server-side** for the sport of the primary goal. Rules in `packages/domain/src/rules/experience.ts`. Details and boundary with the LLM in `docs/MODELLO-ATLETA.md`.
 - **Measured capacity:** `profile.capacity.source` is `garmin | manual | calibration`. With `garmin` the numbers are recalculated by the server from imported activities (never by the client) on save, on read (`GET /baseline`) and on plan generation; without activities the baseline is rejected with 400. The rule is only one: `apps/api/src/baseline/measured-capacity.ts`. With `calibration` week 1 is an RPE 4-5 test and capacity is re-estimated as soon as data exists.
 - **Athlete's day:** counters ("days ago", 28-day window, streak) use the baseline timezone, not UTC. With `toISOString()` after 10:00 PM Italian time you are off by a day. `buildRecentContext()` and `estimateCapacityFromActivities()` accept `timezone`.
@@ -325,7 +324,8 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 - **Recent context:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produces structured facts (last race/long effort, remaining recovery days, acute/chronic ratio, gap). The recovery window ends up in `macroPlan.recoveryWindow` and forces recovery weeks deterministically: the LLM can explain it, not ignore it.
 - **LLM: DeepSeek wired, partial provider.** `LLM_PROVIDER=deepseek` + `LLM_API_KEY` activate `DeepSeekProvider` (`packages/ai/src/providers/deepseek.ts`); without a key it stays on `DeterministicCoachProvider`. Two models: `LLM_MODEL=deepseek-v4-pro` for planning/critique, `LLM_MODEL_FAST=deepseek-flash` for the coach. `LLM_THINKING=auto` (default) turns on chain-of-thought for planning and for the coach only when the context is sensitive (pain, low readiness, post-race window, rising load); `on`/`off` force it. The other providers in the enum **do not** have a client: they remain deterministic. The coach **consumes** `RecentContext` (last race/long effort, recovery window, ACWR, gap) since October 27, 2026.
 - **LLM methodology and interview (October 30, 2026).** `MethodologyService` asks the LLM for a `MethodologyDecision` (methodology, weekly structure, periodization, phases, alternatives, risks); it is validated against `buildMethodologyEnvelope()` (`packages/domain/src/rules/methodology.ts`) with **one** correction retry, then saved in `methodology_decisions`. `InterviewService` runs the "Talk to the coach" chat (`plan_interviews`, max 6 user replies, prompt `plan-interview-v1`), can update the target date, and on `generate` re-evaluates the methodology with the findings. `PlanService` uses the latest methodology only if it is ≤ 14 days old and refers to the same goal description; otherwise it falls back to the rule-based path. The weekly review re-evaluates the methodology but stays valid if the model is down. Without a model the interview/methodology endpoints answer `503`. **What to say:** the LLM chooses methodology and periodization; the **sessions** are still written by the rule-based generator. Do not describe the plan as fully LLM-generated.
-- **Known gaps of the methodology layer (to fix):** (1) interview and methodology calls are **not** logged in `ai_runs` (only the coach is); (2) `methodology_decisions` and `plan_interviews` are **not** in backup/restore nor in `DELETE /api/export/me` (`packages/db/src/backup.ts`), so the total wipe leaves interview chats behind; (3) the envelope is computed by code (`buildMethodologyEnvelope`), which contradicts §9 rule 2: it is a transitional choice until the Critic/Referee exist; (4) prompts and the week skeleton (`qualitySessions`, `longSessionMin`) are running-shaped.
+- **`ai_runs` for every LLM call:** coach (`daily_coach`), interview (`plan_interview`) and methodology (`methodology`) log each attempt, failed ones included. Interview and methodology use `recordAiRun()` (`apps/api/src/ai/ai-runs.ts`); the coach still has its own copy. Payload and verdict are not stored yet (ARCHITETTURA-LLM Phase B).
+- **Known gaps of the methodology layer:** `ai_runs` logging and backup/wipe coverage were fixed on November 4, 2026. Still open: (1) the envelope is computed by code (`buildMethodologyEnvelope`), which contradicts §9 rule 2: it is a transitional choice until the Critic/Referee exist; (2) prompts and the week skeleton (`qualitySessions`, `longSessionMin`) are running-shaped.
 - **LLM errors:** `LlmProviderError` exposes `status` and `retryable` (401/402 non-retryable, 429/5xx/empty response retryable). The key never appears in messages or logs; failures end up in `ai_runs` with `success: false`.
 - **Post-race deload: temporary constant, recognized as wrong.** `RECOVERY_RULES` uses 21 days for everyone and `sessionPolicy()` applies the same policy to all sports, so within the window even the gym is limited to RPE 6. It is correct for a beginner and too conservative for an advanced amateur; moreover, the deload is per modality (impact yes/no, upper body ok, heavy eccentrics no), not global. It must be replaced by the envelope proposed by the Proposer and verified by the Referee (`docs/ARCHITETTURA-LLM.md` §5).
 - **Only one active macro-plan:** regenerating calls `supersedeMacroPlans()`, which deletes the previous plan and its micro-plans. Without it, two plans with the same `startDate` make `getCurrentMacroPlan` ambiguous.
@@ -382,7 +382,7 @@ Target recipe (after the refactor):
 1. New prompt in `packages/ai/src/<task>.ts`: system prompt, user instruction, response example and a `<TASK>_PROMPT_VERSION` constant (e.g. `methodology-v1`). Bump the version on every change.
 2. Output schema + Zod.
 3. Context builder with token budget.
-4. `ai_runs` with model, version, hash, cost.
+4. `ai_runs` with model, version, hash, cost: call `recordAiRun()` for every attempt, failures included.
 5. Eval with personas.
 6. Deterministic fallback.
 

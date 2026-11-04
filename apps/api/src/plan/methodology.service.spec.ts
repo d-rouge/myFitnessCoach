@@ -10,6 +10,9 @@ import type { MongoService } from "../database/mongo.service.js";
 
 const generateMock = vi.hoisted(() => vi.fn());
 const insertOne = vi.hoisted(() => vi.fn(async (_doc?: unknown) => ({ acknowledged: true })));
+const aiRunInsert = vi.hoisted(() =>
+  vi.fn(async (_doc: Record<string, unknown>) => ({ acknowledged: true })),
+);
 const latestDoc = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock("../ai/llm.provider.js", () => ({
@@ -56,8 +59,8 @@ const athlete = {
 function mongoWithCollection() {
   return {
     getDb: async () => ({
-      collection: () => ({
-        insertOne,
+      collection: (name: string) => ({
+        insertOne: name === "ai_runs" ? aiRunInsert : insertOne,
         find: () => ({
           sort: () => ({
             limit: () => ({
@@ -76,6 +79,7 @@ describe("MethodologyService", () => {
   beforeEach(() => {
     generateMock.mockReset();
     insertOne.mockClear();
+    aiRunInsert.mockClear();
     latestDoc.current = null;
   });
 
@@ -95,6 +99,31 @@ describe("MethodologyService", () => {
     expect(evaluation.envelope.maxSessionsPerWeek).toBe(3);
     expect(insertOne).toHaveBeenCalledOnce();
     expect(generateMock).toHaveBeenCalledOnce();
+    expect(aiRunInsert).toHaveBeenCalledOnce();
+    expect(aiRunInsert.mock.calls[0]?.[0]).toMatchObject({
+      userId: "user-1",
+      task: "methodology",
+      promptVersion: "methodology-v1",
+      success: true,
+    });
+  });
+
+  it("registra in ai_runs anche il tentativo fallito prima del retry", async () => {
+    const { LlmProviderError } = await import("@health-trainer/ai");
+    generateMock
+      .mockRejectedValueOnce(new LlmProviderError("deepseek", "JSON troncato", { retryable: true }))
+      .mockResolvedValueOnce({
+        data: decision,
+        provider: "deepseek",
+        model: "deepseek-pro",
+        usage: {},
+        latencyMs: 10,
+      });
+
+    await service().evaluate("user-1");
+
+    expect(aiRunInsert.mock.calls.map(([doc]) => doc.success)).toEqual([false, true]);
+    expect(aiRunInsert.mock.calls[0]?.[0]).toMatchObject({ errorMessage: "JSON troncato" });
   });
 
   it("richiede una correzione quando la proposta esce dall'envelope", async () => {

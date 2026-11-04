@@ -10,6 +10,7 @@ import type { PlanService } from "./plan.service.js";
 
 const generateMock = vi.hoisted(() => vi.fn());
 const docs = vi.hoisted(() => [] as Record<string, unknown>[]);
+const aiRuns = vi.hoisted(() => [] as Record<string, unknown>[]);
 
 vi.mock("../ai/llm.provider.js", () => ({
   llmSettings: () => ({ model: "deepseek-flash", thinking: false }),
@@ -39,9 +40,9 @@ const plan = {
 
 const mongo = {
   getDb: async () => ({
-    collection: () => ({
+    collection: (name: string) => ({
       insertOne: async (doc: Record<string, unknown>) => {
-        docs.push(structuredClone(doc));
+        (name === "ai_runs" ? aiRuns : docs).push(structuredClone(doc));
         return { acknowledged: true };
       },
       updateOne: async (
@@ -89,6 +90,7 @@ const service = () => new InterviewService(env, mongo, athlete, baselines, metho
 describe("InterviewService", () => {
   beforeEach(() => {
     docs.length = 0;
+    aiRuns.length = 0;
     generateMock.mockReset();
     vi.mocked(methodology.evaluate).mockClear();
     vi.mocked(plan.generateMacroPlan).mockClear();
@@ -111,6 +113,14 @@ describe("InterviewService", () => {
     expect(interview.messages[0]?.role).toBe("assistant");
     expect(interview.questions[0]?.id).toBe("gym_purpose");
     expect(docs).toHaveLength(1);
+    expect(aiRuns).toHaveLength(1);
+    expect(aiRuns[0]).toMatchObject({
+      userId: "user-1",
+      task: "plan_interview",
+      promptVersion: "plan-interview-v1",
+      model: "deepseek-flash",
+      success: true,
+    });
   });
 
   it("raccoglie i findings e chiude l'intervista quando è pronta", async () => {

@@ -9,6 +9,7 @@ import {
 } from "./experience";
 
 const capacity = (patch: Partial<CurrentCapacity> = {}): CurrentCapacity => ({
+  lastActivityDate: null,
   activeWeeks: 0,
   weeklySessions: 0,
   longestRecentSessionMin: 0,

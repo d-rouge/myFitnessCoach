@@ -17,6 +17,8 @@ export interface UserDataBackup {
     dailyMetrics: unknown[];
     nutritionDaily: unknown[];
     aiRuns: unknown[];
+    methodologyDecisions?: unknown[];
+    planInterviews?: unknown[];
   };
 }
 
@@ -31,6 +33,8 @@ const USER_COLLECTIONS = [
   COLLECTIONS.dailyMetrics,
   COLLECTIONS.nutritionDaily,
   COLLECTIONS.aiRuns,
+  COLLECTIONS.methodologyDecisions,
+  COLLECTIONS.planInterviews,
   COLLECTIONS.syncRuns,
   COLLECTIONS.syncState,
   COLLECTIONS.credentials,
@@ -47,6 +51,8 @@ const RESTORE_COLLECTIONS = [
   COLLECTIONS.dailyMetrics,
   COLLECTIONS.nutritionDaily,
   COLLECTIONS.aiRuns,
+  COLLECTIONS.methodologyDecisions,
+  COLLECTIONS.planInterviews,
 ] as const;
 
 type RestoreKey = (typeof RESTORE_COLLECTIONS)[number];
@@ -64,6 +70,8 @@ export async function exportUserData(db: Db, userId: string): Promise<UserDataBa
     dailyMetrics,
     nutritionDaily,
     aiRuns,
+    methodologyDecisions,
+    planInterviews,
   ] = await Promise.all([
     db.collection(COLLECTIONS.users).findOne({ id: userId }),
     db.collection(COLLECTIONS.baselines).find({ userId }).toArray(),
@@ -76,12 +84,14 @@ export async function exportUserData(db: Db, userId: string): Promise<UserDataBa
     db.collection(COLLECTIONS.dailyMetrics).find({ userId }).toArray(),
     db.collection(COLLECTIONS.nutritionDaily).find({ userId }).toArray(),
     db.collection(COLLECTIONS.aiRuns).find({ userId }).toArray(),
+    db.collection(COLLECTIONS.methodologyDecisions).find({ userId }).toArray(),
+    db.collection(COLLECTIONS.planInterviews).find({ userId }).toArray(),
   ]);
 
   return {
     userId,
     exportedAt: new Date().toISOString(),
-    version: "0.3.0",
+    version: "0.4.0",
     data: {
       user,
       baselines,
@@ -94,6 +104,8 @@ export async function exportUserData(db: Db, userId: string): Promise<UserDataBa
       dailyMetrics,
       nutritionDaily,
       aiRuns,
+      methodologyDecisions,
+      planInterviews,
     },
   };
 }
@@ -156,6 +168,10 @@ function docsFor(backup: UserDataBackup, collection: RestoreKey): unknown[] {
       return backup.data.nutritionDaily ?? [];
     case COLLECTIONS.aiRuns:
       return backup.data.aiRuns ?? [];
+    case COLLECTIONS.methodologyDecisions:
+      return backup.data.methodologyDecisions ?? [];
+    case COLLECTIONS.planInterviews:
+      return backup.data.planInterviews ?? [];
   }
 }
 

@@ -15,7 +15,7 @@ Components present:
 - **Export & Portability:** FIT for run/bike/swim with structured targets (strength/mobility rejected), Hevy with derived exercises and mandatory key, full backup with idempotent restore and total wipe.
 - **Auth:** registration and login with email + password (scrypt) or Google, opt-in dev login, explicit logout, Hevy key saved in the browser and forwarded for export.
 
-303 unit tests (November 4, 2026: 302 green, 1 failing because a fixture date expired, see [`docs/FASI.md`](docs/FASI.md)) and 14 e2e checks (`npm run test:e2e` on a temporary real MongoDB, last verified October 27, 2026). **Not verified:** Google login with real credentials, Hevy export with a real key, `.FIT` import into Garmin Connect, automatic sync, 14-day real use.
+308 unit tests and 14 e2e checks (`npm run test:e2e` on a temporary real MongoDB), all green on November 4, 2026, with clean typecheck, lint and build. **Not verified:** Google login with real credentials, Hevy export with a real key, `.FIT` import into Garmin Connect, automatic sync, 14-day real use.
 
 ## Documents
 
@@ -77,7 +77,7 @@ npm run dev              # build pacchetti + API + web
 npm run dev:api          # solo NestJS (watch)
 npm run dev:web          # solo Vite
 npm run build            # build completo
-npm test                 # unit + contract test (303 test)
+npm test                 # unit + contract test (308 test)
 npm run test:e2e         # e2e multi-utente su MongoDB reale (`*_e2e`, poi pulito)
 npm run lint             # Biome
 npm run typecheck        # TypeScript strict

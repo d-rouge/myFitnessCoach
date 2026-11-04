@@ -25,6 +25,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from "@nestjs/common";
+import { recordAiRun } from "../ai/ai-runs.js";
 import { createLlmProvider, llmSettings } from "../ai/llm.provider.js";
 import { AthleteService } from "../athlete/athlete.service.js";
 import { APP_ENV } from "../config/env.module.js";
@@ -72,13 +73,24 @@ export class MethodologyService {
     });
   }
 
-  private async ask(user: string): Promise<{
+  private async ask(
+    userId: string,
+    user: string,
+  ): Promise<{
     decision: MethodologyDecision;
     provider: string;
     model: string;
   }> {
+    const run = {
+      userId,
+      task: "methodology",
+      promptVersion: METHODOLOGY_PROMPT_VERSION,
+      provider: this.provider.id,
+      model: this.settings.model,
+    };
     try {
       for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const startedAt = Date.now();
         try {
           const response = await this.provider.generate({
             task: "macro",
@@ -97,12 +109,14 @@ export class MethodologyService {
             // periodizzazione e fasi.
             maxTokens: 12000,
           });
+          await recordAiRun(this.mongo, run, startedAt, { response });
           return {
             decision: response.data,
             provider: response.provider,
             model: response.model,
           };
         } catch (error) {
+          await recordAiRun(this.mongo, run, startedAt, { error });
           // Un JSON troncato/malformato è transitorio: un secondo tentativo
           // costa meno di un 503 all'utente.
           if (error instanceof LlmProviderError && error.retryable && attempt === 1) {
@@ -144,7 +158,7 @@ export class MethodologyService {
       interviewFindings,
     };
 
-    let result = await this.ask(JSON.stringify(basePayload));
+    let result = await this.ask(userId, JSON.stringify(basePayload));
     let validation = validateMethodology(result.decision, envelope);
 
     // Una sola correzione: se il modello esce dall'envelope, gli si mostra
@@ -154,6 +168,7 @@ export class MethodologyService {
         `Metodologia fuori envelope per utente ${userId}: ${validation.issues.join("; ")}`,
       );
       result = await this.ask(
+        userId,
         JSON.stringify({
           ...basePayload,
           previousDecision: result.decision,

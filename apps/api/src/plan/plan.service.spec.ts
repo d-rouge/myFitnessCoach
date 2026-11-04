@@ -277,13 +277,21 @@ describe("PlanService", () => {
       }),
     } as unknown as MongoService;
 
-    const service = planService(mockMongo);
-    const result = await service.generateMacroPlan(userId, { startDate: "2026-10-27" });
+    // The recovery window is counted from the real today: pin it two days
+    // after the marathon, or the expected weeks shrink as the calendar moves.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-27T08:00:00Z"));
+    try {
+      const service = planService(mockMongo);
+      const result = await service.generateMacroPlan(userId, { startDate: "2026-10-27" });
 
-    // The dictionary created by `experience: "beginner"` is not trusted: the
-    // measured capacity replaces it, then the marathon guard applies.
-    expect(result.macroPlan.recoveryWindow?.weeks).toBe(3);
-    expect(result.macroPlan.flags).toContain("post_race_recovery");
-    expect(result.microPlan.sessions.every((s) => (s.intensity.rpe ?? 0) <= 6)).toBe(true);
+      // The dictionary created by `experience: "beginner"` is not trusted: the
+      // measured capacity replaces it, then the marathon guard applies.
+      expect(result.macroPlan.recoveryWindow?.weeks).toBe(3);
+      expect(result.macroPlan.flags).toContain("post_race_recovery");
+      expect(result.microPlan.sessions.every((s) => (s.intensity.rpe ?? 0) <= 6)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
