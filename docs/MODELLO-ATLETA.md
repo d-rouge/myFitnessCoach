@@ -106,8 +106,6 @@ The **goal type** is no longer a question: `inferGoalType()` infers it
 from the description (race, performance, body composition, strength, habit,
 health) and the server realigns the field at every save. The description remains
 the text that reaches the planning model.
-File: docs/MODELLO-ATLETA.md (part 2)
-
 The preferences no longer ask for the time: the athlete trains when they want and
 that information does not change the prescription. The coach's tone and the
 other preferences remain; the sixth step of the profile is the **summary**.

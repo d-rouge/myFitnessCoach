@@ -111,8 +111,6 @@ Response: JWT `access_token` with `exp` (24 hours). **No refresh token**: repeat
 - Spike: `scripts/spike-garmin.ts`, redacted output; it does not save tokens or clinical values.
 
 **Verified with a real key (26 October 2026):**
-File: docs/INTEGRAZIONI.md (part 2)
-
 - The token endpoint returns **406** if `Accept: application/json` is sent; without `Accept` it returns **200** with a **plain-text JWT**, not JSON. The client handles both.
 - The activity download returns **406** with `Accept: application/octet-stream`; without `Accept` it returns a valid ZIP (529 KB in the test).
 - 6 activities in 14 days; sleep, HRV, steps, stress, daily summary, Body Battery, RHR, SpO₂, HR zones present; weight 0 records (no Garmin scale); hydration/fitness age reachable but without data.

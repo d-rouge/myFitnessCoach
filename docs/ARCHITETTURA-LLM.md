@@ -1,13 +1,14 @@
-File: docs/ARCHITETTURA-LLM.md (part 1)
-
 # LLM Architecture
 
 Reference document for the part of the project that answers a question:
 **who decides the plan, and with what authority?**
 
-Status: **proposal approved in the discussions of October 27, 2026, not yet
-implemented.** The current code is described in §1 and does not yet match
-this design.
+Status: **proposal approved in the discussions of October 27, 2026, partially
+implemented.** Phase A (dossier) and the HTTP provider of Phase C are done. On
+October 30, 2026 an intermediate step landed outside this sequence: the LLM chooses
+methodology, periodization and phases inside a code-computed envelope, with no Critic
+([`METODOLOGIA-LLM.md`](METODOLOGIA-LLM.md)). §1 describes the code before that step;
+the rest of this design (Proposer/Critic/Referee, provenance, eval) is not implemented.
 
 ---
 
@@ -34,17 +35,20 @@ these three pieces, it produces plans that no chatbot can produce.
 
 | Piece | Status |
 |---|---|
-| Plan generation | **deterministic**, `packages/domain/src/rules/plan-generator.ts` |
+| Plan generation | sessions **deterministic**, `packages/domain/src/rules/plan-generator.ts`; since October 30, 2026 methodology, weekly structure, periodization and phases can come from the LLM (`methodology_decisions`) |
+| Methodology envelope | computed by code, `rules/methodology.ts` (`buildMethodologyEnvelope`, `validateMethodology`) |
+| Interview | `plan_interviews`, LLM-led, max 6 replies, findings feed the methodology |
 | Validation | deterministic, `rules/validator.ts` (the generator validates its own output and throws if it violates) |
 | Recent context | computed, `rules/recent-context.ts` (race/long effort, ACWR, gap) |
 | Capacity and tier | computed, `rules/capacity.ts` and `rules/experience.ts` |
 | LLM | **DeepSeek hardwired**: `DeepSeekProvider` (JSON mode, thinking, `retryable` errors). `LLM_MODEL=deepseek-v4-pro`, `LLM_MODEL_FAST=deepseek-flash`. Without a key, `DeterministicCoachProvider` remains |
 | Plan memory | only saved documents: no summary used in later generations |
-| `ai_runs` | saves metadata and failures (`success: false`), **not** the payload or the verdict |
+| `ai_runs` | coach only: saves metadata and failures (`success: false`), **not** the payload or the verdict. Interview and methodology calls are not logged |
 | Coach (narration) | **DeepSeek active**: receives `recentContext`, cites the recent race, recovery window and ACWR |
 
-Consequence: today the plan is correct with respect to constraints but rigid,
-and methodological knowledge lives in hand-written rules. The document
+Consequence: today the plan is correct with respect to constraints; the choice of
+method is now made by the LLM, but session content and the envelope still live in
+hand-written rules. The document
 [`MODELLO-ATLETA.md`](MODELLO-ATLETA.md) describes the three levels already
 implemented (history, measured capacity, recent context).
 
@@ -120,7 +124,6 @@ agreeing" is not proof. An arithmetic check costs zero and never gets counting
 wrong.
 
 ### D4 — The rule-based generator survives as a safety net
-File: docs/ARCHITETTURA-LLM.md (part 2)
 
 It is not deleted. It reverts to **fallback** when Proposer and Critic do not
 converge within the maximum number of revisions. Its role stops being
@@ -327,6 +330,21 @@ average number of revisions, cost per plan, time per plan.
 
 **Why first:** it is the differentiator, it does not require a provider, and it is
 verifiable. It also improves the rules-based plan, which remains in use.
+
+### Intermediate step — LLM methodology — **done on October 30, 2026**
+
+Not part of the original sequence. `MethodologyService` asks the LLM for a
+`MethodologyDecision` and validates it against `buildMethodologyEnvelope()`;
+`InterviewService` collects missing context first. How it relates to this design:
+
+- it is a **proposer without a critic**: one correction retry if the proposal leaves
+  the envelope, no adversarial review;
+- the **envelope is computed by code**, the opposite of D2 and §5: transitional, to be
+  replaced by the Proposer's envelope challenged by the Critic;
+- it fills `planMemory.method` indirectly (`macroPlan.methodology`), but without
+  `generatedBy`/provenance (Phase B) and without `ai_runs` logging;
+- the week skeleton it produces (`qualitySessions`, `longSessionMin`) is
+  running-shaped: Phase B should define the training model per sport.
 
 ### Phase B — Schema and provenance
 

@@ -381,7 +381,6 @@ dev login + restore → recovered v5 baseline.
   does not duplicate.
 
 #### F1-11 — Safety blocks nothing
-File: docs/REVIEW-FASE-1.md (part 5)
 
 **Status: ✅ closed in WS-6.** `assessSafety` is invoked both when saving the baseline
 (log only, to avoid losing data) and before generation, which is blocked with
@@ -485,8 +484,6 @@ a unit test the forwarding of the key; the real Google login has not been tested
 **Status: ❌ open, deferred.** It was not touched in Wave 2.
 
 - **Cause:** `packages/ai/src/coach.ts` distinguishes `strength`/`interval`, while the
-File: docs/REVIEW-FASE-1.md (part 6)
-
   generator produces `aerobic_base`, `low_impact_endurance`, `intervals`, etc.
 - **Effect:** recommendations in the default branch; deterministic provider passed off as AI.
 - **Fix:** map the real types or use `sport` + `intensity`; clearly state
@@ -594,8 +591,6 @@ tests do not require the API.
 ### 4.4 What NOT to parallelize
 
 - WS-0 against anyone touching controllers: guaranteed conflicts.
-File: docs/REVIEW-FASE-1.md (part 7)
-
 - WS-4 and WS-5 on the same `export.controller.ts`: split the controller into two
   (workout vs data) before parallelizing, or run them sequentially.
 - WS-7 vs WS-3/WS-6: the timezone changes the same review and generation functions.

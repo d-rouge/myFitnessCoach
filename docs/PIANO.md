@@ -1,10 +1,8 @@
-File: docs/PIANO.md (part 1)
-
 # AI Personal Trainer — Product plan and architecture
 
 **Version:** 0.3.0  
-**Date:** October 26, 2026  
-**Status:** v0.3 — Phase 0 completed (scaffold, Garmin/Yazio sync, FIT brief, workout .FIT export, basic auth and spikes ready)  
+**Date:** October 26, 2026 (status table updated November 4, 2026)  
+**Status:** v0.3 — Phase 1 functionally complete; LLM methodology and coach interview implemented (see the status table)  
 **Related documents:** [`FASI.md`](FASI.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
 ---
@@ -19,13 +17,13 @@ File: docs/PIANO.md (part 1)
 | NestJS | 11 (CJS) temporary | **12 (ESM)**, `type: module` + import `.js` |
 | Web DB | MongoDB | **MongoDB** for web data; Android **local** |
 | Mobile | iOS + Android | **Android only**; local data, Mongo only for the account |
-| Sport | running-first | **gym, running, cycling, swimming** to test feedback |
+| Sport | running-first | **gym, running, cycling, swimming** to test feedback. _Note (November 4, 2026): the implemented generator is still running-shaped; see FASI Phase 2 "sport model"._ |
 | Sources | Garmin Startup, Strava excluded | **Garmin Personal**, **Yazio (unofficial API)**, **Zepp (weight)**, **Hevy**; Strava **out** |
 | Export | not a priority | **gym workout plans → Hevy**; **running/cycling/swimming workouts → Garmin** |
 | LLM | BYOK + managed | unchanged: **BYOK + managed free + optional local** |
 | Strava | excluded | **definitively excluded**: it is not a source for the product |
 
-### Implementation status (October 26, 2026)
+### Implementation status (updated November 4, 2026)
 
 | Area | Status |
 |---|---|
@@ -41,10 +39,14 @@ File: docs/PIANO.md (part 1)
 | Spikes documented with verdict | done (`garmin.md`, `garmin-export.md`, `yazio.md`, `zepp.md`, `hevy.md`) |
 | NestJS API `health` + Garmin/Yazio `sync`/`overview` + `export` + `auth` | done |
 | React/Vite web app with Garmin data + Yazio nutrition + FIT export + athlete profile | done |
-| Total tests | 239 unit + 14 e2e checks on real MongoDB |
+| Phase 1 loop (baseline, plan, check-in, review, export, backup, safety, auth) | done (see `FASI.md`) |
+| DeepSeek provider + coach with recent context | done (October 27, 2026) |
+| LLM methodology + coach interview + LLM phases/periodization | done (October 30, 2026); sessions still written by rules; gaps listed in `FASI.md` "Next steps" |
+| i18n it/en in the web app | done |
+| Total tests | 303 unit (302 green, 1 time-dependent red) + 14 e2e checks on real MongoDB (last run October 27, 2026) |
 | Local MongoDB `127.0.0.1:27017` | configured (managed by the user) |
-| Local git repository (`main`, no remote) | done |
-| Next steps | Phase 1 functionally complete; 14-day usage validation, then F1-18/F1-19 or Phase 2 |
+| Git repository | GitHub `d-rouge/myFitnessCoach`, branch + PR flow, CI on push/PR |
+| Next steps | see `FASI.md` "Next steps": methodology-layer gaps, 14-day validation, Phase 2 sport model |
 
 **What remains valid from v0.1** (it is the heart of the project):
 
@@ -197,8 +199,6 @@ Not with the Personal API. Options:
 
 - Strava.
 - Payments.
-File: docs/PIANO.md (part 3)
-
 - Multi-coach.
 - Rehabilitation/clinical nutrition.
 
@@ -666,7 +666,6 @@ Details: [`INTEGRAZIONI.md`](INTEGRAZIONI.md).
 - **Personal use only.** For testing with other users: each tester with their own key (inconvenient) or Garmin Startup.
 
 ### 9.3 Garmin export
-File: docs/PIANO.md (part 7)
 
 - Generates a structured `.FIT` workout (run/bike/swim) with warm-up, blocks, recoveries, targets.
 - Import: Garmin Connect web → Training & Planning → Workouts → Import; or copy to the device's `NewFiles`.

@@ -1,7 +1,7 @@
 # Implementation phases
 
-**Version:** 1.9  
-**Date:** 26 October 2026  
+**Version:** 2.0  
+**Date:** 4 November 2026  
 **References:** [`PIANO.md`](PIANO.md) · [`INTEGRAZIONI.md`](INTEGRAZIONI.md) · [`../AGENT.md`](../AGENT.md)
 
 ---
@@ -21,7 +21,7 @@
 |---|---|---|
 | 0 — Spikes and foundations | 1 week | Integrations tested + scaffold |
 | 1 — Personal Web MVP | 4–5 weeks | Complete loop on the web, daily use |
-| 2 — Multisport, export, automations | 2–3 weeks | Feedback for 4 sports + Hevy/Garmin + sync |
+| 2 — Multisport, export, automations | 3–5 weeks | Per-sport planning (strength first) + feedback for 4 sports + Hevy/Garmin + sync |
 | 3 — Android local-first | 4–6 weeks | Usable Android app, local data, backup |
 | 4 — Testing with other users | 3–4 weeks | 5–10 testers, multi-user, compliance |
 | 5 — Consolidation | ongoing | Quality, sport depth, optional |
@@ -89,8 +89,6 @@ Prove that the key integrations **actually** work and create the skeleton to bui
 - [x] `activity_analyses` storage + `analyze`/`analysis` endpoints + "Analyze FIT" UI.
 - [x] Real validation: ~1.3 MB FIT, 17,492 records, 44 laps, 42 splits, ~2 KB brief.
 - [x] Generate a structured `.FIT` workout (5×800m with Z2 warm-up, interval @ 4:15-4:35/km, 200m recovery, repeat 5x, Z1 cooldown).
-File: docs/FASI.md (part 2)
-
 - [x] Validated with the official Decoder `@garmin/fitsdk` (0 errors, `.FIT` magic bytes, compliant messages).
 - [x] Script `npm run export:workout` + endpoint `GET /api/export/workouts/sample-5x800m.fit` + UI card with download.
 - [x] Document the export format and limits in `docs/spikes/garmin-export.md` (Go).
@@ -153,15 +151,20 @@ File: docs/FASI.md (part 2)
 
 ## Phase 1 — Personal Web MVP (4–5 weeks)
 
-### Status (updated October 27, 2026)
+### Status (updated November 4, 2026)
 
 > ⚠️ **Phase 1 is functionally complete but has not yet been validated over 14 real days.**
 > The October 27, 2026 review ([`REVIEW-FASE-1.md`](REVIEW-FASE-1.md)) found
 > 5 blocking issues, 7 serious, and 7 medium. After WS-0, Wave 1, and Wave 2, only
 > one postponed P2 (scheduler/credentials F1-19) and real-world use remain open. F1-18 (AI coach)
 > is closed: the coach consumes `RecentContext` and uses DeepSeek.
-> The unit tests (239) and the multi-user e2e on real MongoDB (14 checks) are green.
+> Unit tests: 303, of which 302 green and 1 red because a fixture date expired (see
+> "Next steps"). The multi-user e2e on real MongoDB (14 checks) was last run on October 27, 2026.
 > The checkboxes below have been realigned: those not verified are `[ ]`.
+>
+> **Methodology layer (October 30, 2026):** coach interview, LLM-chosen methodology with
+> envelope validation, LLM phases and periodization, re-evaluation at the weekly review,
+> i18n it/en. Details in [`METODOLOGIA-LLM.md`](METODOLOGIA-LLM.md) and in §1.8 / §1.10 below.
 >
 > **WS-0 (October 27, 2026):** global JWT guard, `@CurrentUser()`, secure config,
 > Zod validation, and FIT body limit are closed (F1-01, F1-02, F1-04, F1-05, F1-14).
@@ -175,19 +178,19 @@ File: docs/FASI.md (part 2)
 > with real Mongo (WS-9) was added. F1-19 remains postponed (scheduler and encrypted
 > credentials); F1-18 was closed on October 27, 2026.
 >
-> **Next block (October 27, 2026):** replace the rule-based generator as
+> **Block decided on October 27, 2026:** replace the rule-based generator as
 > the *author* of the plan with the Proposer + Critic + Referee pipeline described in
 > [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md). The generator remains as a fallback.
-> Recognized prerequisite: post-race unloading is currently a global constant
+> What actually landed (October 30) is an intermediate step: the LLM chooses the
+> methodology and the phases, the generator still writes the sessions. Recognized
+> prerequisite still open: post-race unloading is a global constant
 > (21 days, gym included) and is wrong for experienced athletes and for
-> non-impact sports.
+> non-impact sports (F1-30).
 
-**Tests:** 239 unit + 14 green e2e checks (`npm run test:e2e`, temporary
-`health_trainer_e2e` database). Details and remaining limits in
+**Tests:** 303 unit (302 green) + 14 e2e checks (`npm run test:e2e`, temporary
+`health_trainer_e2e` database, last run October 27, 2026). Details and remaining limits in
 [`REVIEW-FASE-1.md`](REVIEW-FASE-1.md).
 - **1.1 Domain and rules:** Complete L0–L4 schemas (baseline, preferences, medical history, plans, sessions, check-ins, review), 85 unit tests with edge cases and fixtures for 4 personas (Marco beginner 5k, Giulia half marathon + gym, Luca knee pain, Sara former competitive athlete returning).
-File: docs/FASI.md (part 3)
-
 - **1.2 Onboarding:** Interactive 6-step wizard (`OnboardingWizard.tsx`) with complete medical history — red flags, known conditions, medications, injuries — and safety assessment shown in real time. Sticky save bar: when editing, you can save from any step; on first onboarding the draft remains in `sessionStorage` until it is completed, goals, availability, equipment, demo persona selector, and persistence on MongoDB (`athlete_baselines`) + API `/api/baseline`. _(WS-6: red flags and injuries can be entered from the wizard; saving is permitted, generation is blocked.)_
 - **1.3 Plan:** 5k feasibility check with realistic projections, deterministic macrocycle and microcycle generator (`generateMacroPlan`, `generateMicroPlan`), safety critic (automatic replacement of running with bike/swimming/mobility for knee pain), multisport Board and "Today" Card with express variants (15 min, 30 min, exercise bike).
 - **1.4 Execution and feedback:** Quick morning check-in (`MorningCheckinCard.tsx`), real-time daily adjustment engine (`computeDailyAdjustment`), manual activity entry (`/api/activities/manual`) and `.FIT` file upload with analysis and automatic planned vs actual comparison (`compareSessionWithActivity`).
@@ -197,7 +200,7 @@ File: docs/FASI.md (part 3)
 - **1.8 AI Coach:** Versioned schemas and prompts (`coach-advice-v1`), deterministic offline-first provider (`DeterministicCoachProvider`), tracking of `ai_runs` executions with token, latency, and model, endpoint `/api/ai/coach-advice` and coaching briefing card integrated into the UI.
 - **1.9 Security & Privacy (GDPR):** Credentials isolated in `secrets/`, local passwords hashed with scrypt in `auth_credentials` (never in the `users` document), full backup with `ai_runs`, restore per authenticated user and complete deletion (`DELETE /api/export/me`, which also removes credentials). _(F1-10 closed in WS-5; JWT authentication and secure defaults closed in WS-0; local accounts F1-24.)_
 
-**Green (verified on October 27, 2026 after Wave 2):** 239 unit tests, 14 e2e checks
+**Green (verified on October 27, 2026 after Wave 2; unit count updated November 4, 2026):** 239 unit tests at the time (303 today), 14 e2e checks
 on real MongoDB, workspace typecheck, `typecheck:scripts` and Biome lint pass;
 API and web builds complete. **Not covered:** Google login with real credentials (Google
 registration requires OAuth client and allowlist), Hevy export with a real key,
@@ -227,8 +230,6 @@ Use the app every day for 2 weeks: plan, workout, check-in, review, Garmin/Yazio
 - [x] Weekly availability and maximum duration per session.
 - [x] Equipment, gym, pool, home with visual selection.
 - [x] Optional photos (upload, EXIF strip, private storage - deferred to mobile phase).
-File: docs/FASI.md (part 4)
-
 - [x] Editable baseline summary with Mongo persistence (`athlete_baselines`) and `/api/baseline` API module. _(Without a baseline, `GET /api/baseline` responds 404, never 200 with an empty body: F1-21.)_
 
 #### 1.3 Plan
@@ -274,18 +275,22 @@ File: docs/FASI.md (part 4)
 
 #### 1.8 AI
 
-> **Current status (October 27, 2026):** no model is connected. Only
-> `DeterministicCoachProvider` exists (handwritten texts) and `/api/health` responds
-> `llm: missing`. Plan generation is entirely deterministic and the
-> coach does not consume `RecentContext`. The target design is in
-> [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md).
+> **Current status (November 4, 2026):** DeepSeek is connected (`LLM_PROVIDER=deepseek` +
+> `LLM_API_KEY`); without a key the coach uses `DeterministicCoachProvider` and the
+> interview/methodology endpoints answer `503`. The coach consumes `RecentContext`.
+> The LLM chooses methodology and periodization; sessions are still written by the
+> rule-based generator. The target design is in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md).
 
-- [x] Versioned prompts (`coach-advice-v1`) with Zod schema validation (`CoachAdviceSchema`).
+- [x] Versioned prompts (`coach-advice-v2`, `plan-interview-v1`, `methodology-v1`) with Zod schema validation.
 - [x] Offline-first Deterministic Coach Provider for reliable execution without third-party keys.
 - [x] `ai_runs` audit log with tokens, latency, model and USD cost. _(Metadata only: the proposal payload and verdict are missing.)_
 - [x] `POST /api/ai/coach-advice` endpoint and AI Coach widget in the dashboard.
 - [x] **Coach with real context** (October 27, 2026, closes F1-18): the payload includes `recentContext` (last race/effort, days elapsed, recovery window, 7/28 load, ACWR, flags) and the system prompt forbids prescribing load during the window. Verified on real data: it cites the marathon from 2 days ago and the acute/chronic ratio.
 - [x] **Native DeepSeek connection** (October 27, 2026): `DeepSeekProvider` with JSON mode, selectable thinking, `retryable` error mapping, timeout; `deepseek-v4-pro` for planning and `deepseek-flash` for the coach; smoke test `npm run spike:deepseek`. Without a key, the deterministic provider remains.
+- [x] **LLM methodology** (October 30, 2026): `POST /api/plan/methodology`, `MethodologyDecision` (methodology, weekly structure, periodization, phases, alternatives, risks, confidence) validated against `buildMethodologyEnvelope()` with one correction retry, saved in `methodology_decisions`. Plan generation uses it when ≤ 14 days old and for the same goal.
+- [x] **Coach interview** (October 30, 2026): `PlanInterviewChat.tsx` + `/api/plan/interview*`, max 6 replies, findings fed back into the methodology, target date can be updated; regenerating the plan always starts a new interview.
+- [x] **Methodology re-evaluation at the weekly review** (October 30, 2026): optional, the review stays valid if the model is down.
+- [ ] Interview and methodology calls logged in `ai_runs` (today only the coach is logged).
 
 #### 1.9 Security
 
@@ -293,14 +298,15 @@ File: docs/FASI.md (part 4)
 - [x] Log sanitization.
 - [x] Data portability: Full JSON backup export.
 - [x] Total data deletion / GDPR wipe (`DELETE /api/export/me`). _(WS-5: also deletes `users` and `ai_runs`; after the wipe `/api/me` responds 401.)_
+- [ ] **Regression since October 30, 2026:** `plan_interviews` and `methodology_decisions` are not in backup/restore nor in the wipe (`packages/db/src/backup.ts`). The interview chat contains health context: the wipe is not total until they are added.
 
-#### 1.10 LLM Architecture (planned, not implemented)
-File: docs/FASI.md (part 5)
+#### 1.10 LLM Architecture (partially implemented)
 
 Complete plan and criteria in [`ARCHITETTURA-LLM.md`](ARCHITETTURA-LLM.md) §11.
 Binding order: each step presupposes the previous one.
 
 - [x] **A. Athlete dossier** (`F1-25`) — deterministic `buildAthleteDossier()`, `GET /api/athlete/dossier`, used by plan and coach via `AthleteService.getContext()`. The dossier declares what is missing (`warnings`) and a coverage test prevents adding fields to the baseline without passing through it. _Still to be connected to the rule-based generator: age, time windows, preferred time, and secondary goals—the dossier exposes them, but the generator does not read them yet._
+- [x] **Intermediate step: LLM methodology** (October 30, 2026, outside the A–E sequence) — the LLM chooses methodology, weekly structure, periodization and phases; the envelope is still computed by code (`buildMethodologyEnvelope`) and there is no Critic. See [`METODOLOGIA-LLM.md`](METODOLOGIA-LLM.md). It does not replace B–E.
 - [ ] **B. Schema and provenance** (`F1-26`) — `trainingModel`, `envelope` per modality, `review`, `generatedBy`; `ai_runs` with the payload; compatible migration of existing plans.
 - [~] **C. Provider and loop** (`F1-27`) — **DeepSeek provider done** (JSON mode, thinking, retryable errors, timeout, smoke test). Remaining: `PlanProposer`, `PlanCritic`, Referee in code, max 2 revisions, declared fallback.
 - [ ] **D. Adversarial evaluation** (`F1-28`) — `npm run eval:plans` with deliberately wrong plans that the Critic must reject; measure false negatives before any other metric.
@@ -330,13 +336,49 @@ Binding order: each step presupposes the previous one.
 
 ---
 
-## Phase 2 — Multisport, export, automations (2–3 weeks)
+## Next steps (November 4, 2026)
+
+In order. Each item is small enough to be one PR.
+
+1. **Close the gaps of the methodology layer.**
+   - Add `plan_interviews` and `methodology_decisions` to backup, restore and wipe, with a compatibility test (bump the backup version).
+   - Log interview and methodology calls in `ai_runs` (model, prompt version, tokens, outcome).
+   - Make the time-dependent test in `apps/api/src/plan/plan.service.spec.ts` deterministic by pinning the clock.
+   - Re-run `npm run test:e2e` and extend it to cover the 503 of interview/methodology without a model.
+2. **14-day real-use validation** (Phase 1 acceptance criteria). Decide explicitly whether
+   to run it now or after step 3: development has moved on without it.
+3. **Phase 2, starting from the sport model** (below): per-sport modules, then real strength
+   training, then multi-sport weeks.
+4. **F1-19** (scheduler, encrypted credentials) before any test with other users.
+
+---
+
+## Phase 2 — Multisport, export, automations (3–5 weeks)
 
 ### Goal
 
-Make feedback useful for all four sports and reduce manual input.
+Make **planning** and feedback useful for all four sports and reduce manual input.
 
-### Tasks
+> **Why the plan is running-shaped today (analysis of November 4, 2026).** The week skeleton
+> (`MethodologyWeeklyStructure`: `qualitySessions`, `longSessionMin`, `strengthSessions` as an
+> add-on) comes from endurance running. Strength sessions are a fixed text ("Forza Funzionale
+> A/B") without sets, reps, load or progression. Measured capacity only projects a 5K time
+> (`rules/capacity.ts`). `primarySportOf` falls back to `"running"`, a week has a single
+> endurance sport, goal inference uses Italian-only running patterns, and the interview prompt
+> asks whether the gym "supports running". The tasks below fix the model, not just the texts.
+
+### Tasks — sport model (new, first)
+
+- [ ] **Per-sport modules** in `packages/domain/src/sports/`: one interface (capacity metrics, key session types, intensity anchors, progression model, contraindications) implemented for running, cycling, swimming, strength, mobility. The generator delegates to the module instead of `if (sport === …)`.
+- [ ] **Sport-neutral methodology schema**: replace `qualitySessions`/`longSessionMin` with key sessions defined by the sport module; migrate existing `methodology_decisions` and plans compatibly.
+- [ ] **Real strength training**: exercise library filtered by equipment, split chosen by available days (full body / upper-lower / push-pull-legs), sets × reps × RIR or %1RM, double progression, weekly volume per muscle group, e1RM from imported Hevy workouts.
+- [ ] **Multi-sport weeks**: distribution across disciplines (triathlon, running + gym, hybrid), interference rules (no heavy legs within 24 h of a quality run, no back-to-back long sessions).
+- [ ] **Capacity per sport**: FTP/power for cycling, CSS for swimming, e1RM for strength, plus cross-sport metrics (resting HR, VO2max from Garmin).
+- [ ] **Non-performance goals**: body composition (Yazio weight trend and intake + strength to preserve lean mass), health/habit (weekly active minutes, consistency).
+- [ ] **Neutral prompts and goal inference**: remove the running bias from the interview/methodology prompts, drop the `"running"` fallback, infer the goal type with the LLM or a structured field instead of Italian-only regexes.
+- [ ] **Per-modality post-race deload** (F1-30): impact vs upper body vs heavy eccentrics, instead of the global 21 days.
+
+### Tasks — feedback, export, automations
 
 - [ ] Zepp weight: unofficial adapter + manual fallback.
 - [ ] Import completed workouts from Hevy and link them to sessions.
@@ -357,6 +399,8 @@ Make feedback useful for all four sports and reduce manual input.
 ### Acceptance criteria
 
 - 4 weeks of data with all 4 sports.
+- The 10-persona eval includes at least one strength-primary, one cycling/swimming-primary, one multi-sport and one body-composition athlete, and none of them receives running sessions they did not ask for.
+- Strength sessions carry exercises, sets, reps and load/RIR, and progress week over week.
 - At least one Hevy export and one Garmin export per week.
 - Automatic sync > 90% of days.
 - Weekly automatic backup + tested restore.
@@ -396,8 +440,6 @@ Android app usable every day, with local data and personal backup.
 #### 3.3 Direct integrations
 
 - [ ] Garmin Personal (optional) with key on device/Keystore.
-File: docs/FASI.md (part 6)
-
 - [ ] Yazio (unofficial API) with local credentials.
 - [ ] Direct Hevy export with local API key.
 - [ ] Garmin `.FIT` export + file sharing.

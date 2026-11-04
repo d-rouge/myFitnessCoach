@@ -2,7 +2,7 @@
 
 Operational guide for an agent working on **health-trainer**. Read this file before modifying anything.
 
-**Updated:** October 27, 2026 (Phase 1 revision).
+**Updated:** November 4, 2026 (realignment after the coach interview and LLM methodology).
 
 ---
 
@@ -15,6 +15,8 @@ Operational guide for an agent working on **health-trainer**. Read this file bef
 | Code or the state of a phase | `docs/FASI.md` (checkbox and status) + `README.md` (status) |
 | Architecture, stack or a decision | `docs/PIANO.md` + this file |
 | Who generates the plan, LLM roles, envelope, memory | `docs/ARCHITETTURA-LLM.md` + `docs/FASI.md` |
+| Methodology, interview, periodization | `docs/METODOLOGIA-LLM.md` + `docs/FASI.md` |
+| An endpoint | §5.1 of this file |
 | An integration, endpoint, token or limit | `docs/INTEGRAZIONI.md` + fixture/test |
 | A command, a path or an invariant | `AGENT.md` |
 | An unverified hypothesis | the spike document, marked **unverified** |
@@ -30,9 +32,10 @@ Practical rules:
 
 ## 0.1 Git repository
 
-- Branch: **`main`**
-- **Local** identity of the repo: `d-rouge <d-rouge@users.noreply.github.com>`
-- **No remote configured.** Don't add one, don't `push`, `reset --hard`, `rebase` or force-push without explicit confirmation.
+- Remote: `origin` → GitHub `d-rouge/myFitnessCoach`. Default branch: **`main`**.
+- Work on a branch and merge through a pull request; don't commit directly on `main`.
+- CI (`.github/workflows/ci.yml`) runs `build`, `test`, `typecheck` and `lint` on every push and PR. The e2e suite needs a real MongoDB and is **not** in CI: run it locally when you touch API behaviour.
+- Push only when the user asks. Never `reset --hard`, `rebase` a shared branch, or force-push without explicit confirmation.
 - Don't commit `.env`, `node_modules`, `dist`, photos, `.FIT` files or backups.
 
 ---
@@ -47,11 +50,12 @@ The loop:
 
 The app isn't a tracker. The value is the coaching cycle, the consistency of the plan and the explanation of the choices.
 
-**Current status (October 27, 2026):** Phase 0 completed. Phase 1 is **functionally
-complete** after WS-0, Wave 1 and Wave 2: safety, generator, timezone, auth/Hevy UI and
-multi-user e2e are closed. Two P2s remain deferred (F1-18 AI coach, F1-19 scheduler and
-encrypted credentials) plus the 14-day real-usage validation. Details in
-[`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
+**Current status (November 4, 2026):** Phase 0 completed. Phase 1 is **functionally
+complete** after WS-0, Wave 1 and Wave 2. F1-18 (coach with real context) was closed on
+October 27, 2026. On October 30, 2026 the **coach interview and the LLM-chosen methodology**
+landed (`docs/METODOLOGIA-LLM.md`). Still open: F1-19 (scheduler and encrypted credentials),
+the 14-day real-usage validation, and the running-shaped generator (Phase 2 in
+`docs/FASI.md`). Details in [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
 **Don't assume** that a path or a feature exists just because it's in the plan: check the repository.
 
@@ -65,9 +69,10 @@ encrypted credentials) plus the 14-day real-usage validation. Details in
 4. `docs/REVIEW-FASE-1.md` — open issues in Phase 1 and fix plan
 5. `docs/INTEGRAZIONI.md` — Garmin, Yazio, Zepp, Hevy, Health Connect, Drive
 6. `docs/MODELLO-ATLETA.md` — history, measured capacity, recent context
-7. `docs/ARCHITETTURA-LLM.md` — who decides the plan: dossier, Proposer, Critic, Referee, memory
-8. `docs/spikes/` — real results of the spikes (Garmin, Yazio, FIT export, Zepp, Hevy)
-9. `README.md` — quick start
+7. `docs/METODOLOGIA-LLM.md` — what is implemented today: LLM methodology, interview, periodization
+8. `docs/ARCHITETTURA-LLM.md` — target design: dossier, Proposer, Critic, Referee, memory
+9. `docs/spikes/` — real results of the spikes (Garmin, Yazio, FIT export, Zepp, Hevy)
+10. `README.md` — quick start
 
 If one document contradicts another, **`PIANO.md` wins** for architecture and `FASI.md` for priority. Flag the contradiction and update the documents.
 
@@ -96,22 +101,30 @@ docs/
   INTEGRAZIONI.md
   FIT.md
   MODELLO-ATLETA.md         history, measured capacity, recent context
-  ARCHITETTURA-LLM.md       dossier, Proposer, Critic, Referee, memory
+  METODOLOGIA-LLM.md        LLM methodology, interview, periodization (implemented)
+  ARCHITETTURA-LLM.md       dossier, Proposer, Critic, Referee, memory (target design)
   spikes/                   real results (template + registry)
+.github/workflows/ci.yml    build, test, typecheck, lint on push/PR
 apps/
-  api/                      NestJS 12 ESM: health, integrations, auth, export
+  api/                      NestJS 12 ESM
     src/database/           MongoService (connection + indexes)
     src/common/             shared helpers (`getUserTimeZone`)
-    src/integrations/       GarminService, GarminSyncService, YazioService, YazioSyncService
     src/auth/               AuthService (local/Google/dev), scrypt password, JWT util
-    src/export/             ExportController (workout .FIT download)
-  web/                      React + Vite + Tailwind, Garmin/Yazio data in UI, authenticated athlete, FIT export
+    src/athlete/            AthleteService.getContext(): the single dossier path
+    src/baseline/           baseline, versioning, measured capacity
+    src/plan/               PlanService, MethodologyService, InterviewService
+    src/review/             weekly review + methodology re-evaluation
+    src/checkin/, activity/ check-in, manual activity, FIT upload
+    src/ai/                 coach advice, LLM provider factory
+    src/integrations/       GarminService, GarminSyncService, YazioService, YazioSyncService
+    src/export/             FIT, Hevy, backup/restore/wipe
+  web/                      React + Vite + Tailwind + TanStack Query; single page (`App.tsx`) + `components/`, i18n it/en in `src/i18n`
   mobile/                   Expo (phase 3, not yet created)
 packages/
-  domain/                   Zod (activity, daily metrics, user, etc.), pure rules
+  domain/                   Zod schemas + pure rules (generator, methodology envelope, safety, load, readiness…)
   integrations/             Garmin + Yazio + FIT parser/analysis + FIT workout encoder
-  db/                       Mongo client, repository activities/metrics/nutrition/analyses/sync/users/credentials
-  ai/                       provider/prompt interfaces (stub)
+  db/                       Mongo client, repositories, collections and indexes
+  ai/                       prompts as versioned TS constants (coach, interview, methodology) + DeepSeek provider
   ui/                       shared UI utilities (cn)
   config/                   env Zod, feature flag
 ```
@@ -125,15 +138,17 @@ packages/
 Read `docs/FASI.md`. **Phase 0 — Spikes and foundations** is completed.
 
 **Phase 1 — Personal web MVP** is functionally complete: WS-0, Wave 1 and Wave 2
-File: AGENT.md (part 2)
-
 are closed (auth, baseline, review/check-in, export, backup, safety, generator,
-timezone, UI auth/Hevy, e2e). F1-18 (AI coach aligned with the real types)
-and F1-19 (scheduler, encrypted credentials, Yazio weight history) remain deferred. Details in
+timezone, UI auth/Hevy, e2e). F1-18 (coach with real context) is closed. F1-19
+(scheduler, encrypted credentials, Yazio weight history) remains deferred. Details in
 [`docs/REVIEW-FASE-1.md`](docs/REVIEW-FASE-1.md).
 
-**Next step:** 14-day real-world usage validation, then choose between F1-18 and
-F1-19 (or the start of Phase 2).
+Beyond Phase 1, the LLM methodology and the coach interview are implemented
+(`docs/METODOLOGIA-LLM.md`): an intermediate step towards `docs/ARCHITETTURA-LLM.md`.
+
+**Next step:** see "Next steps" in `docs/FASI.md`: fix the known gaps of the
+interview/methodology layer, the 14-day real-world validation, then Phase 2 starting
+from the sport-module refactor and real strength training.
 
 ---
 
@@ -146,7 +161,7 @@ npm run dev                   # build pacchetti + API + web
 npm run dev:api               # solo NestJS (watch)
 npm run dev:web               # solo Vite
 npm run build                 # build completo
-npm test                      # unit/contract test (239 test)
+npm test                      # unit/contract test (303 test)
 npm run test:e2e              # e2e multi-utente su Mongo reale (`*_e2e`, poi pulito)
 npm run lint                  # Biome
 npm run typecheck             # TypeScript strict
@@ -194,6 +209,12 @@ POST /api/baseline/safety
 POST /api/baseline/feasibility
 GET  /api/plan/macro
 POST /api/plan/macro/generate
+POST /api/plan/methodology               (LLM; 503 without a configured model)
+GET  /api/plan/methodology/latest
+POST /api/plan/interview                 (starts the interview + first turn; 503 without a model)
+GET  /api/plan/interview/latest
+POST /api/plan/interview/:id/message
+POST /api/plan/interview/:id/generate    (re-evaluates the methodology with the findings, then generates)
 GET  /api/plan/micro?weekIndex=1
 POST /api/plan/micro/generate
 GET  /api/plan/today
@@ -210,6 +231,7 @@ POST /api/ai/coach-advice
 GET  /api/integrations/status
 POST /api/integrations/garmin/check
 GET  /api/integrations/garmin/overview?days=7
+GET  /api/integrations/garmin/activities/summary
 POST /api/integrations/garmin/sync?days=7
 POST /api/integrations/garmin/activities/:activityId/analyze
 GET  /api/integrations/garmin/activities/:activityId/analysis
@@ -277,7 +299,7 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 6. **Timezone:** the "day" is local (IANA), timestamps are UTC. Never do arithmetic with a bare `Date`.
 7. **No Strava API.** The 2026 policy forbids its use in AI. Do not add it.
 8. **No health data in logs.** No tokens, keys, photos, clinical texts.
-9. **Encrypted secrets.** Provider keys and tokens never in plaintext in the DB, never to the client, never in logs.
+9. **Encrypted secrets.** Provider keys and tokens never in plaintext in the DB, never to the client, never in logs. **Known gap:** encryption of `provider_credentials` is not implemented yet (F1-19); today dev credentials live in `secrets/` and env. Do not add new stored credentials before F1-19.
 10. **Android local-first.** Health data stays on the device; the server is used for auth, backup metadata and managed LLM (with consent).
 11. **Unofficial adapters isolated.** Yazio/Zepp behind feature flags, with manual fallback and documented risks.
 12. **No autonomous agent writes the plan.** Typed roles and deterministic pipeline.
@@ -293,7 +315,7 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 - **TypeScript 6.0.3**, `module`/`moduleResolution: nodenext`. Avoid `moduleResolution: node10` and `baseUrl` (deprecated in TS 6).
 - **Node >= 22**, **npm workspaces**. No pnpm, no Turborepo.
 - `npm run dev` first runs `build:packages`: API and web import packages from `dist`, not from source.
-- **Current tests:** 239 green tests (api 73, ai 20, domain 99, integrations 40, config 5, db 2) + 14 e2e checks. Build, lint, typecheck and `typecheck:scripts` green.
+- **Current tests (November 4, 2026):** 303 unit tests (api 86, domain 141, integrations 40, ai 20, web 9, config 5, db 2): 302 green, 1 red. The red one is `plan.service.spec.ts` › "generates from a legacy baseline…": the fixture has a marathon on 2026-10-25 while the recovery window is computed from the real today, so the expected 3 weeks became 2. It is a time-dependent test, not a regression: pin the clock (`vi.setSystemTime`) instead of changing the expectation. E2E (14 checks) last verified October 27, 2026.
 - **Athlete model (v2):** `profile.experience` has been removed. It is replaced by `profile.history` (what you have done), `profile.capacity` (what you can do now) and `profile.experienceTier` **derived server-side** for the sport of the primary goal. Rules in `packages/domain/src/rules/experience.ts`. Details and boundary with the LLM in `docs/MODELLO-ATLETA.md`.
 - **Measured capacity:** `profile.capacity.source` is `garmin | manual | calibration`. With `garmin` the numbers are recalculated by the server from imported activities (never by the client) on save, on read (`GET /baseline`) and on plan generation; without activities the baseline is rejected with 400. The rule is only one: `apps/api/src/baseline/measured-capacity.ts`. With `calibration` week 1 is an RPE 4-5 test and capacity is re-estimated as soon as data exists.
 - **Athlete's day:** counters ("days ago", 28-day window, streak) use the baseline timezone, not UTC. With `toISOString()` after 10:00 PM Italian time you are off by a day. `buildRecentContext()` and `estimateCapacityFromActivities()` accept `timezone`.
@@ -301,7 +323,9 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 - **Security and medical history:** `assessSafety()` recognizes conditions with both the English ids and the Italian labels of the wizard (if the wizard saves "uncontrolled hypertension", the block must trigger). Common chronic conditions raise severity to `caution` without blocking; medications with an impact on exercise add a note (beta-blockers → use RPE, diuretics → hydration, anticoagulants → no contact/falls, glucose-lowering medications → hypoglycemia risk).
 - **Athlete dossier (F1-25):** `buildAthleteDossier()` (`packages/domain/src/rules/athlete-dossier.ts`) compiles the single context object — identity and age, goals (including secondary ones), history, capacity, recent context, individual response (adherence, RPE gap, recurring pain), memory and plan history, constraints, preferences — with explicit `warnings` about what is missing. It is used by `PlanService` and `AiService` through `AthleteService.getContext()`: **a single context path**. A coverage test fails if a field is added to the baseline without passing it to the dossier.
 - **Recent context:** `buildRecentContext()` (`packages/domain/src/rules/recent-context.ts`) produces structured facts (last race/long effort, remaining recovery days, acute/chronic ratio, gap). The recovery window ends up in `macroPlan.recoveryWindow` and forces recovery weeks deterministically: the LLM can explain it, not ignore it.
-- **LLM: DeepSeek wired, partial provider.** `LLM_PROVIDER=deepseek` + `LLM_API_KEY` activate `DeepSeekProvider` (`packages/ai/src/providers/deepseek.ts`); without a key it stays on `DeterministicCoachProvider`. Two models: `LLM_MODEL=deepseek-v4-pro` for planning/critique, `LLM_MODEL_FAST=deepseek-flash` for the coach. `LLM_THINKING=auto` (default) turns on chain-of-thought for planning and for the coach only when the context is sensitive (pain, low readiness, post-race window, rising load); `on`/`off` force it. The other providers in the enum **do not** have a client: they remain deterministic. The coach **consumes** `RecentContext` (last race/long effort, recovery window, ACWR, gap) since October 27, 2026. Plan generation remains entirely deterministic: **do not describe the plan as generated by an LLM** until the pipeline in `docs/ARCHITETTURA-LLM.md` is implemented.
+- **LLM: DeepSeek wired, partial provider.** `LLM_PROVIDER=deepseek` + `LLM_API_KEY` activate `DeepSeekProvider` (`packages/ai/src/providers/deepseek.ts`); without a key it stays on `DeterministicCoachProvider`. Two models: `LLM_MODEL=deepseek-v4-pro` for planning/critique, `LLM_MODEL_FAST=deepseek-flash` for the coach. `LLM_THINKING=auto` (default) turns on chain-of-thought for planning and for the coach only when the context is sensitive (pain, low readiness, post-race window, rising load); `on`/`off` force it. The other providers in the enum **do not** have a client: they remain deterministic. The coach **consumes** `RecentContext` (last race/long effort, recovery window, ACWR, gap) since October 27, 2026.
+- **LLM methodology and interview (October 30, 2026).** `MethodologyService` asks the LLM for a `MethodologyDecision` (methodology, weekly structure, periodization, phases, alternatives, risks); it is validated against `buildMethodologyEnvelope()` (`packages/domain/src/rules/methodology.ts`) with **one** correction retry, then saved in `methodology_decisions`. `InterviewService` runs the "Talk to the coach" chat (`plan_interviews`, max 6 user replies, prompt `plan-interview-v1`), can update the target date, and on `generate` re-evaluates the methodology with the findings. `PlanService` uses the latest methodology only if it is ≤ 14 days old and refers to the same goal description; otherwise it falls back to the rule-based path. The weekly review re-evaluates the methodology but stays valid if the model is down. Without a model the interview/methodology endpoints answer `503`. **What to say:** the LLM chooses methodology and periodization; the **sessions** are still written by the rule-based generator. Do not describe the plan as fully LLM-generated.
+- **Known gaps of the methodology layer (to fix):** (1) interview and methodology calls are **not** logged in `ai_runs` (only the coach is); (2) `methodology_decisions` and `plan_interviews` are **not** in backup/restore nor in `DELETE /api/export/me` (`packages/db/src/backup.ts`), so the total wipe leaves interview chats behind; (3) the envelope is computed by code (`buildMethodologyEnvelope`), which contradicts §9 rule 2: it is a transitional choice until the Critic/Referee exist; (4) prompts and the week skeleton (`qualitySessions`, `longSessionMin`) are running-shaped.
 - **LLM errors:** `LlmProviderError` exposes `status` and `retryable` (401/402 non-retryable, 429/5xx/empty response retryable). The key never appears in messages or logs; failures end up in `ai_runs` with `success: false`.
 - **Post-race deload: temporary constant, recognized as wrong.** `RECOVERY_RULES` uses 21 days for everyone and `sessionPolicy()` applies the same policy to all sports, so within the window even the gym is limited to RPE 6. It is correct for a beginner and too conservative for an advanced amateur; moreover, the deload is per modality (impact yes/no, upper body ok, heavy eccentrics no), not global. It must be replaced by the envelope proposed by the Proposer and verified by the Referee (`docs/ARCHITETTURA-LLM.md` §5).
 - **Only one active macro-plan:** regenerating calls `supersedeMacroPlans()`, which deletes the previous plan and its micro-plans. Without it, two plans with the same `startDate` make `getCurrentMacroPlan` ambiguous.
@@ -329,8 +353,16 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 
 ### New sport
 
-1. Add the sport to `packages/domain/src/sports/`.
-2. Define session types, metrics, targets, contraindications.
+> **Today** sport logic lives in `packages/domain/src/rules/plan-generator.ts`
+> (`build<Sport>Session`, `chooseSport`, `buildSportDraft`) plus the `SportSchema` enum in
+> `schemas/common.ts`. Capacity (`rules/capacity.ts`) only knows running (5K projection).
+> The target below (`packages/domain/src/sports/`) **does not exist yet**: it is the
+> Phase 2 refactor in `docs/FASI.md`. Until then, add a sport by extending those files.
+
+Target recipe (after the refactor):
+
+1. Add the sport module to `packages/domain/src/sports/<sport>.ts`.
+2. Define capacity metrics, key session types, intensity anchors, progression, contraindications.
 3. Add the lane to the weekly board.
 4. Add the export mapping (Garmin/Hevy) if applicable.
 5. Add fixtures and tests.
@@ -338,7 +370,7 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 ### New plan layer
 
 1. Zod schema in `packages/domain`.
-2. Repository (Mongo + SQLite) and migration.
+2. Repository (Mongo; SQLite from Phase 3) and migration.
 3. Context builder: what the LLM sees.
 4. Versioned prompt + JSON schema.
 5. Validator and safety.
@@ -347,7 +379,7 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 
 ### New LLM task
 
-1. New prompt in `packages/ai/prompts/<task>/vN.md`.
+1. New prompt in `packages/ai/src/<task>.ts`: system prompt, user instruction, response example and a `<TASK>_PROMPT_VERSION` constant (e.g. `methodology-v1`). Bump the version on every change.
 2. Output schema + Zod.
 3. Context builder with token budget.
 4. `ai_runs` with model, version, hash, cost.
@@ -356,8 +388,8 @@ schema; errors are `400` with `{ message, issues[] }`. The JSON body accepts up 
 
 ### New web screen
 
-1. Route in `apps/web/src/routes/`.
-2. Query/mutation with TanStack Query.
+1. Today the web app is a single page: section in `apps/web/src/App.tsx`, component in `apps/web/src/components/`. There is no router or `routes/` folder yet.
+2. Query/mutation with TanStack Query; every visible string in `apps/web/src/i18n` (`it.ts` + `en.ts`, covered by `i18n.spec.ts`).
 3. Components in `packages/ui` if reusable.
 4. States: loading, empty, error, offline.
 5. e2e test of the flow.
@@ -399,16 +431,14 @@ Full design, roles and implementation steps: `docs/ARCHITETTURA-LLM.md`.
 Three rules that come from there and are non-negotiable:
 
 1. **The context is not improvised.** The model receives a dossier compiled by code (Garmin data, history, individual response, plan memory), not a chat history.
-2. **The envelope is an output, not an input.** The method, the deload duration and the intensity distribution are proposed by the LLM, challenged by the Critic and verified by the Referee. They are not constants in the code.
+2. **The envelope is an output, not an input.** The method, the deload duration and the intensity distribution are proposed by the LLM, challenged by the Critic and verified by the Referee. They are not constants in the code. *Transitional exception:* until the Critic and Referee exist, the methodology layer validates the LLM against a code-computed envelope (`buildMethodologyEnvelope`). Do not grow that envelope with new training knowledge: move it to the Proposer when Phase C of `docs/ARCHITETTURA-LLM.md` lands.
 3. **The Referee contains only arithmetic.** If it grows beyond consistency checking, it is a design error: that is knowledge, and it belongs in the Proposer.
 
-- One prompt per file, versioned (`v1`, `v2`), with changelog.
+- One prompt per file (`packages/ai/src/<task>.ts`), versioned through its `*_PROMPT_VERSION` constant (`v1`, `v2`); note the reason of each bump in the commit message.
 - System prompt: role, methodology, constraints, style, medical prohibitions.
 - User message: explicit context blocks, not chat history.
 - Output: strict JSON schema + Zod.
 - Temperature: 0.2–0.3 for planning, 0.5–0.7 for narrative.
-File: AGENT.md (part 6)
-
 - Cache by `contextHash`.
 - `ai_runs` for each call: provider, model, promptVersion, contextHash, token, cost, validation.
 - Evals before changing prompt/model.
@@ -465,7 +495,7 @@ Rules:
 - Do not commit `.env`, photos, `.FIT`, backups.
 - Do not add `any` or casts to compile.
 - Do not change a prompt without eval.
-- Do not run `git push`, `reset --hard`, `rebase`, or force-push without confirmation. The repo is local, without a remote.
+- Do not run `git push`, `reset --hard`, `rebase` of shared branches, or force-push without confirmation. Do not commit directly on `main`: use a branch and a PR.
 - Do not start or stop MongoDB/Redis or other system services without confirmation.
 - Do not delete user data without backup and confirmation.
 
@@ -501,6 +531,8 @@ Before implementing, check whether the task depends on one of these:
 | Autonomous agent vs role-based pipeline | **decided: pipeline** | no agent that chooses tools; deterministic data collection |
 | Authority over the envelope | **decided: LLM proposes, Critic attacks, Referee verifies** | no training constants in the Referee |
 | Provider/model for Proposer and Critic | open | two different providers, keys in `.env` |
+| Methodology envelope: code vs LLM | **transitional: code** (`buildMethodologyEnvelope`) | moves to Proposer + Critic in ARCHITETTURA-LLM Phase C |
+| Sport model: one generator vs per-sport modules | open (proposed in FASI Phase 2) | per-sport modules in `packages/domain/src/sports/`, strength first |
 
 If a decision changes, update `PIANO.md` and this file **in the same commit**.
 
@@ -548,8 +580,6 @@ If an API does not work as documented:
 
 - Garmin Personal API: <https://developer.garmin.com/gc-developer-program/personal/>
 - Garmin Personal FAQ: <https://developer.garmin.com/gc-developer-program/personal/personal-faq/>
-File: AGENT.md (part 7)
-
 - Garmin FIT SDK JS: <https://github.com/garmin/fit-javascript-sdk>
 - Unofficial Yazio API: <https://github.com/saganos/yazio_public_api>
 - Zepp health CLI: <https://github.com/m4ary/zepp-health-cli>
